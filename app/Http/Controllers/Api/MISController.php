@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\MISRequest;
+use App\Http\Requests\MISUploadRequest;
+use App\Services\CsvProcessingService;
 use App\Services\MISService;
 use Exception;
 use Illuminate\Http\JsonResponse;
@@ -11,11 +13,56 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class MISController extends Controller
 {
-    private MISService $misService;
+    /**
+     * @param MISService $misService
+     * @param CsvProcessingService $csvService
+     */
+    public function __construct(
+        private MISService $misService,
+        private CsvProcessingService $csvService
+    ) {}
 
-    public function __construct(MISService $misService)
+    /**
+     * Upload CSV files, import data, and generate MIS report.
+     *
+     * Chromepet: bill_file + cashier_file + package_file (3 files)
+     * Oragadam:  bill_file + cashier_file               (2 files)
+     *
+     * @param MISUploadRequest $request
+     * @param string $branch
+     * @return JsonResponse
+     */
+    public function upload(MISUploadRequest $request, string $branch): JsonResponse
     {
-        $this->misService = $misService;
+        try {
+            $branchEnum = $request->branch();
+            $date       = $request->reportDate();
+
+            // 1. Process CSV files → import into DB
+            $imported = $this->csvService->process(
+                $branchEnum,
+                $date,
+                $request->file('bill_file'),
+                $request->file('cashier_file'),
+                $request->file('package_file')
+            );
+
+            // 2. Auto-generate MIS report from the freshly imported data
+            $report = $this->misService->generateMIS($branchEnum, $date, $request->volumeData());
+
+            return response()->json([
+                'success'  => true,
+                'message'  => 'Files processed and MIS report generated successfully.',
+                'imported' => $imported,
+                'data'     => $report,
+            ]);
+
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Upload failed: ' . $e->getMessage(),
+            ], 422);
+        }
     }
 
     /**
@@ -29,15 +76,13 @@ class MISController extends Controller
     public function show(MISRequest $request, string $branch, string $date): JsonResponse
     {
         try {
-            // Merge route params into request for potential manual checks, 
-            // though validation is already handled by FormRequest lifecycle.
             $request->merge(['branch' => $branch, 'date' => $date]);
-            
-            $data = $this->misService->generateMIS($request->branch(), $request->date());
+
+            $data = $this->misService->generateMIS($request->branch(), $request->reportDate());
 
             return response()->json([
                 'success' => true,
-                'data' => $data,
+                'data'    => $data,
             ]);
         } catch (Exception $e) {
             return response()->json([
@@ -60,10 +105,10 @@ class MISController extends Controller
         try {
             $request->merge(['branch' => $branch, 'date' => $date]);
 
-            $data = $this->misService->generateMIS($request->branch(), $request->date());
+            $data = $this->misService->generateMIS($request->branch(), $request->reportDate());
 
             return \Maatwebsite\Excel\Facades\Excel::download(
-                new \App\Exports\MISExport($data), 
+                new \App\Exports\MISExport($data),
                 "MIS_{$branch}_{$date}.xlsx"
             );
 

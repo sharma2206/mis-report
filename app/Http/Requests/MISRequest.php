@@ -56,7 +56,7 @@ class MISRequest extends FormRequest
      *
      * @return string
      */
-    public function date(): string
+    public function reportDate(): string
     {
         return $this->validated('date');
     }

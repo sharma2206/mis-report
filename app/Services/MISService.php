@@ -80,7 +80,7 @@ class MISService
             SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as er_total
         ";
 
-        $baseQuery = BillItem::where('branch', $branch->value)->where('status', 'Active');
+        $baseQuery = BillItem::query()->where('branch', $branch->value)->where('status', 'Active');
 
         $ftd = $this->buildPeriodQuery(clone $baseQuery, $date, 'ftd')->selectRaw($selectRaw)->first();
         $mtd = $this->buildPeriodQuery(clone $baseQuery, $date, 'mtd')->selectRaw($selectRaw)->first();
@@ -117,7 +117,7 @@ class MISService
             SUM(CASE WHEN patient_type = 'ER' THEN paid_amount ELSE 0 END) as er_total
         ";
 
-        $baseQuery = CashierCollection::where('branch', $branch->value);
+        $baseQuery = CashierCollection::query()->where('branch', $branch->value);
 
         $ftd = $this->buildPeriodQuery(clone $baseQuery, $date, 'ftd')->selectRaw($selectRaw)->first();
         $mtd = $this->buildPeriodQuery(clone $baseQuery, $date, 'mtd')->selectRaw($selectRaw)->first();
@@ -152,7 +152,7 @@ class MISService
             SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' AND net_amount != 0 THEN amount ELSE 0 END) as partial_op,
             SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' AND net_amount != 0 THEN amount ELSE 0 END) as partial_ip,
             SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' AND net_amount != 0 THEN amount ELSE 0 END) as partial_er,
-            
+
             SUM(CASE WHEN service_type = 'Pharmacy' AND patient_type IS NULL AND net_amount = 0 THEN amount ELSE 0 END) as full_ph,
             SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' AND net_amount = 0 THEN amount ELSE 0 END) as full_op,
             SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' AND net_amount = 0 THEN amount ELSE 0 END) as full_ip,
@@ -160,7 +160,7 @@ class MISService
         ";
 
         // To only sum rows that actually have a discount, we check if amount > net_amount.
-        $baseQuery = BillItem::where('branch', $branch->value)
+        $baseQuery = BillItem::query()->where('branch', $branch->value)
             ->where('status', 'Active')
             ->whereColumn('amount', '>', 'net_amount');
 
@@ -215,7 +215,7 @@ class MISService
             SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as er_total
         ";
 
-        $baseQuery = BillItem::where('branch', $branch->value)->where('status', 'Refund');
+        $baseQuery = BillItem::query()->where('branch', $branch->value)->where('status', 'Refund');
 
         $ftd = $this->buildPeriodQuery(clone $baseQuery, $date, 'ftd')->selectRaw($selectRaw)->first();
         $mtd = $this->buildPeriodQuery(clone $baseQuery, $date, 'mtd')->selectRaw($selectRaw)->first();
@@ -252,7 +252,7 @@ class MISService
             SUM(CASE WHEN patient_type = 'IP' THEN net_amount ELSE 0 END) as ip_revenue
         ";
 
-        $baseQuery = BillItem::where('branch', $branch->value)
+        $baseQuery = BillItem::query()->where('branch', $branch->value)
             ->where('status', 'Active')
             ->where('sub_department', 'MRI');
 
@@ -295,13 +295,13 @@ class MISService
     {
         if ($branch === Branch::CHROMEPET) {
             $pkgFtd = (float) $this->buildPeriodQuery(
-                PackageConsumption::where('branch', $branch->value),
+                PackageConsumption::query()->where('branch', $branch->value),
                 $date,
                 'ftd'
             )->sum('amount');
 
             $pkgMtd = (float) $this->buildPeriodQuery(
-                PackageConsumption::where('branch', $branch->value),
+                PackageConsumption::query()->where('branch', $branch->value),
                 $date,
                 'mtd'
             )->sum('amount');
@@ -341,7 +341,7 @@ class MISService
     {
         $model = $q->getModel();
         $dateColumn = 'created_at';
-        
+
         if ($model instanceof BillItem) {
             $dateColumn = 'bill_date';
         } elseif ($model instanceof CashierCollection) {
@@ -355,8 +355,8 @@ class MISService
         }
 
         $carbonDate = Carbon::parse($date);
-        
+
         return $q->whereYear($dateColumn, $carbonDate->year)
-                 ->whereMonth($dateColumn, $carbonDate->month);
+            ->whereMonth($dateColumn, $carbonDate->month);
     }
 }

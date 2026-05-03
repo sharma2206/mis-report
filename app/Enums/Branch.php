@@ -30,4 +30,17 @@ enum Branch: string
             self::ORAGADAM => 'Oragadam',
         };
     }
+
+    /**
+     * Get the total bed count for the branch.
+     *
+     * @return int
+     */
+    public function bedCount(): int
+    {
+        return match($this) {
+            self::CHROMEPET => 74,
+            self::ORAGADAM => 14,
+        };
+    }
 }

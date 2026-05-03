@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
 
-class PackageConsumption extends Model
+class CashierCollection extends Model
 {
     use HasFactory;
 
@@ -18,8 +18,10 @@ class PackageConsumption extends Model
      */
     protected $fillable = [
         'branch',
-        'consumption_date',
-        'amount',
+        'collection_date',
+        'patient_type',
+        'user_department',
+        'paid_amount',
     ];
 
     /**
@@ -30,8 +32,8 @@ class PackageConsumption extends Model
     protected function casts(): array
     {
         return [
-            'consumption_date' => 'date',
-            'amount' => 'decimal:2',
+            'collection_date' => 'date',
+            'paid_amount' => 'decimal:2',
         ];
     }
 
@@ -56,7 +58,7 @@ class PackageConsumption extends Model
      */
     public function scopeForDate(Builder $query, string $date): Builder
     {
-        return $query->whereDate('consumption_date', $date);
+        return $query->whereDate('collection_date', $date);
     }
 
     /**
@@ -70,7 +72,7 @@ class PackageConsumption extends Model
     {
         $carbonDate = Carbon::parse($date);
         
-        return $query->whereYear('consumption_date', $carbonDate->year)
-                     ->whereMonth('consumption_date', $carbonDate->month);
+        return $query->whereYear('collection_date', $carbonDate->year)
+                     ->whereMonth('collection_date', $carbonDate->month);
     }
 }

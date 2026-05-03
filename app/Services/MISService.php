@@ -2,211 +2,361 @@
 
 namespace App\Services;
 
-use App\Imports\BillItemImports;
-use App\Imports\CollectionsImport;
-use App\Imports\PackageConsumptionImports;
+use App\Enums\Branch;
 use App\Models\BillItem;
-use App\Models\Collection;
-use App\Models\MisReport;
+use App\Models\CashierCollection;
 use App\Models\PackageConsumption;
-use App\Repositories\Contracts\MisRepositoryInterface;
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Database\Eloquent\Builder;
+use Carbon\Carbon;
 
 class MISService
 {
-    public function __construct(private MisRepositoryInterface $repo) {}
-
     /**
-     * Store uploaded files and create a pending MIS report.
+     * Generate the MIS report.
+     *
+     * @param Branch $branch
+     * @param string $date
+     * @param array $volumeData
+     * @return array
      */
-    public function storeUploads(string $date, UploadedFile $bill, UploadedFile $collection, UploadedFile $package, array $operational = []): MisReport
+    public function generateMIS(Branch $branch, string $date, array $volumeData = []): array
     {
-        $existing = MisReport::where('report_date', $date)->first();
+        $data = [
+            'branch' => $branch->label(),
+            'date' => $date,
+            'sales' => $this->getSalesData($branch, $date),
+            'collection' => $this->getCollectionData($branch, $date),
+            'discount' => $this->getDiscountData($branch, $date),
+            'refund' => $this->getRefundData($branch, $date),
+            'mri' => $this->getMriData($branch, $date),
+            'volume' => $this->buildVolumePayload($volumeData),
+            'generated_at' => now()->toDateTimeString(),
+        ];
 
-        if ($existing && $existing->status === MisReport::STATUS_COMPLETED) {
-            throw new \DomainException("MIS Report for {$date} already processed.");
-        }
+        $this->applyBranchAdjustments($branch, $data, $date);
 
-        return DB::transaction(function () use ($date, $bill, $collection, $package, $existing, $operational) {
-            // Clean any partial data for this date
-            BillItem::where('report_date', $date)->delete();
-            Collection::where('report_date', $date)->delete();
-            PackageConsumption::where('report_date', $date)->delete();
-
-            // Save uploaded files for re-processing/audit
-            $billPath       = $bill->storeAs("mis/{$date}", "bill_{$date}.csv");
-            $collectionPath = $collection->storeAs("mis/{$date}", "collection_{$date}.csv");
-            $packagePath    = $package->storeAs("mis/{$date}", "package_{$date}.csv");
-
-            $report = $existing ?? new MisReport(['report_date' => $date]);
-            $report->status        = MisReport::STATUS_PENDING;
-            $report->error_message = null;
-            if (!empty($operational)) {
-                $report->occupancy = $operational['occupancy'] ?? null;
-                $report->occupancy_percent = $operational['occupancy_percent'] ?? null;
-                $report->admission = $operational['admission'] ?? null;
-                $report->discharge = $operational['discharge'] ?? null;
-            }
-            $report->save();
-
-            // Import data into normalized tables
-            Excel::import(new BillItemImports($date), storage_path("app/private/{$billPath}"));
-            Excel::import(new CollectionsImport($date), storage_path("app/private/{$collectionPath}"));
-            Excel::import(new PackageConsumptionImports($date), storage_path("app/private/{$packagePath}"));
-
-            return $report;
-        });
+        return $data;
     }
 
     /**
-     * Generate the MIS Report from previously imported data.
+     * Build the volume payload from manual inputs.
+     *
+     * @param array $volumeData
+     * @return array
      */
-    public function generate(string $date): MisReport
+    public function buildVolumePayload(array $volumeData): array
     {
-        $report = MisReport::firstOrCreate(['report_date' => $date]);
-
-        try {
-            $report->update(['status' => MisReport::STATUS_PROCESSING]);
-
-            // 1. SALES
-            $sales         = $this->repo->salesByPatientType($date);
-            $pharmacySales = $this->repo->pharmacySales($date);
-            $pharmacyPkg   = $this->repo->pharmacyPackageValue($date);
-            $finalPharmacy = $pharmacySales + $pharmacyPkg;
-
-            $salesTotal = $sales['op'] + $sales['ip'] + $sales['er'];
-
-            // 2. COLLECTION
-            $collection      = $this->repo->collectionByPatientType($date);
-            $collectionTotal = $collection['op'] + $collection['ip'] + $collection['er'];
-
-            // 3. DISCOUNT
-            $discount100 = $this->repo->discount100($date);
-            $discount99  = $this->repo->discount99($date);
-
-            // 4. REFUND
-            $refund = $this->repo->refundTotal($date);
-
-            // 5. MRI
-            $mri = $this->repo->mriMetrics($date);
-
-            // 6. OP Count
-            $totalOp = $this->repo->totalOpCount($date);
-
-            // 7. Operational metrics (manual inputs preferred over fallback)
-            $operational = [
-                'occupancy'         => $report->occupancy ?? 0,
-                'occupancy_percent' => $report->occupancy_percent ?? 0.0,
-                'admission'         => $report->admission ?? 0,
-                'discharge'         => $report->discharge ?? 0,
-            ];
-            
-            // If completely empty, try fallback
-            if (empty(array_filter($operational))) {
-                $operational = $this->computeOperationalMetrics($date);
-            }
-
-            $payload = [
-                'sales' => [
-                    'op'    => round($sales['op'], 2),
-                    'ip'    => round($sales['ip'], 2),
-                    'er'    => round($sales['er'], 2),
-                    'ph'    => round($finalPharmacy, 2),
-                    'total' => round($salesTotal, 2),
-                ],
-                'collection' => [
-                    'op'    => round($collection['op'], 2),
-                    'ip'    => round($collection['ip'], 2),
-                    'er'    => round($collection['er'], 2),
-                    'total' => round($collectionTotal, 2),
-                ],
-                'discount' => [
-                    'd99'  => round($discount99, 2),
-                    'd100' => round($discount100, 2),
-                ],
-                'refund' => round($refund, 2),
-                'mri'    => $mri,
-                'total_op'    => $totalOp,
-                'operational' => $operational,
-            ];
-
-            $report->update([
-                'status'           => MisReport::STATUS_COMPLETED,
-                'sales_op'         => $sales['op'],
-                'sales_ip'         => $sales['ip'],
-                'sales_er'         => $sales['er'],
-                'sales_pharmacy'   => $finalPharmacy,
-                'sales_total'      => $salesTotal,
-                'collection_op'    => $collection['op'],
-                'collection_ip'    => $collection['ip'],
-                'collection_er'    => $collection['er'],
-                'collection_total' => $collectionTotal,
-                'discount_99'      => $discount99,
-                'discount_100'     => $discount100,
-                'refund'           => $refund,
-                'mri_op_count'     => $mri['op_count'],
-                'mri_ip_count'     => $mri['ip_count'],
-                'mri_op_revenue'   => $mri['op_revenue'],
-                'mri_ip_revenue'   => $mri['ip_revenue'],
-                'total_op'         => $totalOp,
-                'occupancy'        => $operational['occupancy'],
-                'occupancy_percent'=> $operational['occupancy_percent'],
-                'admission'        => $operational['admission'],
-                'discharge'        => $operational['discharge'],
-                'payload'          => $payload,
-                'processed_at'     => now(),
-            ]);
-
-            Log::info("MIS Report generated successfully for {$date}");
-            return $report->fresh();
-        } catch (\Throwable $e) {
-            Log::error("MIS Report generation failed for {$date}: " . $e->getMessage(), [
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            $report->update([
-                'status'        => MisReport::STATUS_FAILED,
-                'error_message' => $e->getMessage(),
-            ]);
-
-            throw $e;
-        }
-    }
-
-    /**
-     * Operational metrics. In production, integrate with HIS API.
-     */
-    private function computeOperationalMetrics(string $date): array
-    {
-        $bedCapacity = (int) config('mis.bed_capacity', 200);
-
-        // Distinct IP patients with billable items considered as occupied
-        $occupancy = BillItem::forDate($date)
-            ->where('patient_type', 'IP')
-            ->distinct('patient_id')
-            ->count('patient_id');
-
-        $occupancyPercent = $bedCapacity > 0
-            ? round(($occupancy / $bedCapacity) * 100, 2)
-            : 0.0;
-
-        // Heuristic placeholders. Replace with actual HIS data.
-        $admission = $occupancy;
-        $discharge = (int) round($occupancy * 0.4);
-
         return [
-            'occupancy'         => $occupancy,
-            'occupancy_percent' => $occupancyPercent,
-            'admission'         => $admission,
-            'discharge'         => $discharge,
+            'ftd' => [
+                'occupancy' => $volumeData['ftd']['occupancy'] ?? 0,
+                'occupancy_pct' => $volumeData['ftd']['occupancy_pct'] ?? 0,
+                'admission' => $volumeData['ftd']['admission'] ?? 0,
+                'discharge' => $volumeData['ftd']['discharge'] ?? 0,
+                'total_op' => $volumeData['ftd']['total_op'] ?? 0,
+            ],
+            'mtd' => [
+                'occupancy' => $volumeData['mtd']['occupancy'] ?? 0,
+                'occupancy_pct' => $volumeData['mtd']['occupancy_pct'] ?? 0,
+                'admission' => $volumeData['mtd']['admission'] ?? 0,
+                'discharge' => $volumeData['mtd']['discharge'] ?? 0,
+                'total_op' => $volumeData['mtd']['total_op'] ?? 0,
+            ],
         ];
     }
 
-    public function getReport(string $date): ?MisReport
+    /**
+     * Get Sales data using a single DB round-trip per period.
+     *
+     * @param Branch $branch
+     * @param string $date
+     * @return array
+     */
+    private function getSalesData(Branch $branch, string $date): array
     {
-        return MisReport::where('report_date', $date)->first();
+        $selectRaw = "
+            SUM(CASE WHEN service_type = 'Pharmacy' AND patient_type IS NULL THEN net_amount ELSE 0 END) as ph_total,
+            SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as op_total,
+            SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as ip_total,
+            SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as er_total
+        ";
+
+        $baseQuery = BillItem::where('branch', $branch->value)->where('status', 'Active');
+
+        $ftd = $this->buildPeriodQuery(clone $baseQuery, $date, 'ftd')->selectRaw($selectRaw)->first();
+        $mtd = $this->buildPeriodQuery(clone $baseQuery, $date, 'mtd')->selectRaw($selectRaw)->first();
+
+        return [
+            'ftd' => [
+                'ph' => round($ftd->ph_total ?? 0, 2),
+                'op' => round($ftd->op_total ?? 0, 2),
+                'ip' => round($ftd->ip_total ?? 0, 2),
+                'er' => round($ftd->er_total ?? 0, 2),
+            ],
+            'mtd' => [
+                'ph' => round($mtd->ph_total ?? 0, 2),
+                'op' => round($mtd->op_total ?? 0, 2),
+                'ip' => round($mtd->ip_total ?? 0, 2),
+                'er' => round($mtd->er_total ?? 0, 2),
+            ],
+        ];
+    }
+
+    /**
+     * Get Collection data.
+     *
+     * @param Branch $branch
+     * @param string $date
+     * @return array
+     */
+    private function getCollectionData(Branch $branch, string $date): array
+    {
+        $selectRaw = "
+            SUM(CASE WHEN patient_type IS NULL THEN paid_amount ELSE 0 END) as ph_total,
+            SUM(CASE WHEN patient_type = 'OP' THEN paid_amount ELSE 0 END) as op_total,
+            SUM(CASE WHEN patient_type = 'IP' THEN paid_amount ELSE 0 END) as ip_total,
+            SUM(CASE WHEN patient_type = 'ER' THEN paid_amount ELSE 0 END) as er_total
+        ";
+
+        $baseQuery = CashierCollection::where('branch', $branch->value);
+
+        $ftd = $this->buildPeriodQuery(clone $baseQuery, $date, 'ftd')->selectRaw($selectRaw)->first();
+        $mtd = $this->buildPeriodQuery(clone $baseQuery, $date, 'mtd')->selectRaw($selectRaw)->first();
+
+        return [
+            'ftd' => [
+                'ph' => round($ftd->ph_total ?? 0, 2),
+                'op' => round($ftd->op_total ?? 0, 2),
+                'ip' => round($ftd->ip_total ?? 0, 2),
+                'er' => round($ftd->er_total ?? 0, 2),
+            ],
+            'mtd' => [
+                'ph' => round($mtd->ph_total ?? 0, 2),
+                'op' => round($mtd->op_total ?? 0, 2),
+                'ip' => round($mtd->ip_total ?? 0, 2),
+                'er' => round($mtd->er_total ?? 0, 2),
+            ],
+        ];
+    }
+
+    /**
+     * Get Discount data.
+     *
+     * @param Branch $branch
+     * @param string $date
+     * @return array
+     */
+    private function getDiscountData(Branch $branch, string $date): array
+    {
+        $selectRaw = "
+            SUM(CASE WHEN service_type = 'Pharmacy' AND patient_type IS NULL AND net_amount != 0 THEN amount ELSE 0 END) as partial_ph,
+            SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' AND net_amount != 0 THEN amount ELSE 0 END) as partial_op,
+            SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' AND net_amount != 0 THEN amount ELSE 0 END) as partial_ip,
+            SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' AND net_amount != 0 THEN amount ELSE 0 END) as partial_er,
+            
+            SUM(CASE WHEN service_type = 'Pharmacy' AND patient_type IS NULL AND net_amount = 0 THEN amount ELSE 0 END) as full_ph,
+            SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' AND net_amount = 0 THEN amount ELSE 0 END) as full_op,
+            SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' AND net_amount = 0 THEN amount ELSE 0 END) as full_ip,
+            SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' AND net_amount = 0 THEN amount ELSE 0 END) as full_er
+        ";
+
+        // To only sum rows that actually have a discount, we check if amount > net_amount.
+        $baseQuery = BillItem::where('branch', $branch->value)
+            ->where('status', 'Active')
+            ->whereColumn('amount', '>', 'net_amount');
+
+        $ftd = $this->buildPeriodQuery(clone $baseQuery, $date, 'ftd')->selectRaw($selectRaw)->first();
+        $mtd = $this->buildPeriodQuery(clone $baseQuery, $date, 'mtd')->selectRaw($selectRaw)->first();
+
+        return [
+            'ftd' => [
+                'partial' => [
+                    'ph' => round($ftd->partial_ph ?? 0, 2),
+                    'op' => round($ftd->partial_op ?? 0, 2),
+                    'ip' => round($ftd->partial_ip ?? 0, 2),
+                    'er' => round($ftd->partial_er ?? 0, 2),
+                ],
+                'full' => [
+                    'ph' => round($ftd->full_ph ?? 0, 2),
+                    'op' => round($ftd->full_op ?? 0, 2),
+                    'ip' => round($ftd->full_ip ?? 0, 2),
+                    'er' => round($ftd->full_er ?? 0, 2),
+                ],
+            ],
+            'mtd' => [
+                'partial' => [
+                    'ph' => round($mtd->partial_ph ?? 0, 2),
+                    'op' => round($mtd->partial_op ?? 0, 2),
+                    'ip' => round($mtd->partial_ip ?? 0, 2),
+                    'er' => round($mtd->partial_er ?? 0, 2),
+                ],
+                'full' => [
+                    'ph' => round($mtd->full_ph ?? 0, 2),
+                    'op' => round($mtd->full_op ?? 0, 2),
+                    'ip' => round($mtd->full_ip ?? 0, 2),
+                    'er' => round($mtd->full_er ?? 0, 2),
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Get Refund data.
+     *
+     * @param Branch $branch
+     * @param string $date
+     * @return array
+     */
+    private function getRefundData(Branch $branch, string $date): array
+    {
+        $selectRaw = "
+            SUM(CASE WHEN service_type = 'Pharmacy' AND patient_type IS NULL THEN net_amount ELSE 0 END) as ph_total,
+            SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as op_total,
+            SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as ip_total,
+            SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as er_total
+        ";
+
+        $baseQuery = BillItem::where('branch', $branch->value)->where('status', 'Refund');
+
+        $ftd = $this->buildPeriodQuery(clone $baseQuery, $date, 'ftd')->selectRaw($selectRaw)->first();
+        $mtd = $this->buildPeriodQuery(clone $baseQuery, $date, 'mtd')->selectRaw($selectRaw)->first();
+
+        return [
+            'ftd' => [
+                'ph' => round($ftd->ph_total ?? 0, 2),
+                'op' => round($ftd->op_total ?? 0, 2),
+                'ip' => round($ftd->ip_total ?? 0, 2),
+                'er' => round($ftd->er_total ?? 0, 2),
+            ],
+            'mtd' => [
+                'ph' => round($mtd->ph_total ?? 0, 2),
+                'op' => round($mtd->op_total ?? 0, 2),
+                'ip' => round($mtd->ip_total ?? 0, 2),
+                'er' => round($mtd->er_total ?? 0, 2),
+            ],
+        ];
+    }
+
+    /**
+     * Get MRI data.
+     *
+     * @param Branch $branch
+     * @param string $date
+     * @return array
+     */
+    private function getMriData(Branch $branch, string $date): array
+    {
+        $selectRaw = "
+            SUM(CASE WHEN patient_type = 'OP' THEN quantity ELSE 0 END) as op_count,
+            SUM(CASE WHEN patient_type = 'OP' THEN net_amount ELSE 0 END) as op_revenue,
+            SUM(CASE WHEN patient_type = 'IP' THEN quantity ELSE 0 END) as ip_count,
+            SUM(CASE WHEN patient_type = 'IP' THEN net_amount ELSE 0 END) as ip_revenue
+        ";
+
+        $baseQuery = BillItem::where('branch', $branch->value)
+            ->where('status', 'Active')
+            ->where('sub_department', 'MRI');
+
+        $ftd = $this->buildPeriodQuery(clone $baseQuery, $date, 'ftd')->selectRaw($selectRaw)->first();
+        $mtd = $this->buildPeriodQuery(clone $baseQuery, $date, 'mtd')->selectRaw($selectRaw)->first();
+
+        return [
+            'ftd' => [
+                'op' => [
+                    'count' => (int) ($ftd->op_count ?? 0),
+                    'revenue' => round($ftd->op_revenue ?? 0, 2),
+                ],
+                'ip' => [
+                    'count' => (int) ($ftd->ip_count ?? 0),
+                    'revenue' => round($ftd->ip_revenue ?? 0, 2),
+                ],
+            ],
+            'mtd' => [
+                'op' => [
+                    'count' => (int) ($mtd->op_count ?? 0),
+                    'revenue' => round($mtd->op_revenue ?? 0, 2),
+                ],
+                'ip' => [
+                    'count' => (int) ($mtd->ip_count ?? 0),
+                    'revenue' => round($mtd->ip_revenue ?? 0, 2),
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Apply branch specific adjustments for packages.
+     *
+     * @param Branch $branch
+     * @param array &$data
+     * @param string $date
+     * @return void
+     */
+    private function applyBranchAdjustments(Branch $branch, array &$data, string $date): void
+    {
+        if ($branch === Branch::CHROMEPET) {
+            $pkgFtd = (float) $this->buildPeriodQuery(
+                PackageConsumption::where('branch', $branch->value),
+                $date,
+                'ftd'
+            )->sum('amount');
+
+            $pkgMtd = (float) $this->buildPeriodQuery(
+                PackageConsumption::where('branch', $branch->value),
+                $date,
+                'mtd'
+            )->sum('amount');
+
+            $data['sales']['ftd']['ph'] += $pkgFtd;
+            $data['sales']['ftd']['op'] -= $pkgFtd;
+            $data['sales']['mtd']['ph'] += $pkgMtd;
+            $data['sales']['mtd']['op'] -= $pkgMtd;
+
+            // Ensure values remain correctly rounded after calculation
+            $data['sales']['ftd']['ph'] = round($data['sales']['ftd']['ph'], 2);
+            $data['sales']['ftd']['op'] = round($data['sales']['ftd']['op'], 2);
+            $data['sales']['mtd']['ph'] = round($data['sales']['mtd']['ph'], 2);
+            $data['sales']['mtd']['op'] = round($data['sales']['mtd']['op'], 2);
+
+            $data['sales']['pkg_adjustment'] = [
+                'ftd' => round($pkgFtd, 2),
+                'mtd' => round($pkgMtd, 2),
+            ];
+        } else {
+            $data['sales']['pkg_adjustment'] = [
+                'ftd' => 0.00,
+                'mtd' => 0.00,
+            ];
+        }
+    }
+
+    /**
+     * Helper to add date or month/year constraints to query.
+     *
+     * @param Builder $q
+     * @param string $date
+     * @param string $period
+     * @return Builder
+     */
+    private function buildPeriodQuery(Builder $q, string $date, string $period): Builder
+    {
+        $model = $q->getModel();
+        $dateColumn = 'created_at';
+        
+        if ($model instanceof BillItem) {
+            $dateColumn = 'bill_date';
+        } elseif ($model instanceof CashierCollection) {
+            $dateColumn = 'collection_date';
+        } elseif ($model instanceof PackageConsumption) {
+            $dateColumn = 'consumption_date';
+        }
+
+        if ($period === 'ftd') {
+            return $q->whereDate($dateColumn, $date);
+        }
+
+        $carbonDate = Carbon::parse($date);
+        
+        return $q->whereYear($dateColumn, $carbonDate->year)
+                 ->whereMonth($dateColumn, $carbonDate->month);
     }
 }

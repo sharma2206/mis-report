@@ -1,11 +1,12 @@
 <?php
 
-use App\Http\Controllers\MisReportController;
+use App\Http\Controllers\Api\MISController;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('mis')->group(function () {
-    Route::post('upload', [MisReportController::class, 'upload']);
-    Route::get('{date}', [MisReportController::class, 'show']);
-    Route::post('{date}/generate', [MisReportController::class, 'generate']);
-    Route::get('{date}/export', [MisReportController::class, 'export']);
-});
+Route::get('/mis/{branch}/{date}', [MISController::class, 'show'])
+    ->where('branch', 'chromepet|oragadam')
+    ->where('date', '\d{4}-\d{2}-\d{2}');
+
+Route::get('/mis/{branch}/{date}/export', [MISController::class, 'export'])
+    ->where('branch', 'chromepet|oragadam')
+    ->where('date', '\d{4}-\d{2}-\d{2}');

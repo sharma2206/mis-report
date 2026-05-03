@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exports\MisReportExport;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\BranchMISRequest;
 use App\Http\Requests\MISUploadRequest;
 use App\Jobs\ProcessMisReportJob;
 use App\Services\MISService;
@@ -80,6 +81,27 @@ class MisReportController extends Controller
                 'processed_at' => $report->processed_at,
                 'mis'          => $report->payload,
             ],
+        ]);
+    }
+
+
+    public function chromepet(BranchMISRequest $request): JsonResponse
+    {
+        $data = $this->misService->generateMIS('Chromepet', $request->validated('date'));
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ]);
+    }
+
+    public function oragadam(BranchMISRequest $request): JsonResponse
+    {
+        $data = $this->misService->generateMIS('Oragadam', $request->validated('date'));
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
         ]);
     }
 

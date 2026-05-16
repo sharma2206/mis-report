@@ -24,7 +24,6 @@ class MisReport extends Model
         'admission',
         'discharge',
         'total_op',
-        'report_data',
     ];
 
     /**

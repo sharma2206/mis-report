@@ -22,6 +22,22 @@ class MISService
      */
     public function generateMIS(Branch $branch, string $date, array $volumeData = []): array
     {
+        // If no volume data provided (e.g. GET request), try to load existing from DB
+        if (empty($volumeData)) {
+            $existing = MisReport::where('branch', $branch->value)->where('report_date', $date)->first();
+            if ($existing) {
+                $volumeData = [
+                    'ftd' => [
+                        'occupancy' => $existing->occupancy,
+                        'occupancy_pct' => (float) $existing->occupancy_pct,
+                        'admission' => $existing->admission,
+                        'discharge' => $existing->discharge,
+                        'total_op' => $existing->total_op,
+                    ]
+                ];
+            }
+        }
+
         $data = [
             'branch' => $branch->label(),
             'branch_key' => $branch->value,
@@ -83,12 +99,20 @@ class MISService
      */
     public function buildVolumePayload(Branch $branch, string $date, array $volumeData): array
     {
+        // Calculate Total OP automatically from BillItem table
+        $baseOpQuery = BillItem::query()
+            ->where('branch', $branch->value)
+            ->where('status', 'Sale')
+            ->where('service_type', 'OP Consultation');
+
+        $ftdOpCount = (int) $this->buildPeriodQuery(clone $baseOpQuery, $date, 'ftd')->sum('quantity');
+
         $ftd = [
             'occupancy' => $volumeData['ftd']['occupancy'] ?? 0,
             'occupancy_pct' => $volumeData['ftd']['occupancy_pct'] ?? 0,
             'admission' => $volumeData['ftd']['admission'] ?? 0,
             'discharge' => $volumeData['ftd']['discharge'] ?? 0,
-            'total_op' => $volumeData['ftd']['total_op'] ?? 0,
+            'total_op' => $ftdOpCount,
         ];
 
         // Calculate MTD by accumulating from stored reports
@@ -166,7 +190,6 @@ class MISService
                 'admission' => $volumeData['ftd']['admission'] ?? 0,
                 'discharge' => $volumeData['ftd']['discharge'] ?? 0,
                 'total_op' => $volumeData['ftd']['total_op'] ?? 0,
-                'report_data' => $data,
             ]
         );
     }

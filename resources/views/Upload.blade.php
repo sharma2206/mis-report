@@ -150,12 +150,6 @@
                     <input type="number" name="discharge" min="0" placeholder="0">
                 </div>
             </div>
-            <div class="form-row single">
-                <div class="form-group">
-                    <label>Total OP</label>
-                    <input type="number" name="total_op" min="0" placeholder="0">
-                </div>
-            </div>
         </div>
 
         <div class="submit-row">

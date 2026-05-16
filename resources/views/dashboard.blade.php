@@ -267,8 +267,8 @@ function renderReport(d){
         {label:'Total OP',ftd:v.ftd?.total_op||0,mtd:v.mtd?.total_op||0},
         {label:'MRI OP (Count)',ftd:m.ftd?.op?.count||0,mtd:m.mtd?.op?.count||0},
         {label:'MRI IP (Count)',ftd:m.ftd?.ip?.count||0,mtd:m.mtd?.ip?.count||0},
-        {label:'MRI OP Revenue',ftd:'₹'+lk(m.ftd?.op?.revenue)+'L',mtd:'₹'+lk(m.mtd?.op?.revenue)+'L'},
-        {label:'MRI IP Revenue',ftd:'₹'+lk(m.ftd?.ip?.revenue)+'L',mtd:'₹'+lk(m.mtd?.ip?.revenue)+'L'},
+        {label:'MRI OP Revenue',ftd:'₹'+m.ftd?.op?.revenue,mtd:'₹'+m.mtd?.op?.revenue},
+        {label:'MRI IP Revenue',ftd:'₹'+m.ftd?.ip?.revenue,mtd:'₹'+m.mtd?.ip?.revenue},
     ];
     vols.forEach(vi=>{
         html+=`<div class="vol-card"><div class="vol-label">${vi.label}</div><div class="vol-values"><div class="vol-item"><div class="vol-period">FTD</div><div class="vol-num ftd">${vi.ftd}</div></div><div class="vol-item"><div class="vol-period">MTD</div><div class="vol-num mtd">${vi.mtd}</div></div></div></div>`;

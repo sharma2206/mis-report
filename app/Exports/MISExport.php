@@ -41,12 +41,12 @@ class MISExport implements FromArray, WithHeadings, WithStyles, WithColumnWidths
 
     public function array(): array
     {
-        $sales = $this->data['sales'] ?? [];
-        $col = $this->data['collection'] ?? [];
-        $disc = $this->data['discount'] ?? [];
-        $ref = $this->data['refund'] ?? [];
-        $vol = $this->data['volume'] ?? [];
-        $mri = $this->data['mri'] ?? [];
+        $sales  = $this->data['sales'] ?? [];
+        $col    = $this->data['collection'] ?? [];
+        $disc   = $this->data['discount'] ?? [];
+        $ref    = $this->data['refund'] ?? [];
+        $vol    = $this->data['volume'] ?? [];
+        $mri    = $this->data['mri'] ?? [];
 
         return [
             [

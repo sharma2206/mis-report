@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\Branch;
 use App\Models\BillItem;
 use App\Models\CashierCollection;
+use App\Models\MisReport;
 use App\Models\PackageConsumption;
 use Illuminate\Database\Eloquent\Builder;
 use Carbon\Carbon;
@@ -23,44 +24,174 @@ class MISService
     {
         $data = [
             'branch' => $branch->label(),
+            'branch_key' => $branch->value,
             'date' => $date,
             'sales' => $this->getSalesData($branch, $date),
             'collection' => $this->getCollectionData($branch, $date),
             'discount' => $this->getDiscountData($branch, $date),
             'refund' => $this->getRefundData($branch, $date),
             'mri' => $this->getMriData($branch, $date),
-            'volume' => $this->buildVolumePayload($volumeData),
+            'volume' => $this->buildVolumePayload($branch, $date, $volumeData),
             'generated_at' => now()->toDateTimeString(),
         ];
 
         $this->applyBranchAdjustments($branch, $data, $date);
 
+        // Calculate totals for convenience
+        $data['totals'] = $this->calculateTotals($data);
+
+        // Persist the report snapshot
+        $this->persistReport($branch, $date, $data, $volumeData);
+
         return $data;
     }
 
     /**
-     * Build the volume payload from manual inputs.
+     * Get a summary for both branches on a given date (dashboard).
      *
+     * @param string $date
+     * @return array
+     */
+    public function getDashboardSummary(string $date): array
+    {
+        $summary = [];
+
+        foreach (Branch::cases() as $branch) {
+            $report = MisReport::where('branch', $branch->value)
+                ->whereDate('report_date', $date)
+                ->first();
+
+            $summary[$branch->value] = [
+                'branch' => $branch->label(),
+                'branch_key' => $branch->value,
+                'bed_count' => $branch->bedCount(),
+                'has_data' => $report !== null,
+                'report' => $report ? $report->report_data : null,
+            ];
+        }
+
+        return $summary;
+    }
+
+    /**
+     * Build the volume payload from manual inputs + accumulated MTD.
+     *
+     * @param Branch $branch
+     * @param string $date
      * @param array $volumeData
      * @return array
      */
-    public function buildVolumePayload(array $volumeData): array
+    public function buildVolumePayload(Branch $branch, string $date, array $volumeData): array
     {
+        $ftd = [
+            'occupancy' => $volumeData['ftd']['occupancy'] ?? 0,
+            'occupancy_pct' => $volumeData['ftd']['occupancy_pct'] ?? 0,
+            'admission' => $volumeData['ftd']['admission'] ?? 0,
+            'discharge' => $volumeData['ftd']['discharge'] ?? 0,
+            'total_op' => $volumeData['ftd']['total_op'] ?? 0,
+        ];
+
+        // Calculate MTD by accumulating from stored reports
+        $mtd = $this->accumulateMtdVolume($branch, $date, $ftd);
+
         return [
-            'ftd' => [
+            'ftd' => $ftd,
+            'mtd' => $mtd,
+        ];
+    }
+
+    /**
+     * Accumulate MTD volume from stored daily reports.
+     *
+     * @param Branch $branch
+     * @param string $date
+     * @param array $todayFtd
+     * @return array
+     */
+    private function accumulateMtdVolume(Branch $branch, string $date, array $todayFtd): array
+    {
+        $carbonDate = Carbon::parse($date);
+        $monthStart = $carbonDate->copy()->startOfMonth()->toDateString();
+
+        // Get all stored reports for this branch in the month BEFORE the current date
+        $previousReports = MisReport::where('branch', $branch->value)
+            ->whereDate('report_date', '>=', $monthStart)
+            ->whereDate('report_date', '<', $date)
+            ->get();
+
+        $mtdOccupancy = $todayFtd['occupancy'];
+        $mtdAdmission = $todayFtd['admission'];
+        $mtdDischarge = $todayFtd['discharge'];
+        $mtdTotalOp = $todayFtd['total_op'];
+        $occupancyPctSum = $todayFtd['occupancy_pct'];
+        $dayCount = 1;
+
+        foreach ($previousReports as $report) {
+            $mtdOccupancy += $report->occupancy;
+            $mtdAdmission += $report->admission;
+            $mtdDischarge += $report->discharge;
+            $mtdTotalOp += $report->total_op;
+            $occupancyPctSum += (float) $report->occupancy_pct;
+            $dayCount++;
+        }
+
+        return [
+            'occupancy' => $mtdOccupancy,
+            'occupancy_pct' => $dayCount > 0 ? round($occupancyPctSum / $dayCount, 2) : 0,
+            'admission' => $mtdAdmission,
+            'discharge' => $mtdDischarge,
+            'total_op' => $mtdTotalOp,
+        ];
+    }
+
+    /**
+     * Persist the report snapshot to the database.
+     *
+     * @param Branch $branch
+     * @param string $date
+     * @param array $data
+     * @param array $volumeData
+     * @return void
+     */
+    private function persistReport(Branch $branch, string $date, array $data, array $volumeData): void
+    {
+        MisReport::updateOrCreate(
+            [
+                'branch' => $branch->value,
+                'report_date' => $date,
+            ],
+            [
                 'occupancy' => $volumeData['ftd']['occupancy'] ?? 0,
                 'occupancy_pct' => $volumeData['ftd']['occupancy_pct'] ?? 0,
                 'admission' => $volumeData['ftd']['admission'] ?? 0,
                 'discharge' => $volumeData['ftd']['discharge'] ?? 0,
                 'total_op' => $volumeData['ftd']['total_op'] ?? 0,
-            ],
-            'mtd' => [
-                'occupancy' => $volumeData['mtd']['occupancy'] ?? 0,
-                'occupancy_pct' => $volumeData['mtd']['occupancy_pct'] ?? 0,
-                'admission' => $volumeData['mtd']['admission'] ?? 0,
-                'discharge' => $volumeData['mtd']['discharge'] ?? 0,
-                'total_op' => $volumeData['mtd']['total_op'] ?? 0,
-            ],
+                'report_data' => $data,
+            ]
+        );
+    }
+
+    /**
+     * Calculate grand totals for FTD and MTD.
+     *
+     * @param array $data
+     * @return array
+     */
+    private function calculateTotals(array $data): array
+    {
+        $sales = $data['sales'] ?? [];
+        $col = $data['collection'] ?? [];
+
+        $salesFtdTotal = array_sum($sales['ftd'] ?? []);
+        $salesMtdTotal = array_sum($sales['mtd'] ?? []);
+        $colFtdTotal = array_sum($col['ftd'] ?? []);
+        $colMtdTotal = array_sum($col['mtd'] ?? []);
+
+        return [
+            'sales_ftd' => round($salesFtdTotal, 2),
+            'sales_mtd' => round($salesMtdTotal, 2),
+            'collection_ftd' => round($colFtdTotal, 2),
+            'collection_mtd' => round($colMtdTotal, 2),
         ];
     }
 
@@ -355,8 +486,9 @@ class MISService
         }
 
         $carbonDate = Carbon::parse($date);
+        $monthStart = $carbonDate->copy()->startOfMonth()->toDateString();
 
-        return $q->whereYear($dateColumn, $carbonDate->year)
-            ->whereMonth($dateColumn, $carbonDate->month);
+        return $q->whereDate($dateColumn, '>=', $monthStart)
+            ->whereDate($dateColumn, '<=', $date);
     }
 }

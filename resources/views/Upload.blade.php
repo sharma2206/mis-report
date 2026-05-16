@@ -65,9 +65,15 @@
     </style>
 </head>
 <body>
-<div class="header">
-    <h1>🏥 Hospital MIS Reporting</h1>
-    <span class="badge">v1.0</span>
+<div class="header" style="justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:.75rem;">
+        <h1>🏥 Hospital MIS Reporting</h1>
+        <span class="badge">v1.0</span>
+    </div>
+    <div style="display:flex;gap:.5rem;">
+        <a href="/dashboard" style="padding:.4rem .8rem;border-radius:8px;font-size:.8rem;font-weight:500;color:var(--muted);text-decoration:none;border:1px solid var(--border);transition:all .2s;" onmouseover="this.style.borderColor='var(--primary)';this.style.color='var(--text)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">📊 Dashboard</a>
+        <a href="/" style="padding:.4rem .8rem;border-radius:8px;font-size:.8rem;font-weight:500;color:var(--text);text-decoration:none;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);">📁 Upload</a>
+    </div>
 </div>
 <div class="container">
     <div id="alertSuccess" class="alert alert-success"><span class="msg"></span><span class="close-btn" onclick="this.parentElement.classList.remove('show')">&times;</span></div>

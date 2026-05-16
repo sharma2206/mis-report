@@ -16,3 +16,12 @@ Route::get('/mis/{branch}/{date}', [MISController::class, 'show'])
 Route::get('/mis/{branch}/{date}/export', [MISController::class, 'export'])
     ->where('branch', 'chromepet|oragadam')
     ->where('date', '\d{4}-\d{2}-\d{2}');
+
+// Export MIS report (PDF download)
+Route::get('/mis/{branch}/{date}/export-pdf', [MISController::class, 'exportPdf'])
+    ->where('branch', 'chromepet|oragadam')
+    ->where('date', '\d{4}-\d{2}-\d{2}');
+
+// Dashboard summary for all branches
+Route::get('/mis/dashboard/{date}', [MISController::class, 'dashboard'])
+    ->where('date', '\d{4}-\d{2}-\d{2}');

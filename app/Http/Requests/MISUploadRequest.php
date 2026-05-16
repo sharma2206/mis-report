@@ -22,17 +22,18 @@ class MISUploadRequest extends FormRequest
     {
         $this->merge([
             'branch' => $this->route('branch') ?? $this->input('branch'),
+            'date'   => $this->route('date') ?? $this->input('date'),
         ]);
 
         // Auto-calculate occupancy_pct from occupancy if not provided
         if ($this->filled('occupancy') && $this->filled('branch')) {
             try {
-                $branch = Branch::from($this->input('branch'));
-                $occupancy = (int) $this->input('occupancy');
-                $pct = $branch->bedCount() > 0
+                $branch     = Branch::from($this->input('branch'));
+                $occupancy  = (int) $this->input('occupancy');
+                $percent    = $branch->bedCount() > 0
                     ? round(($occupancy / $branch->bedCount()) * 100, 2)
                     : 0;
-                $this->merge(['occupancy_pct' => $pct]);
+                $this->merge(['occupancy_pct' => $percent]);
             } catch (\ValueError $e) {
                 // Invalid branch, let validation handle it
             }
@@ -54,11 +55,9 @@ class MISUploadRequest extends FormRequest
         return [
             'branch'       => "required|string|in:{$branches}",
             'date'         => 'required|date_format:Y-m-d|before_or_equal:today',
-            'bill_file'    => 'required|file|mimes:csv,txt,xlsx,xls|max:20480',
-            'cashier_file' => 'required|file|mimes:csv,txt,xlsx,xls|max:20480',
-            'package_file' => 'required_if:branch,chromepet|nullable|file|mimes:csv,txt,xlsx,xls|max:20480',
-
-            // Volume indicators (manual inputs)
+            'bill_file'    => 'required|file|mimes:csv|max:20480',
+            'cashier_file' => 'required|file|mimes:csv|max:20480',
+            'package_file' => 'required_if:branch,chromepet|nullable|file|mimes:csv|max:20480',
             'occupancy'    => 'nullable|integer|min:0',
             'occupancy_pct'=> 'nullable|numeric|min:0|max:100',
             'admission'    => 'nullable|integer|min:0',

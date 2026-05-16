@@ -205,13 +205,14 @@ class MISService
     private function getSalesData(Branch $branch, string $date): array
     {
         $selectRaw = "
-            SUM(CASE WHEN service_type = 'Pharmacy' AND patient_type IS NULL THEN net_amount ELSE 0 END) as ph_total,
+            SUM(CASE WHEN service_type = 'Pharmacy' THEN net_amount ELSE 0 END) as ph_total,
             SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as op_total,
             SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as ip_total,
             SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as er_total
         ";
 
-        $baseQuery = BillItem::query()->where('branch', $branch->value)->where('status', 'Active');
+        // Sales = Net Amount of BOTH Sale and Refund
+        $baseQuery = BillItem::query()->where('branch', $branch->value)->whereIn('status', ['Sale', 'Refund']);
 
         $ftd = $this->buildPeriodQuery(clone $baseQuery, $date, 'ftd')->selectRaw($selectRaw)->first();
         $mtd = $this->buildPeriodQuery(clone $baseQuery, $date, 'mtd')->selectRaw($selectRaw)->first();
@@ -279,21 +280,20 @@ class MISService
     private function getDiscountData(Branch $branch, string $date): array
     {
         $selectRaw = "
-            SUM(CASE WHEN service_type = 'Pharmacy' AND patient_type IS NULL AND net_amount != 0 THEN amount ELSE 0 END) as partial_ph,
+            SUM(CASE WHEN service_type = 'Pharmacy' AND net_amount != 0 THEN amount ELSE 0 END) as partial_ph,
             SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' AND net_amount != 0 THEN amount ELSE 0 END) as partial_op,
             SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' AND net_amount != 0 THEN amount ELSE 0 END) as partial_ip,
             SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' AND net_amount != 0 THEN amount ELSE 0 END) as partial_er,
 
-            SUM(CASE WHEN service_type = 'Pharmacy' AND patient_type IS NULL AND net_amount = 0 THEN amount ELSE 0 END) as full_ph,
+            SUM(CASE WHEN service_type = 'Pharmacy' AND net_amount = 0 THEN amount ELSE 0 END) as full_ph,
             SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' AND net_amount = 0 THEN amount ELSE 0 END) as full_op,
             SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' AND net_amount = 0 THEN amount ELSE 0 END) as full_ip,
             SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' AND net_amount = 0 THEN amount ELSE 0 END) as full_er
         ";
 
-        // To only sum rows that actually have a discount, we check if amount > net_amount.
-        $baseQuery = BillItem::query()->where('branch', $branch->value)
-            ->where('status', 'Active')
-            ->whereColumn('amount', '>', 'net_amount');
+        // Discount 99% (partial) includes BOTH Sale and Refund where net_amount != 0
+        // Discount 100% (full) includes Sale where net_amount == 0
+        $baseQuery = BillItem::query()->where('branch', $branch->value)->whereIn('status', ['Sale', 'Refund']);
 
         $ftd = $this->buildPeriodQuery(clone $baseQuery, $date, 'ftd')->selectRaw($selectRaw)->first();
         $mtd = $this->buildPeriodQuery(clone $baseQuery, $date, 'mtd')->selectRaw($selectRaw)->first();
@@ -340,12 +340,13 @@ class MISService
     private function getRefundData(Branch $branch, string $date): array
     {
         $selectRaw = "
-            SUM(CASE WHEN service_type = 'Pharmacy' AND patient_type IS NULL THEN net_amount ELSE 0 END) as ph_total,
-            SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as op_total,
-            SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as ip_total,
-            SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as er_total
+            SUM(CASE WHEN service_type = 'Pharmacy' THEN ABS(amount) ELSE 0 END) as ph_total,
+            SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' THEN ABS(amount) ELSE 0 END) as op_total,
+            SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' THEN ABS(amount) ELSE 0 END) as ip_total,
+            SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' THEN ABS(amount) ELSE 0 END) as er_total
         ";
 
+        // Refund row shows ABS(amount) of Refund items
         $baseQuery = BillItem::query()->where('branch', $branch->value)->where('status', 'Refund');
 
         $ftd = $this->buildPeriodQuery(clone $baseQuery, $date, 'ftd')->selectRaw($selectRaw)->first();
@@ -384,7 +385,7 @@ class MISService
         ";
 
         $baseQuery = BillItem::query()->where('branch', $branch->value)
-            ->where('status', 'Active')
+            ->where('status', 'Sale')
             ->where('sub_department', 'MRI');
 
         $ftd = $this->buildPeriodQuery(clone $baseQuery, $date, 'ftd')->selectRaw($selectRaw)->first();
@@ -438,15 +439,15 @@ class MISService
             )->sum('amount');
 
             $data['sales']['ftd']['ph'] += $pkgFtd;
-            $data['sales']['ftd']['op'] -= $pkgFtd;
+            $data['sales']['ftd']['ip'] -= $pkgFtd;
             $data['sales']['mtd']['ph'] += $pkgMtd;
-            $data['sales']['mtd']['op'] -= $pkgMtd;
+            $data['sales']['mtd']['ip'] -= $pkgMtd;
 
             // Ensure values remain correctly rounded after calculation
             $data['sales']['ftd']['ph'] = round($data['sales']['ftd']['ph'], 2);
-            $data['sales']['ftd']['op'] = round($data['sales']['ftd']['op'], 2);
+            $data['sales']['ftd']['ip'] = round($data['sales']['ftd']['ip'], 2);
             $data['sales']['mtd']['ph'] = round($data['sales']['mtd']['ph'], 2);
-            $data['sales']['mtd']['op'] = round($data['sales']['mtd']['op'], 2);
+            $data['sales']['mtd']['ip'] = round($data['sales']['mtd']['ip'], 2);
 
             $data['sales']['pkg_adjustment'] = [
                 'ftd' => round($pkgFtd, 2),

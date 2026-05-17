@@ -33,7 +33,7 @@
         $ref   = $data['refund'] ?? [];
         $vol   = $data['volume'] ?? [];
         $mri   = $data['mri'] ?? [];
-        $pkg   = $sales['pkg_adjustment'] ?? ['ftd' => 0, 'mtd' => 0];
+        $pkg   = $data['pkg_adjustment'] ?? ['ftd' => 0, 'mtd' => 0];
 
         $lk = fn($v) => number_format(($v ?? 0) / 100000, 2);
         $nm = fn($v) => number_format($v ?? 0, 2);

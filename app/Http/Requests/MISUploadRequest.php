@@ -44,7 +44,7 @@ class MISUploadRequest extends FormRequest
      * Get the validation rules that apply to the request.
      *
      * Chromepet requires 3 files (bill, cashier, package).
-     * Oragadam requires 2 files (bill, cashier).
+     * Oragadam requires 2 files (bill, cashier) + ER count.
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
@@ -59,10 +59,11 @@ class MISUploadRequest extends FormRequest
             'cashier_file' => 'required|file|mimes:csv|max:20480',
             'package_file' => 'required_if:branch,chromepet|nullable|file|mimes:csv|max:20480',
             'occupancy'    => 'nullable|integer|min:0',
-            'occupancy_pct'=> 'nullable|numeric|min:0|max:100',
+            'occupancy_pct' => 'nullable|numeric|min:0|max:100',
             'admission'    => 'nullable|integer|min:0',
             'discharge'    => 'nullable|integer|min:0',
             'total_op'     => 'nullable|integer|min:0',
+            'er_count'     => 'required_if:branch,oragadam|nullable|integer|min:0',
         ];
     }
 
@@ -75,6 +76,7 @@ class MISUploadRequest extends FormRequest
     {
         return [
             'package_file.required_if' => 'The package consumption file is required for Chromepet branch.',
+            'er_count.required_if' => 'The ER count is required for Oragadam branch.',
         ];
     }
 
@@ -112,6 +114,7 @@ class MISUploadRequest extends FormRequest
                 'admission'     => (int) $this->input('admission', 0),
                 'discharge'     => (int) $this->input('discharge', 0),
                 'total_op'      => (int) $this->input('total_op', 0),
+                'er_count'      => (int) $this->input('er_count', 0),
             ],
             'mtd' => [
                 'occupancy'     => 0,
@@ -119,6 +122,7 @@ class MISUploadRequest extends FormRequest
                 'admission'     => 0,
                 'discharge'     => 0,
                 'total_op'      => 0,
+                'er_count'      => 0,
             ],
         ];
     }

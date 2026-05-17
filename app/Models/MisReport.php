@@ -24,6 +24,7 @@ class MisReport extends Model
         'admission',
         'discharge',
         'total_op',
+        'er_count',
     ];
 
     /**
@@ -77,6 +78,6 @@ class MisReport extends Model
         $monthStart = $carbonDate->copy()->startOfMonth()->toDateString();
 
         return $query->whereDate('report_date', '>=', $monthStart)
-                     ->whereDate('report_date', '<=', $date);
+            ->whereDate('report_date', '<=', $date);
     }
 }

@@ -33,6 +33,7 @@ class MISService
                         'admission'     => $existing->admission,
                         'discharge'     => $existing->discharge,
                         'total_op'      => $existing->total_op,
+                        'er_count'      => $existing->er_count ?? 0,
                     ]
                 ];
             }
@@ -51,9 +52,10 @@ class MISService
             'generated_at' => now()->toDateTimeString(),
         ];
 
+        // Apply branch adjustments to sales breakdown
         $this->applyBranchAdjustments($branch, $data, $date);
 
-        // Calculate totals for convenience
+        // Calculate totals from adjusted sales data
         $data['totals'] = $this->calculateTotals($data);
 
         // Persist the report snapshot
@@ -114,6 +116,7 @@ class MISService
             'admission'     => $volumeData['ftd']['admission'] ?? 0,
             'discharge'     => $volumeData['ftd']['discharge'] ?? 0,
             'total_op'      => $ftdOpCount,
+            'er_count'      => $volumeData['ftd']['er_count'] ?? 0,
         ];
 
         // Calculate MTD by accumulating from stored reports
@@ -148,6 +151,7 @@ class MISService
         $mtdAdmission       = $todayFtd['admission'];
         $mtdDischarge       = $todayFtd['discharge'];
         $mtdTotalOp         = $todayFtd['total_op'];
+        $mtdErCount         = $todayFtd['er_count'] ?? 0;
         $occupancyPctSum    = $todayFtd['occupancy_pct'];
         $dayCount           = 1;
 
@@ -156,6 +160,7 @@ class MISService
             $mtdAdmission += $report->admission;
             $mtdDischarge += $report->discharge;
             $mtdTotalOp += $report->total_op;
+            $mtdErCount += $report->er_count ?? 0;
             $occupancyPctSum += (float) $report->occupancy_pct;
             $dayCount++;
         }
@@ -166,6 +171,7 @@ class MISService
             'admission' => $mtdAdmission,
             'discharge' => $mtdDischarge,
             'total_op' => $mtdTotalOp,
+            'er_count' => $mtdErCount,
         ];
     }
 
@@ -191,6 +197,7 @@ class MISService
                 'admission' => $volumeData['ftd']['admission'] ?? 0,
                 'discharge' => $volumeData['ftd']['discharge'] ?? 0,
                 'total_op' => $volumeData['ftd']['total_op'] ?? 0,
+                'er_count' => $volumeData['ftd']['er_count'] ?? 0,
             ]
         );
     }
@@ -395,12 +402,28 @@ class MISService
     /**
      * Get MRI data.
      *
+     * Note: For Oragadam branch, MRI data is excluded from the report.
+     *
      * @param Branch $branch
      * @param string $date
      * @return array
      */
     private function getMriData(Branch $branch, string $date): array
     {
+        // Exclude MRI data for Oragadam branch
+        if ($branch === Branch::ORAGADAM) {
+            return [
+                'ftd' => [
+                    'op' => ['count' => 0, 'revenue' => 0.00],
+                    'ip' => ['count' => 0, 'revenue' => 0.00],
+                ],
+                'mtd' => [
+                    'op' => ['count' => 0, 'revenue' => 0.00],
+                    'ip' => ['count' => 0, 'revenue' => 0.00],
+                ],
+            ];
+        }
+
         $selectRaw = "
             SUM(CASE WHEN patient_type = 'OP' THEN quantity ELSE 0 END) as op_count,
             SUM(CASE WHEN patient_type = 'OP' THEN net_amount ELSE 0 END) as op_revenue,
@@ -442,6 +465,7 @@ class MISService
 
     /**
      * Apply branch specific adjustments for packages.
+     * For Chromepet: Add package pharmacy amount to pharmacy sales and subtract from IP sales.
      *
      * @param Branch $branch
      * @param array &$data
@@ -463,6 +487,8 @@ class MISService
                 'mtd'
             )->sum('amount');
 
+            // Apply package adjustments to sales breakdown:
+            // Add package to pharmacy, subtract from IP
             $data['sales']['ftd']['ph'] += $pkgFtd;
             $data['sales']['ftd']['ip'] -= $pkgFtd;
             $data['sales']['mtd']['ph'] += $pkgMtd;
@@ -474,12 +500,13 @@ class MISService
             $data['sales']['mtd']['ph'] = round($data['sales']['mtd']['ph'], 2);
             $data['sales']['mtd']['ip'] = round($data['sales']['mtd']['ip'], 2);
 
-            $data['sales']['pkg_adjustment'] = [
+            // Store package adjustment info separately so it's not double-counted
+            $data['pkg_adjustment'] = [
                 'ftd' => round($pkgFtd, 2),
                 'mtd' => round($pkgMtd, 2),
             ];
         } else {
-            $data['sales']['pkg_adjustment'] = [
+            $data['pkg_adjustment'] = [
                 'ftd' => 0.00,
                 'mtd' => 0.00,
             ];

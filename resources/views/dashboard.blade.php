@@ -208,7 +208,7 @@ function lk(v){return((v||0)/100000).toFixed(2);}
 function nm(v){return Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});}
 
 function renderReport(d){
-    const s=d.sales||{},c=d.collection||{},dc=d.discount||{},r=d.refund||{},v=d.volume||{},m=d.mri||{},t=d.totals||{},pkg=s.pkg_adjustment||{ftd:0,mtd:0};
+    const s=d.sales||{},c=d.collection||{},dc=d.discount||{},r=d.refund||{},v=d.volume||{},m=d.mri||{},t=d.totals||{},pkg=d.pkg_adjustment||{ftd:0,mtd:0};
     const date=d.date||di.value;
 
     let html=`
@@ -221,7 +221,7 @@ function renderReport(d){
 
     // Package alert
     if((pkg.ftd||0)>0||(pkg.mtd||0)>0){
-        html+=`<div class="pkg-alert"><span class="icon">📦</span><span>Package Consumption Adjustment (Chromepet): Added to Pharmacy, subtracted from OP</span><div class="pkg-vals"><span>FTD: ₹${lk(pkg.ftd)} L</span><span>MTD: ₹${lk(pkg.mtd)} L</span></div></div>`;
+        html+=`<div class="pkg-alert"><span class="icon">📦</span><span>Package Consumption Adjustment (Chromepet): Added to Pharmacy, subtracted from IP</span><div class="pkg-vals"><span>FTD: ₹${lk(pkg.ftd)} L</span><span>MTD: ₹${lk(pkg.mtd)} L</span></div></div>`;
     }
 
     // Revenue table

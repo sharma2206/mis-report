@@ -36,8 +36,14 @@ class PackageConsumptionImport implements ToCollection, WithHeadingRow, WithChun
         $insert = [];
 
         foreach ($rows as $row) {
-            // Try 'amount' first, fallback to 'value' for flexibility
-            $amount = (float) ($row['amount'] ?? $row['value'] ?? 0);
+            // Only import Pharmacy service type rows
+            $serviceType = strtolower(trim($row['package_service_type'] ?? ''));
+            if ($serviceType !== 'pharmacy') {
+                continue;
+            }
+
+            // Read from 'service_item_amount', fallback to 'amount' or 'value'
+            $amount = (float) ($row['service_item_amount'] ?? $row['amount'] ?? $row['value'] ?? 0);
 
             // Skip rows with no meaningful amount
             if ($amount == 0) {

@@ -83,10 +83,10 @@ class CashierCollectionImport implements ToCollection, WithHeadingRow, WithChunk
         $t = strtoupper(trim($type));
 
         return match (true) {
-            str_contains($t, 'OP')                              => 'OP',
-            str_contains($t, 'IP'), str_contains($t, 'INPATIENT') => 'IP',
-            str_contains($t, 'ER'), str_contains($t, 'EMERGENCY') => 'ER',
-            default                                              => $t,
+            str_contains($t, 'OP')                                  => 'OP',
+            str_contains($t, 'IP'), str_contains($t, 'INPATIENT')   => 'IP',
+            str_contains($t, 'ER'), str_contains($t, 'EMERGENCY')   => 'ER',
+            default                                                 => $t,
         };
     }
 }

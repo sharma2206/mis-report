@@ -7,6 +7,7 @@ use App\Http\Requests\MISRequest;
 use App\Http\Requests\MISUploadRequest;
 use App\Services\CsvProcessingService;
 use App\Services\MISService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -112,6 +113,57 @@ class MISController extends Controller
                 "MIS_{$branch}_{$date}.xlsx"
             );
 
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Export the MIS report to PDF.
+     *
+     * @param MISRequest $request
+     * @param string $branch
+     * @param string $date
+     * @return \Illuminate\Http\Response|JsonResponse
+     */
+    public function exportPdf(MISRequest $request, string $branch, string $date)
+    {
+        try {
+            $request->merge(['branch' => $branch, 'date' => $date]);
+
+            $data = $this->misService->generateMIS($request->branch(), $request->reportDate());
+
+            $pdf = Pdf::loadView('exports.mis_pdf', ['data' => $data])
+                ->setPaper('a4', 'landscape');
+
+            return $pdf->download("MIS_{$branch}_{$date}.pdf");
+
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Get dashboard summary for all branches on a given date.
+     *
+     * @param string $date
+     * @return JsonResponse
+     */
+    public function dashboard(string $date): JsonResponse
+    {
+        try {
+            $summary = $this->misService->getDashboardSummary($date);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $summary,
+            ]);
         } catch (Exception $e) {
             return response()->json([
                 'success' => false,

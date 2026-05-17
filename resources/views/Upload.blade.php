@@ -164,8 +164,9 @@
     <div class="card response-card" id="responseCard">
         <div class="card-title">✅ Import Summary</div>
         <div class="response-grid" id="importStats"></div>
-        <div style="margin-top:1rem">
+        <div style="margin-top:1rem;display:flex;gap:0.75rem;flex-wrap:wrap;">
             <a id="exportLink" class="btn btn-primary" style="text-decoration:none;display:inline-flex;font-size:0.8rem;padding:0.5rem 1rem;">📥 Download Excel</a>
+            <a id="exportPdfLink" class="btn" style="text-decoration:none;display:inline-flex;font-size:0.8rem;padding:0.5rem 1rem;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border-radius:10px;font-weight:600;align-items:center;gap:0.4rem;transition:all 0.2s;" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 8px 25px rgba(239,68,68,0.35)'" onmouseout="this.style.transform='none';this.style.boxShadow='none'">📄 Download PDF</a>
         </div>
     </div>
 </div>
@@ -227,7 +228,9 @@ function showResponse(j) {
     const tot = ((ftd.op||0)+(ftd.ip||0)+(ftd.er||0)+(ftd.ph||0)).toFixed(2);
     h += '<div class="stat-box"><div class="stat-label">FTD Sales</div><div class="stat-value">₹' + Number(tot).toLocaleString() + '</div></div>';
     stats.innerHTML = h; card.classList.add('show');
-    document.getElementById('exportLink').href = '/api/mis/' + currentBranch + '/' + document.getElementById('dateInput').value + '/export';
+    const date = document.getElementById('dateInput').value;
+    document.getElementById('exportLink').href    = '/api/mis/' + currentBranch + '/' + date + '/export';
+    document.getElementById('exportPdfLink').href = '/api/mis/' + currentBranch + '/' + date + '/export-pdf';
 }
 </script>
 </body>

@@ -28,11 +28,11 @@ class MISService
             if ($existing) {
                 $volumeData = [
                     'ftd' => [
-                        'occupancy' => $existing->occupancy,
+                        'occupancy'     => $existing->occupancy,
                         'occupancy_pct' => (float) $existing->occupancy_pct,
-                        'admission' => $existing->admission,
-                        'discharge' => $existing->discharge,
-                        'total_op' => $existing->total_op,
+                        'admission'     => $existing->admission,
+                        'discharge'     => $existing->discharge,
+                        'total_op'      => $existing->total_op,
                     ]
                 ];
             }
@@ -102,17 +102,18 @@ class MISService
         // Calculate Total OP automatically from BillItem table
         $baseOpQuery = BillItem::query()
             ->where('branch', $branch->value)
-            ->where('status', 'Sale')
+            ->where('patient_type', 'OP')
             ->where('service_type', 'OP Consultation');
 
         $ftdOpCount = (int) $this->buildPeriodQuery(clone $baseOpQuery, $date, 'ftd')->sum('quantity');
 
+        // Calculate FTD volume
         $ftd = [
-            'occupancy' => $volumeData['ftd']['occupancy'] ?? 0,
+            'occupancy'     => $volumeData['ftd']['occupancy'] ?? 0,
             'occupancy_pct' => $volumeData['ftd']['occupancy_pct'] ?? 0,
-            'admission' => $volumeData['ftd']['admission'] ?? 0,
-            'discharge' => $volumeData['ftd']['discharge'] ?? 0,
-            'total_op' => $ftdOpCount,
+            'admission'     => $volumeData['ftd']['admission'] ?? 0,
+            'discharge'     => $volumeData['ftd']['discharge'] ?? 0,
+            'total_op'      => $ftdOpCount,
         ];
 
         // Calculate MTD by accumulating from stored reports
@@ -143,12 +144,12 @@ class MISService
             ->whereDate('report_date', '<', $date)
             ->get();
 
-        $mtdOccupancy = $todayFtd['occupancy'];
-        $mtdAdmission = $todayFtd['admission'];
-        $mtdDischarge = $todayFtd['discharge'];
-        $mtdTotalOp = $todayFtd['total_op'];
-        $occupancyPctSum = $todayFtd['occupancy_pct'];
-        $dayCount = 1;
+        $mtdOccupancy       = $todayFtd['occupancy'];
+        $mtdAdmission       = $todayFtd['admission'];
+        $mtdDischarge       = $todayFtd['discharge'];
+        $mtdTotalOp         = $todayFtd['total_op'];
+        $occupancyPctSum    = $todayFtd['occupancy_pct'];
+        $dayCount           = 1;
 
         foreach ($previousReports as $report) {
             $mtdOccupancy += $report->occupancy;
@@ -404,7 +405,9 @@ class MISService
             SUM(CASE WHEN patient_type = 'OP' THEN quantity ELSE 0 END) as op_count,
             SUM(CASE WHEN patient_type = 'OP' THEN net_amount ELSE 0 END) as op_revenue,
             SUM(CASE WHEN patient_type = 'IP' THEN quantity ELSE 0 END) as ip_count,
-            SUM(CASE WHEN patient_type = 'IP' THEN net_amount ELSE 0 END) as ip_revenue
+            SUM(CASE WHEN patient_type = 'IP' THEN net_amount ELSE 0 END) as ip_revenue,
+            SUM(CASE WHEN patient_type = 'ER' THEN quantity ELSE 0 END) as er_count,
+            SUM(CASE WHEN patient_type = 'ER' THEN net_amount ELSE 0 END) as er_revenue
         ";
 
         $baseQuery = BillItem::query()->where('branch', $branch->value)
@@ -413,7 +416,6 @@ class MISService
 
         $ftd = $this->buildPeriodQuery(clone $baseQuery, $date, 'ftd')->selectRaw($selectRaw)->first();
         $mtd = $this->buildPeriodQuery(clone $baseQuery, $date, 'mtd')->selectRaw($selectRaw)->first();
-
         return [
             'ftd' => [
                 'op' => [
@@ -421,8 +423,8 @@ class MISService
                     'revenue' => round($ftd->op_revenue ?? 0, 2),
                 ],
                 'ip' => [
-                    'count' => (int) ($ftd->ip_count ?? 0),
-                    'revenue' => round($ftd->ip_revenue ?? 0, 2),
+                    'count' => (int) ($ftd->ip_count ?? 0) + (int) ($ftd->er_count ?? 0),
+                    'revenue' => round(($ftd->ip_revenue ?? 0) + ($ftd->er_revenue ?? 0), 2),
                 ],
             ],
             'mtd' => [
@@ -431,8 +433,8 @@ class MISService
                     'revenue' => round($mtd->op_revenue ?? 0, 2),
                 ],
                 'ip' => [
-                    'count' => (int) ($mtd->ip_count ?? 0),
-                    'revenue' => round($mtd->ip_revenue ?? 0, 2),
+                    'count' => (int) ($mtd->ip_count ?? 0) + (int) ($mtd->er_count ?? 0),
+                    'revenue' => round(($mtd->ip_revenue ?? 0) + ($mtd->er_revenue ?? 0), 2),
                 ],
             ],
         ];

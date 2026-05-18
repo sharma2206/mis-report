@@ -146,7 +146,6 @@ class MISService
             ->whereDate('report_date', '>=', $monthStart)
             ->whereDate('report_date', '<', $date)
             ->get();
-
         $mtdOccupancy       = $todayFtd['occupancy'];
         $mtdAdmission       = $todayFtd['admission'];
         $mtdDischarge       = $todayFtd['discharge'];
@@ -166,12 +165,12 @@ class MISService
         }
 
         return [
-            'occupancy' => $mtdOccupancy,
+            'occupancy'     => $mtdOccupancy,
             'occupancy_pct' => $dayCount > 0 ? round($occupancyPctSum / $dayCount, 2) : 0,
-            'admission' => $mtdAdmission,
-            'discharge' => $mtdDischarge,
-            'total_op' => $mtdTotalOp,
-            'er_count' => $mtdErCount,
+            'admission'     => $mtdAdmission,
+            'discharge'     => $mtdDischarge,
+            'total_op'      => $mtdTotalOp,
+            'er_count'      => $mtdErCount,
         ];
     }
 
@@ -434,7 +433,6 @@ class MISService
         ";
 
         $baseQuery = BillItem::query()->where('branch', $branch->value)
-            ->where('status', 'Sale')
             ->where('sub_department', 'MRI');
 
         $ftd = $this->buildPeriodQuery(clone $baseQuery, $date, 'ftd')->selectRaw($selectRaw)->first();

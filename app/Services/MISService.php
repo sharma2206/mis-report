@@ -108,6 +108,7 @@ class MISService
             ->where('service_type', 'OP Consultation');
 
         $ftdOpCount = (int) $this->buildPeriodQuery(clone $baseOpQuery, $date, 'ftd')->sum('quantity');
+        $mtdOpCount = (int) $this->buildPeriodQuery(clone $baseOpQuery, $date, 'mtd')->sum('quantity'); // ← add this
 
         // Calculate FTD volume
         $ftd = [
@@ -121,7 +122,7 @@ class MISService
 
         // Calculate MTD by accumulating from stored reports
         $mtd = $this->accumulateMtdVolume($branch, $date, $ftd);
-
+        $mtd['total_op'] = $mtdOpCount;
         return [
             'ftd' => $ftd,
             'mtd' => $mtd,
@@ -149,27 +150,22 @@ class MISService
         $mtdOccupancy       = $todayFtd['occupancy'];
         $mtdAdmission       = $todayFtd['admission'];
         $mtdDischarge       = $todayFtd['discharge'];
-        $mtdTotalOp         = $todayFtd['total_op'];
         $mtdErCount         = $todayFtd['er_count'] ?? 0;
         $occupancyPctSum    = $todayFtd['occupancy_pct'];
         $dayCount           = 1;
-
         foreach ($previousReports as $report) {
             $mtdOccupancy += $report->occupancy;
             $mtdAdmission += $report->admission;
             $mtdDischarge += $report->discharge;
-            $mtdTotalOp += $report->total_op;
             $mtdErCount += $report->er_count ?? 0;
             $occupancyPctSum += (float) $report->occupancy_pct;
             $dayCount++;
         }
-
         return [
-            'occupancy'     => $mtdOccupancy,
+            'occupancy'     => round($mtdOccupancy, 2),
             'occupancy_pct' => $dayCount > 0 ? round($occupancyPctSum / $dayCount, 2) : 0,
             'admission'     => $mtdAdmission,
             'discharge'     => $mtdDischarge,
-            'total_op'      => $mtdTotalOp,
             'er_count'      => $mtdErCount,
         ];
     }

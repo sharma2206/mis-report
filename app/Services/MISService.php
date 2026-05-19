@@ -112,8 +112,8 @@ class MISService
 
         // Calculate FTD volume
         $ftd = [
-            'occupancy'     => $volumeData['ftd']['occupancy'] ?? 0,
-            'occupancy_pct' => $volumeData['ftd']['occupancy_pct'] ?? 0,
+            'occupancy'     => round($volumeData['ftd']['occupancy'] ?? 0, 0),
+            'occupancy_pct' => round($volumeData['ftd']['occupancy_pct'] ?? 0, 0),
             'admission'     => $volumeData['ftd']['admission'] ?? 0,
             'discharge'     => $volumeData['ftd']['discharge'] ?? 0,
             'total_op'      => $ftdOpCount,
@@ -162,8 +162,8 @@ class MISService
             $dayCount++;
         }
         return [
-            'occupancy'     => round($mtdOccupancy, 2),
-            'occupancy_pct' => $dayCount > 0 ? round($occupancyPctSum / $dayCount, 2) : 0,
+            'occupancy'     => $dayCount > 0 ? round($mtdOccupancy, 0) : 0,
+            'occupancy_pct' => $dayCount > 0 ? round($occupancyPctSum / $dayCount, 0) : 0,
             'admission'     => $mtdAdmission,
             'discharge'     => $mtdDischarge,
             'er_count'      => $mtdErCount,

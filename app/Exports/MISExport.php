@@ -22,11 +22,35 @@ class MISExport implements FromArray, WithHeadings, WithStyles, WithColumnWidths
     }
 
     /**
-     * Helper to convert value to Lakhs with 2 decimals
+     * Helper to convert value to Lakhs with 2 decimals and thousand separators (PDF format)
      */
-    private function lakhs($value): float
+    private function lakhs($value): string
     {
-        return round(($value ?? 0) / 100000, 2);
+        return number_format(($value ?? 0) / 100000, 2);
+    }
+
+    /**
+     * Helper to format percentage value
+     */
+    private function percentage($value): string
+    {
+        return number_format($value ?? 0, 0) . '%';
+    }
+
+    /**
+     * Helper to format plain number with 2 decimals
+     */
+    private function number($value): string
+    {
+        return number_format($value ?? 0, 2);
+    }
+
+    /**
+     * Helper to format currency value with rupee symbol and 2 decimals
+     */
+    private function currency($value): string
+    {
+        return '₹ ' . number_format($value ?? 0, 2);
     }
 
     public function headings(): array
@@ -127,16 +151,16 @@ class MISExport implements FromArray, WithHeadings, WithStyles, WithColumnWidths
             ["", "", "", "", "", "", "", "", "", "", ""],
             ["", "FTD", "MTD", "", "", "", "", "", "", "", ""],
             ["Volume Indicators", "", "", "", "", "", "", "", "", "", ""],
-            ["Occupancy", $vol['ftd']['occupancy'] ?? 0, $vol['mtd']['occupancy'] ?? 0, "", "", "", "", "", "", "", ""],
-            ["Occupancy %", $vol['ftd']['occupancy_pct'] ?? 0, $vol['mtd']['occupancy_pct'] ?? 0, "", "", "", "", "", "", "", ""],
-            ["Admission", $vol['ftd']['admission'] ?? 0, $vol['mtd']['admission'] ?? 0, "", "", "", "", "", "", "", ""],
-            ["Discharge", $vol['ftd']['discharge'] ?? 0, $vol['mtd']['discharge'] ?? 0, "", "", "", "", "", "", "", ""],
-            ["Total OP", $vol['ftd']['total_op'] ?? 0, $vol['mtd']['total_op'] ?? 0, "", "", "", "", "", "", "", ""],
-            ["MRI OP (count)", $mri['ftd']['op']['count'] ?? 0, $mri['mtd']['op']['count'] ?? 0, "", "", "", "", "", "", "", ""],
-            ["MRI IP (count)", $mri['ftd']['ip']['count'] ?? 0, $mri['mtd']['ip']['count'] ?? 0, "", "", "", "", "", "", "", ""],
+            ["Occupancy", $this->number($vol['ftd']['occupancy'] ?? 0), $this->number($vol['mtd']['occupancy'] ?? 0), "", "", "", "", "", "", "", ""],
+            ["Occupancy %", $this->percentage($vol['ftd']['occupancy_pct'] ?? 0), $this->percentage($vol['mtd']['occupancy_pct'] ?? 0), "", "", "", "", "", "", "", ""],
+            ["Admission", $this->number($vol['ftd']['admission'] ?? 0), $this->number($vol['mtd']['admission'] ?? 0), "", "", "", "", "", "", "", ""],
+            ["Discharge", $this->number($vol['ftd']['discharge'] ?? 0), $this->number($vol['mtd']['discharge'] ?? 0), "", "", "", "", "", "", "", ""],
+            ["Total OP", $this->number($vol['ftd']['total_op'] ?? 0), $this->number($vol['mtd']['total_op'] ?? 0), "", "", "", "", "", "", "", ""],
+            ["MRI OP (count)", $this->number($mri['ftd']['op']['count'] ?? 0), $this->number($mri['mtd']['op']['count'] ?? 0), "", "", "", "", "", "", "", ""],
+            ["MRI IP (count)", $this->number($mri['ftd']['ip']['count'] ?? 0), $this->number($mri['mtd']['ip']['count'] ?? 0), "", "", "", "", "", "", "", ""],
             ["Revenue", "", "", "", "", "", "", "", "", "", ""],
-            ["MRI OP (₹)", $this->lakhs($mri['ftd']['op']['revenue'] ?? 0), $this->lakhs($mri['mtd']['op']['revenue'] ?? 0), "", "", "", "", "", "", "", ""],
-            ["MRI IP (₹)", $this->lakhs($mri['ftd']['ip']['revenue'] ?? 0), $this->lakhs($mri['mtd']['ip']['revenue'] ?? 0), "", "", "", "", "", "", "", ""],
+            ["MRI OP (₹)", $this->currency($mri['ftd']['op']['revenue'] ?? 0), $this->currency($mri['mtd']['op']['revenue'] ?? 0), "", "", "", "", "", "", "", ""],
+            ["MRI IP (₹)", $this->currency($mri['ftd']['ip']['revenue'] ?? 0), $this->currency($mri['mtd']['ip']['revenue'] ?? 0), "", "", "", "", "", "", "", ""],
         ];
     }
 
@@ -144,8 +168,16 @@ class MISExport implements FromArray, WithHeadings, WithStyles, WithColumnWidths
     {
         return [
             'A' => 20,
-            'B' => 12, 'C' => 12, 'D' => 12, 'E' => 12, 'F' => 12,
-            'G' => 12, 'H' => 12, 'I' => 12, 'J' => 12, 'K' => 12,
+            'B' => 12,
+            'C' => 12,
+            'D' => 12,
+            'E' => 12,
+            'F' => 12,
+            'G' => 12,
+            'H' => 12,
+            'I' => 12,
+            'J' => 12,
+            'K' => 12,
         ];
     }
 
@@ -173,10 +205,10 @@ class MISExport implements FromArray, WithHeadings, WithStyles, WithColumnWidths
             $sheet->getStyle("A{$row}:K{$row}")->getFill()->applyFromArray($lightGray);
         }
 
-        // 2 decimal places format
-        $sheet->getStyle('B4:K8')->getNumberFormat()->setFormatCode('0.00');
-        $sheet->getStyle('B12:C18')->getNumberFormat()->setFormatCode('0.00');
-        $sheet->getStyle('B20:C21')->getNumberFormat()->setFormatCode('0.00');
+        // Set text alignment for formatted values
+        $sheet->getStyle('B4:K8')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('B12:C18')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('B20:C21')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
         return [
             1 => [

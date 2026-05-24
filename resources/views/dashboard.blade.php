@@ -8,6 +8,7 @@
     <meta name="description" content="Branch-wise MIS reporting dashboard with FTD and MTD analytics">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <style>
         *,
         *::before,
@@ -18,164 +19,182 @@
         }
 
         :root {
-            --bg: #0a0e1a;
-            --surface: rgba(30, 41, 59, .65);
-            --card: rgba(30, 41, 59, .55);
-            --border: rgba(51, 65, 85, .5);
-            --text: #f1f5f9;
-            --muted: #94a3b8;
-            --primary: #3b82f6;
-            --primary-hover: #2563eb;
-            --accent: #8b5cf6;
-            --success: #10b981;
-            --error: #ef4444;
-            --warning: #f59e0b;
-            --info: #06b6d4;
-            --gradient: linear-gradient(135deg, #3b82f6, #8b5cf6);
-            --glass: rgba(255, 255, 255, .03);
-            --glow: 0 0 40px rgba(59, 130, 246, .08);
-            --radius: 14px;
+            --bg: #f0f4f8;
+            --surface: #ffffff;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --border-light: #f1f5f9;
+            --text: #1e293b;
+            --text-secondary: #475569;
+            --muted: #64748b;
+            --primary: #2563eb;
+            --primary-light: #dbeafe;
+            --primary-soft: #eff6ff;
+            --accent: #7c3aed;
+            --accent-light: #ede9fe;
+            --success: #059669;
+            --success-light: #d1fae5;
+            --error: #dc2626;
+            --error-light: #fee2e2;
+            --warning: #d97706;
+            --warning-light: #fef3c7;
+            --info: #0891b2;
+            --info-light: #cffafe;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, .05);
+            --shadow: 0 1px 3px rgba(0, 0, 0, .08), 0 1px 2px rgba(0, 0, 0, .04);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, .07), 0 2px 4px -2px rgba(0, 0, 0, .05);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, .07), 0 4px 6px -4px rgba(0, 0, 0, .05);
+            --radius: 12px;
+            --radius-sm: 8px;
         }
 
         body {
-            font-family: 'Inter', system-ui, sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
             background: var(--bg);
             color: var(--text);
             min-height: 100vh;
-            overflow-x: hidden
+            -webkit-font-smoothing: antialiased;
         }
 
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background: radial-gradient(ellipse at 20% 0%, rgba(59, 130, 246, .08) 0%, transparent 50%), radial-gradient(ellipse at 80% 100%, rgba(139, 92, 246, .06) 0%, transparent 50%);
-            pointer-events: none;
-            z-index: 0
-        }
-
-        /* Nav */
+        /* ─── Navbar ─── */
         .nav {
             position: sticky;
             top: 0;
             z-index: 100;
-            background: rgba(10, 14, 26, .85);
-            backdrop-filter: blur(20px);
+            background: var(--surface);
             border-bottom: 1px solid var(--border);
-            padding: 0 2rem;
+            box-shadow: var(--shadow-sm);
+            padding: 0 1.5rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            height: 60px
+            height: 56px;
         }
 
         .nav-brand {
             display: flex;
             align-items: center;
-            gap: .75rem
+            gap: .6rem
+        }
+
+        .nav-brand .logo {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 18px;
         }
 
         .nav-brand h1 {
-            font-size: 1.15rem;
+            font-size: 1rem;
             font-weight: 700;
-            background: var(--gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent
+            color: var(--text)
         }
 
         .nav-badge {
-            font-size: .65rem;
+            font-size: .6rem;
             padding: .15rem .5rem;
-            border-radius: 9999px;
-            background: rgba(59, 130, 246, .12);
+            border-radius: 6px;
+            background: var(--primary-light);
             color: var(--primary);
-            border: 1px solid rgba(59, 130, 246, .25)
+            font-weight: 600;
         }
 
         .nav-links {
             display: flex;
-            gap: .5rem
+            gap: .35rem
         }
 
         .nav-link {
-            padding: .45rem 1rem;
-            border-radius: 8px;
+            padding: .4rem .85rem;
+            border-radius: var(--radius-sm);
             font-size: .8rem;
             font-weight: 500;
             color: var(--muted);
             text-decoration: none;
             transition: all .2s;
-            border: 1px solid transparent
+            border: 1px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: .35rem;
         }
 
-        .nav-link:hover,
+        .nav-link .material-icons-round {
+            font-size: 16px
+        }
+
+        .nav-link:hover {
+            color: var(--primary);
+            background: var(--primary-soft)
+        }
+
         .nav-link.active {
-            color: var(--text);
-            background: rgba(59, 130, 246, .1);
-            border-color: rgba(59, 130, 246, .25)
+            color: var(--primary);
+            background: var(--primary-light);
+            border-color: rgba(37, 99, 235, .15);
+            font-weight: 600;
         }
 
-        .main {
-            position: relative;
-            z-index: 1;
-            max-width: 1360px;
-            margin: 0 auto;
-            padding: 1.5rem 2rem
-        }
+        /* ─── Main ─── */
+        .main { width: 100%; padding: 1.25rem 2rem }
 
-        /* Controls */
+        /* ─── Controls ─── */
         .controls {
             display: flex;
             align-items: center;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-            flex-wrap: wrap
+            gap: .75rem;
+            margin-bottom: 1.25rem;
+            flex-wrap: wrap;
         }
 
         .branch-pills {
             display: flex;
-            gap: .4rem;
-            background: rgba(15, 23, 42, .6);
+            gap: 4px;
+            background: var(--bg);
             border-radius: 10px;
-            padding: 4px;
-            border: 1px solid var(--border)
+            padding: 3px;
+            border: 1px solid var(--border);
         }
 
         .branch-pill {
-            padding: .5rem 1.25rem;
-            border-radius: 8px;
-            font-size: .8rem;
+            padding: .45rem 1.1rem;
+            border-radius: var(--radius-sm);
+            font-size: .78rem;
             font-weight: 600;
             cursor: pointer;
             border: none;
             background: transparent;
             color: var(--muted);
-            transition: all .25s;
-            font-family: inherit
+            transition: all .2s;
+            font-family: inherit;
         }
 
         .branch-pill.active {
-            background: var(--gradient);
+            background: var(--primary);
             color: #fff;
-            box-shadow: 0 4px 15px rgba(59, 130, 246, .3)
+            box-shadow: 0 2px 8px rgba(37, 99, 235, .3);
         }
 
         .branch-pill:hover:not(.active) {
             color: var(--text);
-            background: rgba(255, 255, 255, .05)
+            background: var(--surface)
         }
 
         .date-control {
             display: flex;
             align-items: center;
-            gap: .5rem;
+            gap: .4rem;
             margin-left: auto
         }
 
         .date-nav {
             width: 32px;
             height: 32px;
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
             border: 1px solid var(--border);
             background: var(--surface);
             color: var(--muted);
@@ -183,36 +202,37 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1rem;
-            transition: all .2s
+            font-size: .85rem;
+            transition: all .15s;
         }
 
         .date-nav:hover {
             border-color: var(--primary);
-            color: var(--primary)
+            color: var(--primary);
+            background: var(--primary-soft)
         }
 
         .date-input {
-            padding: .45rem .75rem;
-            background: rgba(15, 23, 42, .8);
+            padding: .4rem .7rem;
+            background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
             color: var(--text);
             font-family: inherit;
             font-size: .8rem;
-            font-weight: 500
+            font-weight: 500;
         }
 
         .date-input:focus {
             outline: none;
             border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, .15)
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, .1)
         }
 
         .btn-load {
-            padding: .5rem 1.25rem;
-            border-radius: 8px;
-            background: var(--gradient);
+            padding: .45rem 1.1rem;
+            border-radius: var(--radius-sm);
+            background: var(--primary);
             color: #fff;
             border: none;
             font-weight: 600;
@@ -222,38 +242,37 @@
             transition: all .2s;
             display: flex;
             align-items: center;
-            gap: .4rem
+            gap: .35rem;
         }
 
         .btn-load:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(59, 130, 246, .3)
+            background: #1d4ed8;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, .25)
         }
 
         .btn-load:disabled {
             opacity: .5;
             cursor: not-allowed;
-            transform: none;
             box-shadow: none
         }
 
-        /* Summary Cards */
+        /* ─── Summary Cards ─── */
         .summary-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 1rem;
-            margin-bottom: 1.5rem
+            gap: .75rem;
+            margin-bottom: 1.25rem;
         }
 
         .summary-card {
             background: var(--card);
-            backdrop-filter: blur(12px);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 1.25rem;
+            padding: 1.1rem 1.15rem;
             position: relative;
             overflow: hidden;
-            transition: all .3s
+            transition: all .25s;
+            box-shadow: var(--shadow-sm);
         }
 
         .summary-card::before {
@@ -263,37 +282,67 @@
             left: 0;
             right: 0;
             height: 3px;
-            border-radius: var(--radius) var(--radius) 0 0
         }
 
         .summary-card.sales::before {
-            background: linear-gradient(90deg, #3b82f6, #06b6d4)
+            background: linear-gradient(90deg, #2563eb, #0891b2)
         }
 
         .summary-card.collection::before {
-            background: linear-gradient(90deg, #10b981, #34d399)
+            background: linear-gradient(90deg, #059669, #10b981)
         }
 
         .summary-card.discount::before {
-            background: linear-gradient(90deg, #f59e0b, #fbbf24)
+            background: linear-gradient(90deg, #d97706, #f59e0b)
         }
 
         .summary-card.refund::before {
-            background: linear-gradient(90deg, #ef4444, #f87171)
+            background: linear-gradient(90deg, #7c3aed, #a78bfa)
         }
 
         .summary-card:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--glow)
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px)
+        }
+
+        .sc-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            margin-bottom: .7rem;
+        }
+
+        .summary-card.sales .sc-icon {
+            background: var(--primary-light);
+            color: var(--primary)
+        }
+
+        .summary-card.collection .sc-icon {
+            background: var(--success-light);
+            color: var(--success)
+        }
+
+        .summary-card.discount .sc-icon {
+            background: var(--warning-light);
+            color: var(--warning)
+        }
+
+        .summary-card.refund .sc-icon {
+            background: var(--accent-light);
+            color: var(--accent)
         }
 
         .sc-label {
-            font-size: .7rem;
+            font-size: .68rem;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: .06em;
+            letter-spacing: .05em;
             color: var(--muted);
-            margin-bottom: .75rem
+            margin-bottom: .6rem;
         }
 
         .sc-row {
@@ -311,15 +360,16 @@
         }
 
         .sc-period {
-            font-size: .6rem;
+            font-size: .58rem;
             color: var(--muted);
             text-transform: uppercase;
-            letter-spacing: .05em;
-            margin-bottom: .15rem
+            letter-spacing: .04em;
+            margin-bottom: .1rem;
+            font-weight: 600;
         }
 
         .sc-value {
-            font-size: 1.35rem;
+            font-size: 1.25rem;
             font-weight: 800;
             line-height: 1.1
         }
@@ -333,68 +383,88 @@
         }
 
         .sc-unit {
-            font-size: .6rem;
+            font-size: .58rem;
             color: var(--muted);
-            margin-top: .15rem
+            margin-top: .1rem
         }
 
-        /* Tables */
+        /* ─── Sections ─── */
         .section {
-            margin-bottom: 1.5rem
+            margin-bottom: 1.25rem
         }
 
         .section-head {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: .75rem
+            margin-bottom: .6rem;
         }
 
         .section-title {
-            font-size: .85rem;
+            font-size: .8rem;
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: .05em;
-            color: var(--muted);
+            letter-spacing: .04em;
+            color: var(--text-secondary);
             display: flex;
             align-items: center;
-            gap: .5rem
+            gap: .4rem;
+        }
+
+        .section-title .material-icons-round {
+            font-size: 18px;
+            color: var(--primary)
+        }
+
+        .section-title .sub {
+            font-size: .65rem;
+            color: var(--muted);
+            font-weight: 500;
+            text-transform: none;
+            letter-spacing: 0
         }
 
         .export-btns {
             display: flex;
-            gap: .4rem
+            gap: .35rem
         }
 
         .btn-export {
-            padding: .35rem .8rem;
-            border-radius: 7px;
-            font-size: .7rem;
+            padding: .3rem .7rem;
+            border-radius: 6px;
+            font-size: .68rem;
             font-weight: 600;
             cursor: pointer;
             border: 1px solid var(--border);
             background: var(--surface);
             color: var(--muted);
             font-family: inherit;
-            transition: all .2s;
+            transition: all .15s;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
-            gap: .3rem
+            gap: .25rem;
         }
 
         .btn-export:hover {
             border-color: var(--primary);
             color: var(--primary);
-            background: rgba(59, 130, 246, .08)
+            background: var(--primary-soft)
         }
 
+        .btn-export.pdf:hover {
+            border-color: var(--error);
+            color: var(--error);
+            background: var(--error-light)
+        }
+
+        /* ─── Table ─── */
         .card {
             background: var(--card);
-            backdrop-filter: blur(12px);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            overflow: hidden
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
         }
 
         .tbl {
@@ -404,15 +474,15 @@
         }
 
         .tbl thead th {
-            background: rgba(15, 23, 42, .6);
-            padding: .6rem .7rem;
+            background: #f8fafc;
+            padding: .55rem .65rem;
             font-weight: 600;
-            font-size: .68rem;
+            font-size: .67rem;
             text-transform: uppercase;
             letter-spacing: .04em;
             color: var(--muted);
             text-align: center;
-            border-bottom: 1px solid var(--border)
+            border-bottom: 1px solid var(--border);
         }
 
         .tbl thead th:first-child {
@@ -420,36 +490,39 @@
         }
 
         .tbl thead .super-header th {
-            font-size: .72rem;
-            color: var(--text);
-            padding: .5rem
+            font-size: .7rem;
+            color: var(--text-secondary);
+            padding: .45rem .5rem;
         }
 
         .tbl thead .super-header .ftd-h {
-            background: rgba(59, 130, 246, .08);
-            color: var(--primary)
+            background: var(--primary-soft);
+            color: var(--primary);
+            font-weight: 700;
         }
 
         .tbl thead .super-header .mtd-h {
-            background: rgba(139, 92, 246, .08);
-            color: var(--accent)
+            background: var(--accent-light);
+            color: var(--accent);
+            font-weight: 700;
         }
 
         .tbl tbody td {
-            padding: .55rem .7rem;
+            padding: .5rem .65rem;
             text-align: right;
-            border-bottom: 1px solid rgba(51, 65, 85, .3);
-            transition: background .15s
+            border-bottom: 1px solid var(--border-light);
+            transition: background .12s;
+            color: var(--text-secondary);
         }
 
         .tbl tbody td:first-child {
             text-align: left;
             font-weight: 600;
-            color: var(--text)
+            color: var(--text);
         }
 
         .tbl tbody tr:hover td {
-            background: rgba(255, 255, 255, .02)
+            background: #f8fafc
         }
 
         .tbl .total-col {
@@ -458,52 +531,51 @@
         }
 
         .tbl .ftd-total {
-            background: rgba(59, 130, 246, .05)
+            background: rgba(37, 99, 235, .04)
         }
 
         .tbl .mtd-total {
-            background: rgba(139, 92, 246, .05)
+            background: rgba(124, 58, 237, .04)
         }
 
         .tbl tbody tr:last-child td {
             border-bottom: none
         }
 
-        /* Volume Grid */
+        /* ─── Volume Grid ─── */
         .vol-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: .75rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+            gap: .65rem
         }
 
-        .vol-card {
-            flex: 1 1 160px;
-            min-width: 160px;
-            max-width: 280px;
+        .vol-card.wide {
+            grid-column: span 2;
+            min-width: 0
         }
 
         .vol-card {
             background: var(--card);
-            backdrop-filter: blur(12px);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 1rem;
+            padding: .9rem;
             text-align: center;
-            transition: all .3s
+            transition: all .2s;
+            box-shadow: var(--shadow-sm);
         }
 
         .vol-card:hover {
-            transform: translateY(-2px);
-            border-color: rgba(59, 130, 246, .3)
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px)
         }
 
         .vol-label {
-            font-size: .65rem;
+            font-size: .62rem;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: .05em;
             color: var(--muted);
-            margin-bottom: .6rem
+            margin-bottom: .5rem;
         }
 
         .vol-values {
@@ -512,17 +584,27 @@
             gap: 1.5rem
         }
 
+        .vol-item {
+            min-width: 0
+        }
+
         .vol-item .vol-period {
-            font-size: .55rem;
+            font-size: .52rem;
             color: var(--muted);
             text-transform: uppercase;
-            letter-spacing: .04em
+            letter-spacing: .04em;
+            font-weight: 600;
         }
 
         .vol-item .vol-num {
-            font-size: 1.3rem;
+            font-size: 1.2rem;
             font-weight: 800;
-            margin-top: .1rem
+            margin-top: .08rem;
+            white-space: nowrap
+        }
+
+        .vol-item .vol-num.sm {
+            font-size: .95rem
         }
 
         .vol-item .vol-num.ftd {
@@ -533,42 +615,42 @@
             color: var(--accent)
         }
 
-        /* Package Alert */
+        /* ─── Package Alert ─── */
         .pkg-alert {
-            background: rgba(245, 158, 11, .06);
-            border: 1px solid rgba(245, 158, 11, .2);
+            background: var(--warning-light);
+            border: 1px solid rgba(217, 119, 6, .2);
             border-radius: var(--radius);
-            padding: .75rem 1rem;
+            padding: .65rem 1rem;
             display: flex;
             align-items: center;
-            gap: .75rem;
-            font-size: .8rem;
+            gap: .65rem;
+            font-size: .78rem;
             color: var(--warning);
-            margin-bottom: 1.5rem
+            margin-bottom: 1rem;
         }
 
-        .pkg-alert .icon {
-            font-size: 1.2rem
+        .pkg-alert .material-icons-round {
+            font-size: 20px
         }
 
         .pkg-alert .pkg-vals {
             display: flex;
-            gap: 1.5rem;
+            gap: 1.25rem;
             margin-left: auto;
             font-weight: 700;
-            font-size: .85rem
+            font-size: .8rem;
         }
 
-        /* Loading */
+        /* ─── Loading ─── */
         .loading-overlay {
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(10, 14, 26, .7);
+            background: rgba(255, 255, 255, .7);
             backdrop-filter: blur(4px);
             z-index: 200;
             align-items: center;
-            justify-content: center
+            justify-content: center;
         }
 
         .loading-overlay.show {
@@ -576,12 +658,12 @@
         }
 
         .loader {
-            width: 40px;
-            height: 40px;
-            border: 3px solid rgba(59, 130, 246, .2);
+            width: 38px;
+            height: 38px;
+            border: 3px solid var(--border);
             border-top-color: var(--primary);
             border-radius: 50%;
-            animation: spin .7s linear infinite
+            animation: spin .65s linear infinite;
         }
 
         @keyframes spin {
@@ -590,37 +672,46 @@
             }
         }
 
-        /* No data */
+        /* ─── No Data ─── */
         .no-data {
             text-align: center;
-            padding: 3rem;
+            padding: 3.5rem 1.5rem;
             color: var(--muted)
         }
 
-        .no-data .icon {
-            font-size: 2.5rem;
-            margin-bottom: .75rem
+        .no-data .nd-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            background: var(--primary-light);
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto .9rem;
+            font-size: 28px;
         }
 
         .no-data p {
-            font-size: .9rem
+            font-size: .88rem;
+            color: var(--text-secondary)
         }
 
         .no-data .sub {
             font-size: .75rem;
-            margin-top: .35rem;
-            color: rgba(148, 163, 184, .6)
+            margin-top: .3rem;
+            color: var(--muted)
         }
 
-        /* Alert */
+        /* ─── Alert ─── */
         .alert {
-            padding: .75rem 1rem;
-            border-radius: 10px;
-            margin-bottom: 1rem;
-            font-size: .8rem;
+            padding: .65rem .9rem;
+            border-radius: var(--radius-sm);
+            margin-bottom: .75rem;
+            font-size: .78rem;
             display: none;
             align-items: center;
-            gap: .6rem
+            gap: .5rem;
         }
 
         .alert.show {
@@ -628,8 +719,8 @@
         }
 
         .alert-error {
-            background: rgba(239, 68, 68, .1);
-            border: 1px solid rgba(239, 68, 68, .25);
+            background: var(--error-light);
+            border: 1px solid rgba(220, 38, 38, .2);
             color: var(--error)
         }
 
@@ -637,39 +728,64 @@
             cursor: pointer;
             margin-left: auto;
             opacity: .7;
-            font-size: 1.1rem
+            font-size: 1rem
         }
 
-        @media(max-width:900px) {
+        /* ─── Responsive ─── */
+        @media(max-width:1024px) {
             .summary-grid {
                 grid-template-columns: repeat(2, 1fr)
             }
+        }
 
+        @media(max-width:768px) {
             .controls {
                 flex-direction: column;
                 align-items: stretch
             }
 
             .date-control {
-                margin-left: 0
+                margin-left: 0;
+                flex-wrap: wrap
             }
-        }
 
-        @media(max-width:600px) {
             .summary-grid {
-                grid-template-columns: 1fr
-            }
-
-            .main {
-                padding: 1rem
+                grid-template-columns: repeat(2, 1fr)
             }
 
             .vol-grid {
                 grid-template-columns: repeat(2, 1fr)
             }
 
+            .main {
+                padding: 1rem
+            }
+
             .nav {
                 padding: 0 1rem
+            }
+
+            .tbl {
+                font-size: .72rem
+            }
+        }
+
+        @media(max-width:480px) {
+            .summary-grid {
+                grid-template-columns: 1fr
+            }
+
+            .vol-grid {
+                grid-template-columns: 1fr 1fr
+            }
+
+            .branch-pills {
+                width: 100%
+            }
+
+            .branch-pill {
+                flex: 1;
+                text-align: center
             }
         }
     </style>
@@ -678,31 +794,43 @@
 <body>
     <div class="nav">
         <div class="nav-brand">
-            <h1>🏥 Hospital MIS</h1>
+            <div class="logo"><span class="material-icons-round">local_hospital</span></div>
+            <h1>Hospital MIS</h1>
             <span class="nav-badge">Dashboard</span>
         </div>
         <div class="nav-links">
-            <a href="/dashboard" class="nav-link active">📊 Dashboard</a>
-            <a href="/" class="nav-link">📁 Upload</a>
+            <a href="/dashboard" class="nav-link active">
+                <span class="material-icons-round">bar_chart</span> Dashboard
+            </a>
+            <a href="/" class="nav-link">
+                <span class="material-icons-round">upload_file</span> Upload
+            </a>
         </div>
     </div>
 
     <div class="main">
-        <div id="alertBox" class="alert alert-error"><span id="alertMsg"></span><span class="close-a"
-                onclick="this.parentElement.classList.remove('show')">&times;</span></div>
+        <div id="alertBox" class="alert alert-error">
+            <span class="material-icons-round" style="font-size:18px">error_outline</span>
+            <span id="alertMsg"></span>
+            <span class="close-a" onclick="this.parentElement.classList.remove('show')">&times;</span>
+        </div>
 
         <div class="controls">
             <div class="branch-pills">
-                <button class="branch-pill active" data-branch="chromepet" onclick="switchBranch('chromepet')">🏥
-                    Chromepet</button>
-                <button class="branch-pill" data-branch="oragadam" onclick="switchBranch('oragadam')">🏥
-                    Oragadam</button>
+                <button class="branch-pill active" data-branch="chromepet"
+                    onclick="switchBranch('chromepet')">Chromepet</button>
+                <button class="branch-pill" data-branch="oragadam" onclick="switchBranch('oragadam')">Oragadam</button>
             </div>
             <div class="date-control">
-                <button class="date-nav" onclick="shiftDate(-1)" title="Previous day">◀</button>
+                <button class="date-nav" onclick="shiftDate(-1)" title="Previous day">
+                    <span class="material-icons-round" style="font-size:16px">chevron_left</span>
+                </button>
                 <input type="date" class="date-input" id="reportDate">
-                <button class="date-nav" onclick="shiftDate(1)" title="Next day">▶</button>
+                <button class="date-nav" onclick="shiftDate(1)" title="Next day">
+                    <span class="material-icons-round" style="font-size:16px">chevron_right</span>
+                </button>
                 <button class="btn-load" id="loadBtn" onclick="loadReport()">
+                    <span class="material-icons-round" style="font-size:16px">refresh</span>
                     <span id="loadText">Load Report</span>
                 </button>
             </div>
@@ -710,7 +838,7 @@
 
         <div id="content">
             <div class="no-data" id="noData">
-                <div class="icon">📊</div>
+                <div class="nd-icon"><span class="material-icons-round">analytics</span></div>
                 <p>Select a branch and date to view MIS report</p>
                 <p class="sub">Upload CSV files first if no data exists for the selected date</p>
             </div>
@@ -729,7 +857,6 @@
         let branch = 'chromepet',
             reportData = null;
 
-        // Init date
         const di = document.getElementById('reportDate');
         di.max = new Date().toISOString().split('T')[0];
         di.value = di.max;
@@ -754,8 +881,8 @@
             const date = di.value;
             if (!date) return;
             const btn = document.getElementById('loadBtn'),
-                lt = document.getElementById('loadText');
-            const lo = document.getElementById('loadingOverlay');
+                lt = document.getElementById('loadText'),
+                lo = document.getElementById('loadingOverlay');
             btn.disabled = true;
             lt.textContent = 'Loading...';
             lo.classList.add('show');
@@ -769,8 +896,7 @@
                 } else {
                     showError(j.message || 'No data found');
                     document.getElementById('content').innerHTML =
-                        '<div class="no-data"><div class="icon">⚠️</div><p>' + (j.message || 'No data for this date') +
-                        '</p><p class="sub">Try uploading CSV files for this date first</p></div>';
+                        `<div class="no-data"><div class="nd-icon"><span class="material-icons-round">warning</span></div><p>${j.message || 'No data for this date'}</p><p class="sub">Try uploading CSV files for this date first</p></div>`;
                 }
             } catch (e) {
                 showError('Network error: ' + e.message);
@@ -791,11 +917,8 @@
             return ((v || 0) / 100000).toFixed(2);
         }
 
-        function nm(v) {
-            return Number(v || 0).toLocaleString('en-IN', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            });
+        function fmtRupee(v) {
+            return '₹' + Math.round(Number(v || 0));
         }
 
         function renderReport(d) {
@@ -814,29 +937,57 @@
 
             let html = `
     <div class="summary-grid">
-        <div class="summary-card sales"><div class="sc-label">💰 Total Sales</div><div class="sc-row"><div class="sc-block"><div class="sc-period">FTD</div><div class="sc-value ftd">₹${lk(t.sales_ftd)}</div><div class="sc-unit">Lakhs</div></div><div class="sc-block"><div class="sc-period">MTD</div><div class="sc-value mtd">₹${lk(t.sales_mtd)}</div><div class="sc-unit">Lakhs</div></div></div></div>
-        <div class="summary-card collection"><div class="sc-label">🏦 Collection</div><div class="sc-row"><div class="sc-block"><div class="sc-period">FTD</div><div class="sc-value ftd">₹${lk(t.collection_ftd)}</div><div class="sc-unit">Lakhs</div></div><div class="sc-block"><div class="sc-period">MTD</div><div class="sc-value mtd">₹${lk(t.collection_mtd)}</div><div class="sc-unit">Lakhs</div></div></div></div>
-        <div class="summary-card discount"><div class="sc-label">🏷️ Occupancy</div><div class="sc-row"><div class="sc-block"><div class="sc-period">FTD</div><div class="sc-value ftd">${v.ftd?.occupancy||0}</div><div class="sc-unit">of ${BED[branch]} beds</div></div><div class="sc-block"><div class="sc-period">FTD %</div><div class="sc-value mtd">${Number(v.ftd?.occupancy_pct||0).toFixed(1)}%</div><div class="sc-unit">Occupancy</div></div></div></div>
-        <div class="summary-card refund"><div class="sc-label">📋 Admissions</div><div class="sc-row"><div class="sc-block"><div class="sc-period">FTD</div><div class="sc-value ftd">${v.ftd?.admission||0}</div><div class="sc-unit">Admitted</div></div><div class="sc-block"><div class="sc-period">MTD</div><div class="sc-value mtd">${v.mtd?.admission||0}</div><div class="sc-unit">Total</div></div></div></div>
+        <div class="summary-card sales">
+            <div class="sc-icon"><span class="material-icons-round">payments</span></div>
+            <div class="sc-label">Total Sales</div>
+            <div class="sc-row">
+                <div class="sc-block"><div class="sc-period">FTD</div><div class="sc-value ftd">₹${lk(t.sales_ftd)}</div><div class="sc-unit">Lakhs</div></div>
+                <div class="sc-block"><div class="sc-period">MTD</div><div class="sc-value mtd">₹${lk(t.sales_mtd)}</div><div class="sc-unit">Lakhs</div></div>
+            </div>
+        </div>
+        <div class="summary-card collection">
+            <div class="sc-icon"><span class="material-icons-round">account_balance</span></div>
+            <div class="sc-label">Collection</div>
+            <div class="sc-row">
+                <div class="sc-block"><div class="sc-period">FTD</div><div class="sc-value ftd">₹${lk(t.collection_ftd)}</div><div class="sc-unit">Lakhs</div></div>
+                <div class="sc-block"><div class="sc-period">MTD</div><div class="sc-value mtd">₹${lk(t.collection_mtd)}</div><div class="sc-unit">Lakhs</div></div>
+            </div>
+        </div>
+        <div class="summary-card discount">
+            <div class="sc-icon"><span class="material-icons-round">hotel</span></div>
+            <div class="sc-label">Occupancy</div>
+            <div class="sc-row">
+                <div class="sc-block"><div class="sc-period">FTD</div><div class="sc-value ftd">${v.ftd?.occupancy||0}</div><div class="sc-unit">of ${BED[branch]} beds</div></div>
+                <div class="sc-block"><div class="sc-period">FTD %</div><div class="sc-value mtd">${Number(v.ftd?.occupancy_pct||0).toFixed(1)}%</div><div class="sc-unit">Occupancy</div></div>
+            </div>
+        </div>
+        <div class="summary-card refund">
+            <div class="sc-icon"><span class="material-icons-round">person_add</span></div>
+            <div class="sc-label">Admissions</div>
+            <div class="sc-row">
+                <div class="sc-block"><div class="sc-period">FTD</div><div class="sc-value ftd">${v.ftd?.admission||0}</div><div class="sc-unit">Admitted</div></div>
+                <div class="sc-block"><div class="sc-period">MTD</div><div class="sc-value mtd">${v.mtd?.admission||0}</div><div class="sc-unit">Total</div></div>
+            </div>
+        </div>
     </div>`;
 
             // Package alert
             if ((pkg.ftd || 0) > 0 || (pkg.mtd || 0) > 0) {
                 html +=
-                    `<div class="pkg-alert"><span class="icon">📦</span><span>Package Consumption Adjustment (Chromepet): Added to Pharmacy, subtracted from IP</span><div class="pkg-vals"><span>FTD: ₹${lk(pkg.ftd)} L</span><span>MTD: ₹${lk(pkg.mtd)} L</span></div></div>`;
+                    `<div class="pkg-alert"><span class="material-icons-round">inventory_2</span><span>Package Adjustment (Chromepet): Added to Pharmacy, subtracted from IP</span><div class="pkg-vals"><span>FTD: ₹${lk(pkg.ftd)} L</span><span>MTD: ₹${lk(pkg.mtd)} L</span></div></div>`;
             }
 
-            // Determine branch-specific columns
+            // Branch-specific columns
             const isChromepet = branch === 'chromepet';
             const isOragadam = branch === 'oragadam';
-            // Chromepet: no ER column; Oragadam: has ER column
             const revCols = isChromepet ? ['op', 'ip', 'ph'] : ['op', 'ip', 'er', 'ph'];
-            const colSpan = revCols.length + 1; // +1 for Total column
+            const colSpan = revCols.length + 1;
 
             // Revenue table
             html +=
-                `<div class="section"><div class="section-head"><div class="section-title">📊 Revenue Breakdown <span style="font-size:.65rem;color:rgba(148,163,184,.5)">(₹ in Lakhs)</span></div><div class="export-btns"><a class="btn-export" href="/api/mis/${branch}/${date}/export" target="_blank">📥 Excel</a><a class="btn-export" href="/api/mis/${branch}/${date}/export-pdf" target="_blank">📄 PDF</a></div></div>`;
-            html += `<div class="card"><table class="tbl"><thead><tr class="super-header"><th></th><th colspan="${colSpan}" class="ftd-h">FTD (${date})</th><th colspan="${colSpan}" class="mtd-h">MTD</th></tr><tr><th>Category</th>`;
+                `<div class="section"><div class="section-head"><div class="section-title"><span class="material-icons-round">table_chart</span> Revenue Breakdown <span class="sub">(₹ in Lakhs)</span></div><div class="export-btns"><a class="btn-export" href="/api/mis/${branch}/${date}/export" target="_blank"><span class="material-icons-round" style="font-size:14px">download</span> Excel</a><a class="btn-export pdf" href="/api/mis/${branch}/${date}/export-pdf" target="_blank"><span class="material-icons-round" style="font-size:14px">picture_as_pdf</span> PDF</a></div></div>`;
+            html +=
+                `<div class="card"><table class="tbl"><thead><tr class="super-header"><th></th><th colspan="${colSpan}" class="ftd-h">FTD (${date})</th><th colspan="${colSpan}" class="mtd-h">MTD</th></tr><tr><th>Category</th>`;
             revCols.forEach(k => html += `<th>${k.toUpperCase()}</th>`);
             html += `<th>Total</th>`;
             revCols.forEach(k => html += `<th>${k.toUpperCase()}</th>`);
@@ -870,10 +1021,10 @@
                 dpm = dc.mtd?.partial || {};
             html += `<tr><td>Discount 99%</td>`;
             revCols.forEach(k => html += `<td>${lk(dp[k])}</td>`);
-            const dpFtT = revCols.reduce((a, k) => a + (dp[k]||0), 0);
+            const dpFtT = revCols.reduce((a, k) => a + (dp[k] || 0), 0);
             html += `<td class="total-col ftd-total">${lk(dpFtT)}</td>`;
             revCols.forEach(k => html += `<td>${lk(dpm[k])}</td>`);
-            const dpMtT = revCols.reduce((a, k) => a + (dpm[k]||0), 0);
+            const dpMtT = revCols.reduce((a, k) => a + (dpm[k] || 0), 0);
             html += `<td class="total-col mtd-total">${lk(dpMtT)}</td></tr>`;
 
             // Discount full
@@ -881,10 +1032,10 @@
                 dfm = dc.mtd?.full || {};
             html += `<tr><td>Discount 100%</td>`;
             revCols.forEach(k => html += `<td>${lk(df[k])}</td>`);
-            const dfFtT = revCols.reduce((a, k) => a + (df[k]||0), 0);
+            const dfFtT = revCols.reduce((a, k) => a + (df[k] || 0), 0);
             html += `<td class="total-col ftd-total">${lk(dfFtT)}</td>`;
             revCols.forEach(k => html += `<td>${lk(dfm[k])}</td>`);
-            const dfMtT = revCols.reduce((a, k) => a + (dfm[k]||0), 0);
+            const dfMtT = revCols.reduce((a, k) => a + (dfm[k] || 0), 0);
             html += `<td class="total-col mtd-total">${lk(dfMtT)}</td></tr>`;
 
             // Refund
@@ -892,18 +1043,19 @@
                 rm = r.mtd || {};
             html += `<tr><td>Refund</td>`;
             revCols.forEach(k => html += `<td>${lk(rf[k])}</td>`);
-            const rfFtT = revCols.reduce((a, k) => a + (rf[k]||0), 0);
+            const rfFtT = revCols.reduce((a, k) => a + (rf[k] || 0), 0);
             html += `<td class="total-col ftd-total">${lk(rfFtT)}</td>`;
             revCols.forEach(k => html += `<td>${lk(rm[k])}</td>`);
-            const rfMtT = revCols.reduce((a, k) => a + (rm[k]||0), 0);
+            const rfMtT = revCols.reduce((a, k) => a + (rm[k] || 0), 0);
             html += `<td class="total-col mtd-total">${lk(rfMtT)}</td></tr>`;
 
             html += `</tbody></table></div></div>`;
 
             // Volume section
-            const volTitle = isChromepet ? '📈 Volume Indicators & MRI' : '📈 Volume Indicators';
+            const volTitle = isChromepet ? 'Volume Indicators & MRI' : 'Volume Indicators';
             html +=
-                `<div class="section"><div class="section-head"><div class="section-title">${volTitle}</div></div><div class="vol-grid">`;
+                `<div class="section"><div class="section-head"><div class="section-title"><span class="material-icons-round">trending_up</span> ${volTitle}</div></div><div class="vol-grid">`;
+
             const vols = [{
                     label: 'Occupancy',
                     ftd: v.ftd?.occupancy || 0,
@@ -930,7 +1082,6 @@
                     mtd: v.mtd?.total_op || 0
                 },
             ];
-            // Oragadam: show Total ER (manual count)
             if (isOragadam) {
                 vols.push({
                     label: 'Total ER',
@@ -938,18 +1089,32 @@
                     mtd: v.mtd?.er_count || 0
                 });
             }
-            // Chromepet only: show MRI OP/IP count & revenue
             if (isChromepet) {
-                vols.push(
-                    { label: 'MRI OP (Count)', ftd: m.ftd?.op?.count || 0, mtd: m.mtd?.op?.count || 0 },
-                    { label: 'MRI IP (Count)', ftd: m.ftd?.ip?.count || 0, mtd: m.mtd?.ip?.count || 0 },
-                    { label: 'MRI OP Revenue', ftd: '₹' + (m.ftd?.op?.revenue || 0), mtd: '₹' + (m.mtd?.op?.revenue || 0) },
-                    { label: 'MRI IP Revenue', ftd: '₹' + (m.ftd?.ip?.revenue || 0), mtd: '₹' + (m.mtd?.ip?.revenue || 0) },
-                );
+                vols.push({
+                    label: 'MRI OP (Count)',
+                    ftd: m.ftd?.op?.count || 0,
+                    mtd: m.mtd?.op?.count || 0
+                }, {
+                    label: 'MRI IP (Count)',
+                    ftd: m.ftd?.ip?.count || 0,
+                    mtd: m.mtd?.ip?.count || 0
+                }, {
+                    label: 'MRI OP Revenue',
+                    ftd: fmtRupee(m.ftd?.op?.revenue),
+                    mtd: fmtRupee(m.mtd?.op?.revenue),
+                    wide: true
+                }, {
+                    label: 'MRI IP Revenue',
+                    ftd: fmtRupee(m.ftd?.ip?.revenue),
+                    mtd: fmtRupee(m.mtd?.ip?.revenue),
+                    wide: true
+                }, );
             }
             vols.forEach(vi => {
+                const wideClass = vi.wide ? ' wide' : '';
+                const numClass = vi.wide ? ' sm' : '';
                 html +=
-                    `<div class="vol-card"><div class="vol-label">${vi.label}</div><div class="vol-values"><div class="vol-item"><div class="vol-period">FTD</div><div class="vol-num ftd">${vi.ftd}</div></div><div class="vol-item"><div class="vol-period">MTD</div><div class="vol-num mtd">${vi.mtd}</div></div></div></div>`;
+                    `<div class="vol-card${wideClass}"><div class="vol-label">${vi.label}</div><div class="vol-values"><div class="vol-item"><div class="vol-period">FTD</div><div class="vol-num ftd${numClass}">${vi.ftd}</div></div><div class="vol-item"><div class="vol-period">MTD</div><div class="vol-num mtd${numClass}">${vi.mtd}</div></div></div></div>`;
             });
             html += `</div></div>`;
 

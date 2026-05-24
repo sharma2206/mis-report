@@ -11,55 +11,48 @@ use Maatwebsite\Excel\Concerns\WithChunkReading;
 
 class PackageConsumptionImport implements ToCollection, WithHeadingRow, WithChunkReading
 {
-    /**
-     * @var int Track total rows imported
-     */
     public int $rowCount = 0;
 
-    /**
-     * @param Branch $branch
-     * @param string $date
-     */
     public function __construct(
         private Branch $branch,
         private string $date
     ) {}
 
-    /**
-     * Process each chunk of rows from the CSV.
-     *
-     * @param Collection $rows
-     * @return void
-     */
     public function collection(Collection $rows): void
     {
         $insert = [];
 
-        foreach ($rows as $row) {
-            // Only import Pharmacy service type rows
+        foreach ($rows as $index => $row) {
+            // Debug first row INSIDE the loop
+            if ($index === 0 && $this->rowCount === 0) {
+                \Log::info('First row keys:', array_keys($row->toArray()));
+                \Log::info('First row data:', $row->toArray());
+            }
+
             $serviceType = strtolower(trim($row['package_service_type'] ?? ''));
             if ($serviceType !== 'pharmacy') {
                 continue;
             }
 
-            // Read from 'service_item_amount', fallback to 'amount' or 'value'
-            $amount = (float) ($row['service_item_amount'] ?? $row['amount'] ?? $row['value'] ?? 0);
+            // Clean and convert amount
+            $amount = str_replace(',', '', $row['service_item_amount'] ?? '0');
+            $amount = (float) trim($amount);
 
-            // Skip rows with no meaningful amount
-            if ($amount == 0) {
+            if ($amount <= 0) {
                 continue;
             }
 
             $insert[] = [
                 'branch'           => $this->branch->value,
                 'consumption_date' => $this->date,
-                'amount'           => $amount,
+                'amount'           => round($amount, 2), // Convert to paise
                 'created_at'       => now(),
                 'updated_at'       => now(),
             ];
         }
 
         if (!empty($insert)) {
+            // Use chunking for large inserts
             foreach (array_chunk($insert, 500) as $chunk) {
                 PackageConsumption::insert($chunk);
             }
@@ -67,9 +60,6 @@ class PackageConsumptionImport implements ToCollection, WithHeadingRow, WithChun
         }
     }
 
-    /**
-     * @return int
-     */
     public function chunkSize(): int
     {
         return 1000;

@@ -826,21 +826,31 @@
                     `<div class="pkg-alert"><span class="icon">📦</span><span>Package Consumption Adjustment (Chromepet): Added to Pharmacy, subtracted from IP</span><div class="pkg-vals"><span>FTD: ₹${lk(pkg.ftd)} L</span><span>MTD: ₹${lk(pkg.mtd)} L</span></div></div>`;
             }
 
+            // Determine branch-specific columns
+            const isChromepet = branch === 'chromepet';
+            const isOragadam = branch === 'oragadam';
+            // Chromepet: no ER column; Oragadam: has ER column
+            const revCols = isChromepet ? ['op', 'ip', 'ph'] : ['op', 'ip', 'er', 'ph'];
+            const colSpan = revCols.length + 1; // +1 for Total column
+
             // Revenue table
             html +=
                 `<div class="section"><div class="section-head"><div class="section-title">📊 Revenue Breakdown <span style="font-size:.65rem;color:rgba(148,163,184,.5)">(₹ in Lakhs)</span></div><div class="export-btns"><a class="btn-export" href="/api/mis/${branch}/${date}/export" target="_blank">📥 Excel</a><a class="btn-export" href="/api/mis/${branch}/${date}/export-pdf" target="_blank">📄 PDF</a></div></div>`;
-            html +=
-                `<div class="card"><table class="tbl"><thead><tr class="super-header"><th></th><th colspan="5" class="ftd-h">FTD (${date})</th><th colspan="5" class="mtd-h">MTD</th></tr><tr><th>Category</th><th>OP</th><th>IP</th><th>ER</th><th>PH</th><th>Total</th><th>OP</th><th>IP</th><th>ER</th><th>PH</th><th>Total</th></tr></thead><tbody>`;
+            html += `<div class="card"><table class="tbl"><thead><tr class="super-header"><th></th><th colspan="${colSpan}" class="ftd-h">FTD (${date})</th><th colspan="${colSpan}" class="mtd-h">MTD</th></tr><tr><th>Category</th>`;
+            revCols.forEach(k => html += `<th>${k.toUpperCase()}</th>`);
+            html += `<th>Total</th>`;
+            revCols.forEach(k => html += `<th>${k.toUpperCase()}</th>`);
+            html += `<th>Total</th></tr></thead><tbody>`;
 
             const rows = [{
                     label: 'Sales',
                     d: s,
-                    k: ['op', 'ip', 'er', 'ph']
+                    k: revCols
                 },
                 {
                     label: 'Collection',
                     d: c,
-                    k: ['op', 'ip', 'er', 'ph']
+                    k: revCols
                 },
             ];
             rows.forEach(rw => {
@@ -858,26 +868,42 @@
             // Discount partial
             const dp = dc.ftd?.partial || {},
                 dpm = dc.mtd?.partial || {};
-            html +=
-                `<tr><td>Discount 99%</td><td>${lk(dp.op)}</td><td>${lk(dp.ip)}</td><td>${lk(dp.er)}</td><td>${lk(dp.ph)}</td><td class="total-col ftd-total">${lk((dp.op||0)+(dp.ip||0)+(dp.er||0)+(dp.ph||0))}</td><td>${lk(dpm.op)}</td><td>${lk(dpm.ip)}</td><td>${lk(dpm.er)}</td><td>${lk(dpm.ph)}</td><td class="total-col mtd-total">${lk((dpm.op||0)+(dpm.ip||0)+(dpm.er||0)+(dpm.ph||0))}</td></tr>`;
+            html += `<tr><td>Discount 99%</td>`;
+            revCols.forEach(k => html += `<td>${lk(dp[k])}</td>`);
+            const dpFtT = revCols.reduce((a, k) => a + (dp[k]||0), 0);
+            html += `<td class="total-col ftd-total">${lk(dpFtT)}</td>`;
+            revCols.forEach(k => html += `<td>${lk(dpm[k])}</td>`);
+            const dpMtT = revCols.reduce((a, k) => a + (dpm[k]||0), 0);
+            html += `<td class="total-col mtd-total">${lk(dpMtT)}</td></tr>`;
 
             // Discount full
             const df = dc.ftd?.full || {},
                 dfm = dc.mtd?.full || {};
-            html +=
-                `<tr><td>Discount 100%</td><td>${lk(df.op)}</td><td>${lk(df.ip)}</td><td>${lk(df.er)}</td><td>${lk(df.ph)}</td><td class="total-col ftd-total">${lk((df.op||0)+(df.ip||0)+(df.er||0)+(df.ph||0))}</td><td>${lk(dfm.op)}</td><td>${lk(dfm.ip)}</td><td>${lk(dfm.er)}</td><td>${lk(dfm.ph)}</td><td class="total-col mtd-total">${lk((dfm.op||0)+(dfm.ip||0)+(dfm.er||0)+(dfm.ph||0))}</td></tr>`;
+            html += `<tr><td>Discount 100%</td>`;
+            revCols.forEach(k => html += `<td>${lk(df[k])}</td>`);
+            const dfFtT = revCols.reduce((a, k) => a + (df[k]||0), 0);
+            html += `<td class="total-col ftd-total">${lk(dfFtT)}</td>`;
+            revCols.forEach(k => html += `<td>${lk(dfm[k])}</td>`);
+            const dfMtT = revCols.reduce((a, k) => a + (dfm[k]||0), 0);
+            html += `<td class="total-col mtd-total">${lk(dfMtT)}</td></tr>`;
 
             // Refund
             const rf = r.ftd || {},
                 rm = r.mtd || {};
-            html +=
-                `<tr><td>Refund</td><td>${lk(rf.op)}</td><td>${lk(rf.ip)}</td><td>${lk(rf.er)}</td><td>${lk(rf.ph)}</td><td class="total-col ftd-total">${lk((rf.op||0)+(rf.ip||0)+(rf.er||0)+(rf.ph||0))}</td><td>${lk(rm.op)}</td><td>${lk(rm.ip)}</td><td>${lk(rm.er)}</td><td>${lk(rm.ph)}</td><td class="total-col mtd-total">${lk((rm.op||0)+(rm.ip||0)+(rm.er||0)+(rm.ph||0))}</td></tr>`;
+            html += `<tr><td>Refund</td>`;
+            revCols.forEach(k => html += `<td>${lk(rf[k])}</td>`);
+            const rfFtT = revCols.reduce((a, k) => a + (rf[k]||0), 0);
+            html += `<td class="total-col ftd-total">${lk(rfFtT)}</td>`;
+            revCols.forEach(k => html += `<td>${lk(rm[k])}</td>`);
+            const rfMtT = revCols.reduce((a, k) => a + (rm[k]||0), 0);
+            html += `<td class="total-col mtd-total">${lk(rfMtT)}</td></tr>`;
 
             html += `</tbody></table></div></div>`;
 
             // Volume section
+            const volTitle = isChromepet ? '📈 Volume Indicators & MRI' : '📈 Volume Indicators';
             html +=
-                `<div class="section"><div class="section-head"><div class="section-title">📈 Volume Indicators & MRI</div></div><div class="vol-grid">`;
+                `<div class="section"><div class="section-head"><div class="section-title">${volTitle}</div></div><div class="vol-grid">`;
             const vols = [{
                     label: 'Occupancy',
                     ftd: v.ftd?.occupancy || 0,
@@ -903,27 +929,24 @@
                     ftd: v.ftd?.total_op || 0,
                     mtd: v.mtd?.total_op || 0
                 },
-                {
-                    label: 'MRI OP (Count)',
-                    ftd: m.ftd?.op?.count || 0,
-                    mtd: m.mtd?.op?.count || 0
-                },
-                {
-                    label: 'MRI IP (Count)',
-                    ftd: m.ftd?.ip?.count || 0,
-                    mtd: m.mtd?.ip?.count || 0
-                },
-                {
-                    label: 'MRI OP Revenue',
-                    ftd: '₹' + m.ftd?.op?.revenue,
-                    mtd: '₹' + m.mtd?.op?.revenue
-                },
-                {
-                    label: 'MRI IP Revenue',
-                    ftd: '₹' + m.ftd?.ip?.revenue,
-                    mtd: '₹' + m.mtd?.ip?.revenue
-                },
             ];
+            // Oragadam: show Total ER (manual count)
+            if (isOragadam) {
+                vols.push({
+                    label: 'Total ER',
+                    ftd: v.ftd?.er_count || 0,
+                    mtd: v.mtd?.er_count || 0
+                });
+            }
+            // Chromepet only: show MRI OP/IP count & revenue
+            if (isChromepet) {
+                vols.push(
+                    { label: 'MRI OP (Count)', ftd: m.ftd?.op?.count || 0, mtd: m.mtd?.op?.count || 0 },
+                    { label: 'MRI IP (Count)', ftd: m.ftd?.ip?.count || 0, mtd: m.mtd?.ip?.count || 0 },
+                    { label: 'MRI OP Revenue', ftd: '₹' + (m.ftd?.op?.revenue || 0), mtd: '₹' + (m.mtd?.op?.revenue || 0) },
+                    { label: 'MRI IP Revenue', ftd: '₹' + (m.ftd?.ip?.revenue || 0), mtd: '₹' + (m.mtd?.ip?.revenue || 0) },
+                );
+            }
             vols.forEach(vi => {
                 html +=
                     `<div class="vol-card"><div class="vol-label">${vi.label}</div><div class="vol-values"><div class="vol-item"><div class="vol-period">FTD</div><div class="vol-num ftd">${vi.ftd}</div></div><div class="vol-item"><div class="vol-period">MTD</div><div class="vol-num mtd">${vi.mtd}</div></div></div></div>`;

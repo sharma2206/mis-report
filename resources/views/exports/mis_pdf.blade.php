@@ -12,7 +12,7 @@
         }
 
         body {
-            font-family: 'Calibri', sans-serif;
+            font-family: 'DejaVu Sans', sans-serif;
             font-size: 11px;
             color: #000;
             padding: 20px;
@@ -30,6 +30,7 @@
             padding: 6px 8px;
             text-align: center;
             vertical-align: middle;
+            font-weight: bold;
         }
 
         th {
@@ -39,10 +40,12 @@
 
         .revenue-table {
             width: 80%;
+            margin: 0 auto 20px auto;
         }
 
         .volume-table {
             width: 35%;
+            margin: 0 auto 0 10%;
         }
 
         .header-title {
@@ -79,7 +82,7 @@
         $num = fn($v) => number_format($v ?? 0, 0, '', '');
 
         $formattedDate = isset($data['date']) ? date('d/m/Y', strtotime($data['date'])) : '';
-        $branchKey = strtolower($data['branch_key'] ?? $data['branch'] ?? '');
+        $branchKey = strtolower($data['branch_key'] ?? ($data['branch'] ?? ''));
         $isChromepet = $branchKey === 'chromepet';
         $isOragadam = $branchKey === 'oragadam';
         // Chromepet: OP, IP, PH (no ER) = 3 cols + Total = 4 colspan
@@ -121,8 +124,16 @@
                 $revenueRows = [
                     ['label' => 'Sales', 'ftd' => $sales['ftd'] ?? [], 'mtd' => $sales['mtd'] ?? []],
                     ['label' => 'Collection', 'ftd' => $col['ftd'] ?? [], 'mtd' => $col['mtd'] ?? []],
-                    ['label' => 'Discount 99%', 'ftd' => $disc['ftd']['partial'] ?? [], 'mtd' => $disc['mtd']['partial'] ?? []],
-                    ['label' => 'Discount 100%', 'ftd' => $disc['ftd']['full'] ?? [], 'mtd' => $disc['mtd']['full'] ?? []],
+                    [
+                        'label' => 'Discount 99%',
+                        'ftd' => $disc['ftd']['partial'] ?? [],
+                        'mtd' => $disc['mtd']['partial'] ?? [],
+                    ],
+                    [
+                        'label' => 'Discount 100%',
+                        'ftd' => $disc['ftd']['full'] ?? [],
+                        'mtd' => $disc['mtd']['full'] ?? [],
+                    ],
                     ['label' => 'Refund', 'ftd' => $ref['ftd'] ?? [], 'mtd' => $ref['mtd'] ?? []],
                 ];
                 $revKeys = $isChromepet ? ['op', 'ip', 'ph'] : ['op', 'ip', 'er', 'ph'];
@@ -204,13 +215,13 @@
                 </tr>
                 <tr>
                     <td class="row-header">MRI OP</td>
-                    <td>₹ {{ number_format($mri['ftd']['op']['revenue'] ?? 0, 0) }}</td>
-                    <td>₹ {{ number_format($mri['mtd']['op']['revenue'] ?? 0, 0) }}</td>
+                    <td>₹ {{ number_format($mri['ftd']['op']['revenue'] ?? 0, 0, '', '') }}</td>
+                    <td>₹ {{ number_format($mri['mtd']['op']['revenue'] ?? 0, 0, '', '') }}</td>
                 </tr>
                 <tr>
                     <td class="row-header">MRI IP</td>
-                    <td>₹ {{ number_format($mri['ftd']['ip']['revenue'] ?? 0, 0) }}</td>
-                    <td>₹ {{ number_format($mri['mtd']['ip']['revenue'] ?? 0, 0) }}</td>
+                    <td>₹ {{ number_format($mri['ftd']['ip']['revenue'] ?? 0, 0, '', '') }}</td>
+                    <td>₹ {{ number_format($mri['mtd']['ip']['revenue'] ?? 0, 0, '', '') }}</td>
                 </tr>
             @endif
         </tbody>

@@ -980,7 +980,7 @@
             // Branch-specific columns
             const isChromepet = branch === 'chromepet';
             const isOragadam = branch === 'oragadam';
-            const revCols = isChromepet ? ['op', 'ip', 'ph'] : ['op', 'ip', 'er', 'ph'];
+            const revCols = ['op', 'ip', 'er', 'ph'];
             const colSpan = revCols.length + 1;
 
             // Revenue table

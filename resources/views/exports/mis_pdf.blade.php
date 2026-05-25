@@ -85,10 +85,9 @@
         $branchKey = strtolower($data['branch_key'] ?? ($data['branch'] ?? ''));
         $isChromepet = $branchKey === 'chromepet';
         $isOragadam = $branchKey === 'oragadam';
-        // Chromepet: OP, IP, PH (no ER) = 3 cols + Total = 4 colspan
-        // Oragadam: OP, IP, ER, PH = 4 cols + Total = 5 colspan
-        $revColspan = $isChromepet ? 4 : 5;
-        $totalColspan = $isChromepet ? 9 : 11;
+        // Both branches: OP, IP, ER, PH = 4 cols + Total = 5 colspan
+        $revColspan = 5;
+        $totalColspan = 11;
     @endphp
 
     <!-- Revenue Table -->
@@ -105,16 +104,12 @@
             <tr>
                 <th>OP</th>
                 <th>IP</th>
-                @if (!$isChromepet)
-                    <th>ER</th>
-                @endif
+                <th>ER</th>
                 <th>PH</th>
                 <th>Total</th>
                 <th>OP</th>
                 <th>IP</th>
-                @if (!$isChromepet)
-                    <th>ER</th>
-                @endif
+                <th>ER</th>
                 <th>PH</th>
                 <th>Total</th>
             </tr>
@@ -136,7 +131,7 @@
                     ],
                     ['label' => 'Refund', 'ftd' => $ref['ftd'] ?? [], 'mtd' => $ref['mtd'] ?? []],
                 ];
-                $revKeys = $isChromepet ? ['op', 'ip', 'ph'] : ['op', 'ip', 'er', 'ph'];
+                $revKeys = ['op', 'ip', 'er', 'ph'];
             @endphp
             @foreach ($revenueRows as $row)
                 <tr>

@@ -231,10 +231,10 @@ class MISService
     private function getSalesData(Branch $branch, string $date): array
     {
         $selectRaw = "
-        SUM(CASE WHEN service_type = 'Pharmacy' THEN COALESCE(NULLIF(net_amount, 0), amount) ELSE 0 END) as ph_total,
-        SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' THEN COALESCE(NULLIF(net_amount, 0), amount) ELSE 0 END) as op_total,
-        SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' THEN COALESCE(NULLIF(net_amount, 0), amount) ELSE 0 END) as ip_total,
-        SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' THEN COALESCE(NULLIF(net_amount, 0), amount) ELSE 0 END) as er_total
+        SUM(CASE WHEN service_type = 'Pharmacy' THEN net_amount ELSE 0 END) as ph_total,
+        SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as op_total,
+        SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as ip_total,
+        SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as er_total
 ";
         // Sales = Net Amount of BOTH Sale and Refund
         $baseQuery = BillItem::query()->where('branch', $branch->value)->whereIn('status', ['Sale', 'Refund']);

@@ -41,6 +41,22 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
                 continue;
             }
 
+            $amount = (float) $this->getValue($row, ['amount', 'amt', 'total_amount']);
+
+            // Try to get net_amount, defaulting to null if not found
+            $netAmountRaw = $this->getValue($row, ['net_amount', 'net amount', 'netamount', 'net-amount'], null);
+
+            // Also try to get discount amount if net_amount is missing
+            $discountRaw = $this->getValue($row, ['discount', 'disc', 'discount_amount', 'discount amount'], null);
+
+            if ($netAmountRaw !== null && trim((string)$netAmountRaw) !== '') {
+                $netAmount = (float) $netAmountRaw;
+            } elseif ($discountRaw !== null && trim((string)$discountRaw) !== '') {
+                $netAmount = $amount - (float) $discountRaw;
+            } else {
+                $netAmount = $amount; // Default to amount if neither net_amount nor discount is provided
+            }
+
             $insert[] = [
                 'branch'         => $this->branch->value,
                 'bill_date'      => $this->date,
@@ -48,8 +64,8 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
                 'patient_type'   => $this->normalizePatientType($row['patient_type'] ?? null),
                 'service_type'   => trim($row['service_type'] ?? ''),
                 'sub_department' => trim($row['sub_department'] ?? '') ?: null,
-                'amount'         => (float) ($row['amount'] ?? 0),
-                'net_amount'     => (float) ($row['net_amount'] ?? 0),
+                'amount'         => $amount,
+                'net_amount'     => $netAmount,
                 'quantity'       => (int) ($row['quantity'] ?? 1),
                 'status'         => trim($row['status'] ?? 'Active') ?: 'Active',
                 'created_at'     => now(),
@@ -63,6 +79,43 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
             }
             $this->rowCount += count($insert);
         }
+    }
+
+    /**
+     * Try multiple possible header keys and return the first non-empty value.
+     *
+     * @param array $row
+     * @param array $keys
+     * @return mixed
+     */
+    private function getValue($row, array $keys, $default = 0)
+    {
+        if ($row instanceof \Illuminate\Support\Collection) {
+            $row = $row->all();
+        }
+
+        foreach ($keys as $k) {
+            if (is_array($row) && array_key_exists($k, $row) && trim((string)($row[$k] ?? '')) !== '') {
+                return $row[$k];
+            }
+        }
+
+        // try normalized keys (lower, spaces/underscores/dashes)
+        $normalized = [];
+        if (is_array($row)) {
+            foreach ($row as $rk => $rv) {
+                $key = strtolower(str_replace([' ', '-', '_'], '', $rk));
+                $normalized[$key] = $rv;
+            }
+        }
+        foreach ($keys as $k) {
+            $nk = strtolower(str_replace([' ', '-', '_'], '', $k));
+            if (array_key_exists($nk, $normalized) && trim((string)$normalized[$nk]) !== '') {
+                return $normalized[$nk];
+            }
+        }
+
+        return $default;
     }
 
     /**

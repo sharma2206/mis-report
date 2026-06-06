@@ -11,6 +11,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Carbon\Carbon;
 
 class MISController extends Controller
 {
@@ -57,7 +58,6 @@ class MISController extends Controller
                 'imported' => $imported,
                 'data'     => $report,
             ]);
-
         } catch (Exception $e) {
             return response()->json([
                 'success' => false,
@@ -108,11 +108,12 @@ class MISController extends Controller
 
             $data = $this->misService->generateMIS($request->branch(), $request->reportDate());
 
+            $filename = $this->formatReportFilename($request->branch(), $request->reportDate());
+
             return \Maatwebsite\Excel\Facades\Excel::download(
                 new \App\Exports\MISExport($data),
-                "MIS_{$branch}_{$date}.xlsx"
+                "{$filename}.xlsx"
             );
-
         } catch (Exception $e) {
             return response()->json([
                 'success' => false,
@@ -139,8 +140,9 @@ class MISController extends Controller
             $pdf = Pdf::loadView('exports.mis_pdf', ['data' => $data])
                 ->setPaper('a4', 'landscape');
 
-            return $pdf->download("MIS_{$branch}_{$date}.pdf");
+            $filename = $this->formatReportFilename($request->branch(), $request->reportDate());
 
+            return $pdf->download("{$filename}.pdf");
         } catch (Exception $e) {
             return response()->json([
                 'success' => false,
@@ -170,5 +172,21 @@ class MISController extends Controller
                 'message' => $e->getMessage(),
             ], 422);
         }
+    }
+
+    /**
+     * Format report filename like: "Sales VS Collection 3rd June 2026(Chromepet)"
+     *
+     * @param \App\Enums\Branch $branchEnum
+     * @param string $date (Y-m-d)
+     * @param string $prefix
+     * @return string
+     */
+    private function formatReportFilename(\App\Enums\Branch $branchEnum, string $date, string $prefix = 'Sales VS Collection'): string
+    {
+        $dt = Carbon::createFromFormat('Y-m-d', $date);
+        $formattedDate = $dt->format('jS F Y');
+
+        return "{$prefix} {$formattedDate}({$branchEnum->label()})";
     }
 }

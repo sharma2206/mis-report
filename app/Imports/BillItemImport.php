@@ -11,65 +11,77 @@ use Maatwebsite\Excel\Concerns\WithChunkReading;
 
 class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
 {
-    /**
-     * @var int Track total rows imported
-     */
     public int $rowCount = 0;
 
-    /**
-     * @param Branch $branch
-     * @param string $date
-     */
     public function __construct(
         private Branch $branch,
         private string $date
     ) {}
 
-    /**
-     * Process each chunk of rows from the CSV.
-     *
-     * @param Collection $rows
-     * @return void
-     */
     public function collection(Collection $rows): void
     {
         $insert = [];
 
         foreach ($rows as $row) {
-            // Skip empty rows
-            if (empty($row['patient_id']) && empty($row['bill_no'])) {
+            $uhid   = trim($this->getValue($row, ['uhid'], ''));
+            $billNo = trim($this->getValue($row, ['bill_no', 'billno', 'bill_number'], ''));
+
+            if (empty($uhid) && empty($billNo)) {
                 continue;
             }
 
-            $amount = (float) $this->getValue($row, ['amount', 'amt', 'total_amount']);
+            $amount    = (float) $this->getValue($row, ['amount', 'amt', 'total_amount']);
+            $discount  = (float) $this->getValue($row, ['discount_amount', 'discount', 'disc'], 0);
 
-            // Try to get net_amount, defaulting to null if not found
             $netAmountRaw = $this->getValue($row, ['net_amount', 'net amount', 'netamount', 'net-amount'], null);
-
-            // Also try to get discount amount if net_amount is missing
-            $discountRaw = $this->getValue($row, ['discount', 'disc', 'discount_amount', 'discount amount'], null);
-
-            if ($netAmountRaw !== null && trim((string)$netAmountRaw) !== '') {
+            if ($netAmountRaw !== null && trim((string) $netAmountRaw) !== '') {
                 $netAmount = (float) $netAmountRaw;
-            } elseif ($discountRaw !== null && trim((string)$discountRaw) !== '') {
-                $netAmount = $amount - (float) $discountRaw;
+            } elseif ($discount > 0) {
+                $netAmount = $amount - $discount;
             } else {
-                $netAmount = $amount; // Default to amount if neither net_amount nor discount is provided
+                $netAmount = $amount;
+            }
+
+            // Derive discount_amount if not explicitly provided
+            if ($discount <= 0 && $netAmount < $amount) {
+                $discount = $amount - $netAmount;
             }
 
             $insert[] = [
-                'branch'         => $this->branch->value,
-                'bill_date'      => $this->date,
-                'patient_id'     => trim($row['patient_id'] ?? ''),
-                'patient_type'   => $this->normalizePatientType($row['patient_type'] ?? null),
-                'service_type'   => trim($row['service_type'] ?? ''),
-                'sub_department' => trim($row['sub_department'] ?? '') ?: null,
-                'amount'         => $amount,
-                'net_amount'     => $netAmount,
-                'quantity'       => (int) ($row['quantity'] ?? 1),
-                'status'         => trim($row['status'] ?? 'Active') ?: 'Active',
-                'created_at'     => now(),
-                'updated_at'     => now(),
+                'branch'                   => $this->branch->value,
+                'bill_date'                => $this->date,
+                'bill_no'                  => $billNo ?: null,
+                'uhid'                     => $uhid ?: null,
+                'patient_id'               => $uhid ?: trim($this->getValue($row, ['patient_id'], '')),
+                'patient_name'             => trim($this->getValue($row, ['patient_name'], '')) ?: null,
+                'age'                      => trim($this->getValue($row, ['age', 'patient_age'], '')) ?: null,
+                'gender'                   => trim($this->getValue($row, ['gender', 'patient_gender'], '')) ?: null,
+                'ward'                     => trim($this->getValue($row, ['ward'], '')) ?: null,
+                'bed'                      => trim($this->getValue($row, ['bed'], '')) ?: null,
+                'visit_id'                 => trim($this->getValue($row, ['visit_id', 'visit_id_admissionid', 'visitid', 'visit_idadmissionid'], '')) ?: null,
+                'patient_type'             => $this->normalizePatientType($row['patient_type'] ?? null),
+                'payer_type'               => strtolower(trim($this->getValue($row, ['payer_type'], ''))) ?: null,
+                'payer_name'               => trim($this->getValue($row, ['payer_name', 'payer'], '')) ?: null,
+                'payer_group'              => trim($this->getValue($row, ['payer_group'], '')) ?: null,
+                'insurance_company'        => trim($this->getValue($row, ['insurance_company'], '')) ?: null,
+                'corporate_name'           => trim($this->getValue($row, ['corporate_name'], '')) ?: null,
+                'service_type'             => trim($row['service_type'] ?? ''),
+                'sub_department'           => trim($row['sub_department'] ?? '') ?: null,
+                'service_item_code'        => trim($this->getValue($row, ['service_item_code'], '')) ?: null,
+                'service_item_name'        => trim($this->getValue($row, ['service_item_name'], '')) ?: null,
+                'treating_doctor'          => trim($this->getValue($row, ['treating_doctor_team', 'treating_doctorteam', 'treating_doctor'], '')) ?: null,
+                'treating_doctor_speciality' => trim($this->getValue($row, ['treating_doctor_speciality'], '')) ?: null,
+                'treating_department'      => trim($this->getValue($row, ['treating_department', 'department'], '')) ?: null,
+                'treating_sub_department'  => trim($this->getValue($row, ['treating_sub_department'], '')) ?: null,
+                'billing_category'         => trim($this->getValue($row, ['billing_category'], '')) ?: null,
+                'amount'                   => $amount,
+                'discount_amount'          => round($discount, 2),
+                'net_amount'               => $netAmount,
+                'quantity'                 => (int) ($row['quantity'] ?? 1),
+                'payment_mode'             => trim($this->getValue($row, ['settlement_payment_modes', 'payment_mode', 'payment_method'], '')) ?: null,
+                'status'                   => trim($row['status'] ?? 'Active') ?: 'Active',
+                'created_at'               => now(),
+                'updated_at'               => now(),
             ];
         }
 
@@ -81,13 +93,11 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
         }
     }
 
-    /**
-     * Try multiple possible header keys and return the first non-empty value.
-     *
-     * @param array $row
-     * @param array $keys
-     * @return mixed
-     */
+    public function chunkSize(): int
+    {
+        return 1000;
+    }
+
     private function getValue($row, array $keys, $default = 0)
     {
         if ($row instanceof \Illuminate\Support\Collection) {
@@ -100,16 +110,15 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
             }
         }
 
-        // try normalized keys (lower, spaces/underscores/dashes)
         $normalized = [];
         if (is_array($row)) {
             foreach ($row as $rk => $rv) {
-                $key = strtolower(str_replace([' ', '-', '_'], '', $rk));
+                $key = strtolower(str_replace([' ', '-', '_', '/'], '', $rk));
                 $normalized[$key] = $rv;
             }
         }
         foreach ($keys as $k) {
-            $nk = strtolower(str_replace([' ', '-', '_'], '', $k));
+            $nk = strtolower(str_replace([' ', '-', '_', '/'], '', $k));
             if (array_key_exists($nk, $normalized) && trim((string)$normalized[$nk]) !== '') {
                 return $normalized[$nk];
             }
@@ -118,20 +127,6 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
         return $default;
     }
 
-    /**
-     * @return int
-     */
-    public function chunkSize(): int
-    {
-        return 1000;
-    }
-
-    /**
-     * Normalize patient type to OP, IP, ER, or null (Pharmacy).
-     *
-     * @param string|null $type
-     * @return string|null
-     */
     private function normalizePatientType(?string $type): ?string
     {
         if (!$type || trim($type) === '') {
@@ -141,10 +136,10 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
         $t = strtoupper(trim($type));
 
         return match (true) {
-            str_contains($t, 'OP')                              => 'OP',
-            str_contains($t, 'IP'), str_contains($t, 'INPATIENT') => 'IP',
-            str_contains($t, 'ER'), str_contains($t, 'EMERGENCY') => 'ER',
-            default                                              => $t,
+            str_contains($t, 'OP')                                   => 'OP',
+            str_contains($t, 'IP'), str_contains($t, 'INPATIENT')    => 'IP',
+            str_contains($t, 'ER'), str_contains($t, 'EMERGENCY')    => 'ER',
+            default                                                   => $t,
         };
     }
 }

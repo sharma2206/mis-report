@@ -17,11 +17,11 @@ class CashierCollection extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'branch',
-        'collection_date',
-        'patient_type',
-        'user_department',
-        'paid_amount',
+        'branch', 'collection_date',
+        'uhid', 'patient_name', 'visit_id', 'receipt_no',
+        'patient_type', 'user_department', 'paid_amount',
+        'transaction_type', 'transaction_category',
+        'payment_mode', 'payer_type', 'payer_name',
     ];
 
     /**

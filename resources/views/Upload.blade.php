@@ -749,6 +749,44 @@
             </div>
 
             <div class="card">
+                <div class="card-title"><span class="material-icons-round">medical_services</span>Additional Data Files <span style="font-weight:400;text-transform:none;font-size:.75rem;color:var(--muted)">(Optional — enables doctor/surgery/admission analytics)</span></div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>ER Admission File</label>
+                        <div class="file-zone" id="zone_er_file">
+                            <span class="material-icons-round zi">emergency</span>
+                            <span class="zt">ER Admission Report</span>
+                            <span class="zs">Enables ER analytics</span>
+                            <input type="file" name="er_file" accept=".csv,.txt,.xlsx,.xls" onchange="onFile(this)">
+                        </div>
+                        <span class="fbadge" id="badge_er_file"><span class="material-icons-round">task_alt</span><span class="fn"></span></span>
+                    </div>
+                    <div class="form-group">
+                        <label>IP Admission File</label>
+                        <div class="file-zone" id="zone_ip_file">
+                            <span class="material-icons-round zi">hotel</span>
+                            <span class="zt">IP Admission Report</span>
+                            <span class="zs">Enables LOS &amp; dept analytics</span>
+                            <input type="file" name="ip_file" accept=".csv,.txt,.xlsx,.xls" onchange="onFile(this)">
+                        </div>
+                        <span class="fbadge" id="badge_ip_file"><span class="material-icons-round">task_alt</span><span class="fn"></span></span>
+                    </div>
+                </div>
+                <div class="form-row single">
+                    <div class="form-group">
+                        <label>Surgery Detail File</label>
+                        <div class="file-zone" id="zone_surgery_file">
+                            <span class="material-icons-round zi">vaccines</span>
+                            <span class="zt">Surgery Detail Report</span>
+                            <span class="zs">Enables OT &amp; surgeon analytics</span>
+                            <input type="file" name="surgery_file" accept=".csv,.txt,.xlsx,.xls" onchange="onFile(this)">
+                        </div>
+                        <span class="fbadge" id="badge_surgery_file"><span class="material-icons-round">task_alt</span><span class="fn"></span></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
                 <div class="card-title"><span class="material-icons-round">leaderboard</span>Volume Indicators (FTD)
                 </div>
                 <div class="form-row">
@@ -935,19 +973,15 @@
             const card = document.getElementById('responseCard'),
                 stats = document.getElementById('importStats'),
                 imp = j.imported || {};
-            let h = '<div class="stat-box"><div class="stat-label">Bill Items</div><div class="stat-value">' + (imp
-                .bill_items || 0).toLocaleString() + '</div></div>';
-            h += '<div class="stat-box"><div class="stat-label">Collections</div><div class="stat-value">' + (imp
-                .cashier_collections || 0).toLocaleString() + '</div></div>';
-            if (currentBranch === 'chromepet') h +=
-                '<div class="stat-box"><div class="stat-label">Packages</div><div class="stat-value">' + (imp
-                    .package_consumptions || 0).toLocaleString() + '</div></div>';
-            const d = j.data || {},
-                s = d.sales || {},
-                ftd = s.ftd || {};
+            let h = '<div class="stat-box"><div class="stat-label">Bill Items</div><div class="stat-value">' + (imp.bill_items || 0).toLocaleString() + '</div></div>';
+            h += '<div class="stat-box"><div class="stat-label">Collections</div><div class="stat-value">' + (imp.cashier_collections || 0).toLocaleString() + '</div></div>';
+            if (currentBranch === 'chromepet') h += '<div class="stat-box"><div class="stat-label">Packages</div><div class="stat-value">' + (imp.package_consumptions || 0).toLocaleString() + '</div></div>';
+            if (imp.er_admissions > 0) h += '<div class="stat-box"><div class="stat-label">ER Admissions</div><div class="stat-value">' + imp.er_admissions.toLocaleString() + '</div></div>';
+            if (imp.ip_admissions > 0) h += '<div class="stat-box"><div class="stat-label">IP Admissions</div><div class="stat-value">' + imp.ip_admissions.toLocaleString() + '</div></div>';
+            if (imp.surgeries > 0) h += '<div class="stat-box"><div class="stat-label">Surgeries</div><div class="stat-value">' + imp.surgeries.toLocaleString() + '</div></div>';
+            const d = j.data || {}, s = d.sales || {}, ftd = s.ftd || {};
             const tot = ((ftd.op || 0) + (ftd.ip || 0) + (ftd.er || 0) + (ftd.ph || 0)).toFixed(2);
-            h += '<div class="stat-box"><div class="stat-label">FTD Sales</div><div class="stat-value">₹' + Number(tot)
-                .toLocaleString() + '</div></div>';
+            h += '<div class="stat-box"><div class="stat-label">FTD Sales</div><div class="stat-value">₹' + Number(tot).toLocaleString() + '</div></div>';
             stats.innerHTML = h;
             card.classList.add('show');
             const date = document.getElementById('dateInput').value;

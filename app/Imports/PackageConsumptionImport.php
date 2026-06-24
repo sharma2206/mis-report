@@ -23,10 +23,8 @@ class PackageConsumptionImport implements ToCollection, WithHeadingRow, WithChun
         $insert = [];
 
         foreach ($rows as $index => $row) {
-            // Debug first row INSIDE the loop
             if ($index === 0 && $this->rowCount === 0) {
-                \Log::info('First row keys:', array_keys($row->toArray()));
-                \Log::info('First row data:', $row->toArray());
+                \Log::info('PackageConsumptionImport first row keys:', array_keys($row->toArray()));
             }
 
             $serviceType = strtolower(trim($row['package_service_type'] ?? ''));
@@ -34,25 +32,44 @@ class PackageConsumptionImport implements ToCollection, WithHeadingRow, WithChun
                 continue;
             }
 
-            // Clean and convert amount
-            $amount = str_replace(',', '', $row['service_item_amount'] ?? '0');
-            $amount = (float) trim($amount);
+            $rawAmount = str_replace(',', '', $row['service_item_amount'] ?? '0');
+            $amount    = (float) trim($rawAmount);
 
             if ($amount <= 0) {
                 continue;
             }
 
+            // Package amount is the overall package price (used for adjustment calculation)
+            $packageAmountRaw = str_replace(',', '', $row['package_amount'] ?? '0');
+            $packageAmount    = (float) trim($packageAmountRaw);
+
             $insert[] = [
-                'branch'           => $this->branch->value,
-                'consumption_date' => $this->date,
-                'amount'           => round($amount, 2), // Convert to paise
-                'created_at'       => now(),
-                'updated_at'       => now(),
+                'branch'               => $this->branch->value,
+                'consumption_date'     => $this->date,
+                'uhid'                 => trim($row['uhid'] ?? '') ?: null,
+                'patient_name'         => trim($row['patient_name'] ?? '') ?: null,
+                'bill_no'              => trim($row['bill_no'] ?? '') ?: null,
+                'patient_type'         => $this->normalizePatientType($row['patient_type'] ?? null),
+                'payer_type'           => strtolower(trim($row['payer_type'] ?? '')) ?: null,
+                'payer_name'           => trim($row['payer_name'] ?? '') ?: null,
+                'package_type'         => trim($row['package_type'] ?? '') ?: null,
+                'package_sub_type'     => trim($row['package_sub_type'] ?? '') ?: null,
+                'package_name'         => trim($row['package_name'] ?? '') ?: null,
+                'package_codes'        => trim($row['package_codes'] ?? '') ?: null,
+                'department'           => trim($row['department'] ?? '') ?: null,
+                'sub_department'       => trim($row['sub_department'] ?? '') ?: null,
+                'billing_category'     => trim($row['billing_category'] ?? '') ?: null,
+                'package_service_type' => trim($row['package_service_type'] ?? '') ?: null,
+                'package_service_item' => trim($row['package_service_item'] ?? '') ?: null,
+                'amount'               => round($amount, 2),
+                'service_item_amount'  => round($amount, 2),
+                'order_by'             => trim($row['order_by'] ?? '') ?: null,
+                'created_at'           => now(),
+                'updated_at'           => now(),
             ];
         }
 
         if (!empty($insert)) {
-            // Use chunking for large inserts
             foreach (array_chunk($insert, 500) as $chunk) {
                 PackageConsumption::insert($chunk);
             }
@@ -63,5 +80,21 @@ class PackageConsumptionImport implements ToCollection, WithHeadingRow, WithChun
     public function chunkSize(): int
     {
         return 1000;
+    }
+
+    private function normalizePatientType(?string $type): ?string
+    {
+        if (!$type || trim($type) === '') {
+            return null;
+        }
+
+        $t = strtoupper(trim($type));
+
+        return match (true) {
+            str_contains($t, 'OP')                                   => 'OP',
+            str_contains($t, 'IP'), str_contains($t, 'INPATIENT')    => 'IP',
+            str_contains($t, 'ER'), str_contains($t, 'EMERGENCY')    => 'ER',
+            default                                                   => $t,
+        };
     }
 }

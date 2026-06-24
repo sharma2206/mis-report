@@ -46,7 +46,10 @@ class MISController extends Controller
                 $date,
                 $request->file('bill_file'),
                 $request->file('cashier_file'),
-                $request->file('package_file')
+                $request->file('package_file'),
+                $request->file('er_file'),
+                $request->file('ip_file'),
+                $request->file('surgery_file')
             );
 
             // 2. Auto-generate MIS report from the freshly imported data

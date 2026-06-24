@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <style>
         *,
         *::before,
@@ -788,6 +789,131 @@
                 text-align: center
             }
         }
+
+        /* ─── KPI Cards ─── */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: .65rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .kpi-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: .9rem 1rem;
+            box-shadow: var(--shadow-sm);
+            transition: all .2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 3px;
+        }
+
+        .kpi-card.c1::before { background: #2563eb }
+        .kpi-card.c2::before { background: #059669 }
+        .kpi-card.c3::before { background: #7c3aed }
+        .kpi-card.c4::before { background: #0891b2 }
+        .kpi-card.c5::before { background: #d97706 }
+        .kpi-card.c6::before { background: #dc2626 }
+        .kpi-card.c7::before { background: #0f766e }
+        .kpi-card.c8::before { background: #9333ea }
+        .kpi-card.c9::before { background: #ea580c }
+        .kpi-card.c10::before { background: #0284c7 }
+
+        .kpi-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
+        .kpi-label {
+            font-size: .62rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            color: var(--muted);
+            margin-bottom: .35rem;
+        }
+
+        .kpi-value {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: var(--text);
+            line-height: 1.1;
+        }
+
+        .kpi-unit {
+            font-size: .6rem;
+            color: var(--muted);
+            font-weight: 500;
+            margin-top: .15rem;
+        }
+
+        /* ─── Charts Grid ─── */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .chart-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .chart-title {
+            font-size: .72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            color: var(--text-secondary);
+            margin-bottom: .85rem;
+            display: flex;
+            align-items: center;
+            gap: .35rem;
+        }
+
+        .chart-title .material-icons-round {
+            font-size: 16px;
+            color: var(--primary);
+        }
+
+        .chart-wrap {
+            position: relative;
+            height: 200px;
+        }
+
+        .chart-wrap.tall {
+            height: 260px;
+        }
+
+        .chart-wrap canvas {
+            width: 100% !important;
+        }
+
+        .charts-grid .wide {
+            grid-column: span 2;
+        }
+
+        @media(max-width:900px) {
+            .kpi-grid { grid-template-columns: repeat(3, 1fr) }
+            .charts-grid { grid-template-columns: 1fr }
+            .charts-grid .wide { grid-column: span 1 }
+        }
+
+        @media(max-width:600px) {
+            .kpi-grid { grid-template-columns: repeat(2, 1fr) }
+        }
     </style>
 </head>
 
@@ -850,12 +976,9 @@
     </div>
 
     <script>
-        const BED = {
-            chromepet: 74,
-            oragadam: 14
-        };
-        let branch = 'chromepet',
-            reportData = null;
+        const BED = { chromepet: 74, oragadam: 14 };
+        let branch = 'chromepet', reportData = null;
+        let chartInstances = {};
 
         const di = document.getElementById('reportDate');
         di.max = new Date().toISOString().split('T')[0];
@@ -871,71 +994,162 @@
             const dt = new Date(di.value);
             dt.setDate(dt.getDate() + d);
             const s = dt.toISOString().split('T')[0];
-            if (s <= di.max) {
-                di.value = s;
-                loadReport();
-            }
+            if (s <= di.max) { di.value = s; loadReport(); }
         }
 
         async function loadReport() {
             const date = di.value;
             if (!date) return;
-            const btn = document.getElementById('loadBtn'),
-                lt = document.getElementById('loadText'),
-                lo = document.getElementById('loadingOverlay');
-            btn.disabled = true;
-            lt.textContent = 'Loading...';
-            lo.classList.add('show');
+            const btn = document.getElementById('loadBtn'), lt = document.getElementById('loadText'), lo = document.getElementById('loadingOverlay');
+            btn.disabled = true; lt.textContent = 'Loading...'; lo.classList.add('show');
             document.getElementById('alertBox').classList.remove('show');
             try {
-                const r = await fetch(`/api/mis/${branch}/${date}`);
-                const j = await r.json();
-                if (j.success) {
-                    reportData = j.data;
-                    renderReport(j.data);
+                const [misResp, kpiResp, trendResp, payerResp, mixResp] = await Promise.all([
+                    fetch(`/api/mis/${branch}/${date}`),
+                    fetch(`/api/analytics/kpi/${branch}/${date}`),
+                    fetch(`/api/analytics/charts/daily-trend?branch=${branch}&from=${monthStart(date)}&to=${date}`),
+                    fetch(`/api/analytics/charts/payer-mix?branch=${branch}&date=${date}`),
+                    fetch(`/api/analytics/charts/patient-mix?branch=${branch}&from=${monthStart(date)}&to=${date}`),
+                ]);
+                const [mis, kpi, trend, payer, mix] = await Promise.all([misResp.json(), kpiResp.json(), trendResp.json(), payerResp.json(), mixResp.json()]);
+
+                if (mis.success) {
+                    reportData = mis.data;
+                    renderReport(mis.data, date);
+                    if (kpi.success) renderKPI(kpi.data, date);
+                    if (trend.success) renderDailyTrendChart(trend.data);
+                    if (payer.success) renderPayerMixChart(payer.data);
+                    if (mix.success) renderPatientMixChart(mix.data);
                 } else {
-                    showError(j.message || 'No data found');
-                    document.getElementById('content').innerHTML =
-                        `<div class="no-data"><div class="nd-icon"><span class="material-icons-round">warning</span></div><p>${j.message || 'No data for this date'}</p><p class="sub">Try uploading CSV files for this date first</p></div>`;
+                    showError(mis.message || 'No data found');
+                    document.getElementById('content').innerHTML = `<div class="no-data"><div class="nd-icon"><span class="material-icons-round">warning</span></div><p>${mis.message || 'No data for this date'}</p><p class="sub">Try uploading CSV files for this date first</p></div>`;
                 }
             } catch (e) {
                 showError('Network error: ' + e.message);
             } finally {
-                btn.disabled = false;
-                lt.textContent = 'Load Report';
-                lo.classList.remove('show');
+                btn.disabled = false; lt.textContent = 'Load Report'; lo.classList.remove('show');
             }
         }
 
+        function monthStart(date) {
+            return date.substring(0, 8) + '01';
+        }
+
         function showError(m) {
-            const a = document.getElementById('alertBox');
             document.getElementById('alertMsg').textContent = m;
-            a.classList.add('show');
+            document.getElementById('alertBox').classList.add('show');
         }
 
-        function lk(v) {
-            return ((v || 0) / 100000).toFixed(2);
+        function lk(v) { return ((v || 0) / 100000).toFixed(2); }
+        function fmtRupee(v) { return '₹' + Math.round(Number(v || 0)).toLocaleString(); }
+        function fmtL(v) { return '₹' + ((v || 0) / 100000).toFixed(2) + 'L'; }
+
+        function destroyChart(id) {
+            if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
         }
 
-        function fmtRupee(v) {
-            return '₹' + Math.round(Number(v || 0));
+        function renderKPI(kpi, date) {
+            const cards = [
+                { cls:'c1', label:'Total Revenue',           val: fmtL(kpi.total_revenue),           unit:'FTD net sales' },
+                { cls:'c2', label:'Net Collection',          val: fmtL(kpi.net_collection),          unit:'Cash collected' },
+                { cls:'c3', label:'Total Patients',          val: (kpi.total_patients||0).toLocaleString(), unit:'Unique patients' },
+                { cls:'c4', label:'OP Patients',             val: (kpi.op_count||0).toLocaleString(),       unit:'Outpatient' },
+                { cls:'c5', label:'IP Admissions',           val: (kpi.ip_count||0).toLocaleString(),       unit:'Inpatient' },
+                { cls:'c6', label:'ER Visits',               val: (kpi.er_count||0).toLocaleString(),       unit:'Emergency' },
+                { cls:'c7', label:'Discount Given',          val: fmtL(kpi.discount_amount),         unit:'Total discount' },
+                { cls:'c8', label:'Pharmacy Sales',          val: fmtL(kpi.pharmacy_sales),          unit:'Pharmacy revenue' },
+                { cls:'c9', label:'Bed Occupancy',           val: (kpi.bed_occupancy_pct||0).toFixed(1)+'%', unit:`${kpi.bed_occupancy||0} / ${kpi.bed_count||0} beds` },
+                { cls:'c10',label:'Avg Revenue/Patient',     val: fmtRupee(kpi.avg_revenue_per_patient), unit:'Per patient' },
+            ];
+
+            // Surgery card (only if data exists)
+            if (kpi.surgery_count > 0) {
+                cards.splice(5, 0, { cls:'c3', label:'Surgeries', val: kpi.surgery_count, unit:`${kpi.major_surgeries||0} Major` });
+                cards.pop();
+            }
+
+            const el = document.getElementById('kpiGrid');
+            if (el) el.innerHTML = cards.map(c =>
+                `<div class="kpi-card ${c.cls}"><div class="kpi-label">${c.label}</div><div class="kpi-value">${c.val}</div><div class="kpi-unit">${c.unit}</div></div>`
+            ).join('');
         }
 
-        function renderReport(d) {
-            const s = d.sales || {},
-                c = d.collection || {},
-                dc = d.discount || {},
-                r = d.refund || {},
-                v = d.volume || {},
-                m = d.mri || {},
-                t = d.totals || {},
-                pkg = d.pkg_adjustment || {
-                    ftd: 0,
-                    mtd: 0
-                };
-            const date = d.date || di.value;
+        function renderDailyTrendChart(rows) {
+            destroyChart('dailyTrend');
+            const el = document.getElementById('chartDailyTrend');
+            if (!el || !rows.length) return;
+            const labels = rows.map(r => r.day.substring(5));
+            chartInstances['dailyTrend'] = new Chart(el, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Total', data: rows.map(r => +(r.revenue/100000).toFixed(2)), borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.08)', fill:true, tension:.3, pointRadius:3 },
+                        { label: 'OP',    data: rows.map(r => +(r.op_revenue/100000).toFixed(2)), borderColor:'#059669', fill:false, tension:.3, pointRadius:2 },
+                        { label: 'IP',    data: rows.map(r => +(r.ip_revenue/100000).toFixed(2)), borderColor:'#7c3aed', fill:false, tension:.3, pointRadius:2 },
+                        { label: 'PH',    data: rows.map(r => +(r.ph_revenue/100000).toFixed(2)), borderColor:'#d97706', fill:false, tension:.3, pointRadius:2 },
+                    ]
+                },
+                options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{ size:10 } } } }, scales:{ y:{ ticks:{ font:{size:9} }, title:{ display:true, text:'₹ Lakhs', font:{size:9} } }, x:{ ticks:{ font:{size:9} } } } }
+            });
+        }
+
+        function renderPayerMixChart(rows) {
+            destroyChart('payerMix');
+            const el = document.getElementById('chartPayerMix');
+            if (!el || !rows.length) return;
+            const colors = ['#2563eb','#059669','#7c3aed','#d97706','#dc2626','#0891b2'];
+            chartInstances['payerMix'] = new Chart(el, {
+                type: 'doughnut',
+                data: {
+                    labels: rows.map(r => (r.payer_type || 'Unknown').toUpperCase()),
+                    datasets: [{ data: rows.map(r => +(r.amount/100000).toFixed(2)), backgroundColor: colors, borderWidth:2 }]
+                },
+                options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{size:10} } }, tooltip:{ callbacks:{ label: ctx => `₹${ctx.parsed.toFixed(2)}L` } } } }
+            });
+        }
+
+        function renderPatientMixChart(rows) {
+            destroyChart('patientMix');
+            const el = document.getElementById('chartPatientMix');
+            if (!el || !rows.length) return;
+            chartInstances['patientMix'] = new Chart(el, {
+                type: 'bar',
+                data: {
+                    labels: rows.map(r => r.day.substring(5)),
+                    datasets: [
+                        { label:'OP', data: rows.map(r => +(r.op/100000).toFixed(2)), backgroundColor:'rgba(37,99,235,.7)', stack:'s' },
+                        { label:'IP', data: rows.map(r => +(r.ip/100000).toFixed(2)), backgroundColor:'rgba(124,58,237,.7)', stack:'s' },
+                        { label:'ER', data: rows.map(r => +(r.er/100000).toFixed(2)), backgroundColor:'rgba(220,38,38,.7)', stack:'s' },
+                        { label:'PH', data: rows.map(r => +(r.pharmacy/100000).toFixed(2)), backgroundColor:'rgba(217,119,6,.7)', stack:'s' },
+                    ]
+                },
+                options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{size:10} } } }, scales:{ x:{ stacked:true, ticks:{font:{size:9}} }, y:{ stacked:true, ticks:{font:{size:9}}, title:{ display:true, text:'₹ Lakhs', font:{size:9} } } } }
+            });
+        }
+
+        function renderReport(d, date) {
+            const s = d.sales || {}, c = d.collection || {}, dc = d.discount || {}, r = d.refund || {},
+                  v = d.volume || {}, m = d.mri || {}, t = d.totals || {},
+                  pkg = d.pkg_adjustment || { ftd:0, mtd:0 };
+            date = date || d.date || di.value;
 
             let html = `
+    <div id="kpiGrid" class="kpi-grid">
+        <div class="kpi-card c1"><div class="kpi-label">Total Revenue</div><div class="kpi-value">—</div><div class="kpi-unit">Loading...</div></div>
+        <div class="kpi-card c2"><div class="kpi-label">Net Collection</div><div class="kpi-value">—</div><div class="kpi-unit">Loading...</div></div>
+        <div class="kpi-card c3"><div class="kpi-label">Total Patients</div><div class="kpi-value">—</div><div class="kpi-unit">Loading...</div></div>
+        <div class="kpi-card c4"><div class="kpi-label">OP Patients</div><div class="kpi-value">—</div><div class="kpi-unit">Loading...</div></div>
+        <div class="kpi-card c5"><div class="kpi-label">Bed Occupancy</div><div class="kpi-value">—</div><div class="kpi-unit">Loading...</div></div>
+        <div class="kpi-card c6"><div class="kpi-label">Discount Given</div><div class="kpi-value">—</div><div class="kpi-unit">Loading...</div></div>
+        <div class="kpi-card c7"><div class="kpi-label">Pharmacy Sales</div><div class="kpi-value">—</div><div class="kpi-unit">Loading...</div></div>
+        <div class="kpi-card c8"><div class="kpi-label">IP Admissions</div><div class="kpi-value">—</div><div class="kpi-unit">Loading...</div></div>
+        <div class="kpi-card c9"><div class="kpi-label">ER Visits</div><div class="kpi-value">—</div><div class="kpi-unit">Loading...</div></div>
+        <div class="kpi-card c10"><div class="kpi-label">Avg Rev/Patient</div><div class="kpi-value">—</div><div class="kpi-unit">Loading...</div></div>
+    </div>`;
+
+            // Summary cards (existing)
+            html += `
     <div class="summary-grid">
         <div class="summary-card sales">
             <div class="sc-icon"><span class="material-icons-round">payments</span></div>
@@ -971,44 +1185,44 @@
         </div>
     </div>`;
 
-            // Package alert
-            if ((pkg.ftd || 0) > 0 || (pkg.mtd || 0) > 0) {
-                html +=
-                    `<div class="pkg-alert"><span class="material-icons-round">inventory_2</span><span>Package Adjustment (Chromepet): Added to Pharmacy, subtracted from IP</span><div class="pkg-vals"><span>FTD: ₹${lk(pkg.ftd)} L</span><span>MTD: ₹${lk(pkg.mtd)} L</span></div></div>`;
+            if ((pkg.ftd||0)>0||(pkg.mtd||0)>0) {
+                html += `<div class="pkg-alert"><span class="material-icons-round">inventory_2</span><span>Package Adjustment (Chromepet): Added to Pharmacy, subtracted from IP</span><div class="pkg-vals"><span>FTD: ₹${lk(pkg.ftd)} L</span><span>MTD: ₹${lk(pkg.mtd)} L</span></div></div>`;
             }
 
-            // Branch-specific columns
+            // Charts row
+            html += `
+    <div class="charts-grid">
+        <div class="chart-card wide">
+            <div class="chart-title"><span class="material-icons-round">show_chart</span> Daily Revenue Trend (MTD — ₹ Lakhs)</div>
+            <div class="chart-wrap tall"><canvas id="chartDailyTrend"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <div class="chart-title"><span class="material-icons-round">donut_large</span> Payer Mix (Collection)</div>
+            <div class="chart-wrap"><canvas id="chartPayerMix"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <div class="chart-title"><span class="material-icons-round">stacked_bar_chart</span> Patient Mix by Type (MTD)</div>
+            <div class="chart-wrap"><canvas id="chartPatientMix"></canvas></div>
+        </div>
+    </div>`;
+
+            // Revenue table (existing — untouched)
             const isChromepet = branch === 'chromepet';
-            const isOragadam = branch === 'oragadam';
+            const isOragadam  = branch === 'oragadam';
             const revCols = ['op', 'ip', 'er', 'ph'];
             const colSpan = revCols.length + 1;
 
-            // Revenue table
-            html +=
-                `<div class="section"><div class="section-head"><div class="section-title"><span class="material-icons-round">table_chart</span> Revenue Breakdown <span class="sub">(₹ in Lakhs)</span></div><div class="export-btns"><a class="btn-export" href="/api/mis/${branch}/${date}/export" target="_blank"><span class="material-icons-round" style="font-size:14px">download</span> Excel</a><a class="btn-export pdf" href="/api/mis/${branch}/${date}/export-pdf" target="_blank"><span class="material-icons-round" style="font-size:14px">picture_as_pdf</span> PDF</a></div></div>`;
-            html +=
-                `<div class="card"><table class="tbl"><thead><tr class="super-header"><th></th><th colspan="${colSpan}" class="ftd-h">FTD (${date})</th><th colspan="${colSpan}" class="mtd-h">MTD</th></tr><tr><th>Category</th>`;
+            html += `<div class="section"><div class="section-head"><div class="section-title"><span class="material-icons-round">table_chart</span> Revenue Breakdown <span class="sub">(₹ in Lakhs)</span></div><div class="export-btns"><a class="btn-export" href="/api/mis/${branch}/${date}/export" target="_blank"><span class="material-icons-round" style="font-size:14px">download</span> Excel</a><a class="btn-export pdf" href="/api/mis/${branch}/${date}/export-pdf" target="_blank"><span class="material-icons-round" style="font-size:14px">picture_as_pdf</span> PDF</a></div></div>`;
+            html += `<div class="card"><table class="tbl"><thead><tr class="super-header"><th></th><th colspan="${colSpan}" class="ftd-h">FTD (${date})</th><th colspan="${colSpan}" class="mtd-h">MTD</th></tr><tr><th>Category</th>`;
             revCols.forEach(k => html += `<th>${k.toUpperCase()}</th>`);
             html += `<th>Total</th>`;
             revCols.forEach(k => html += `<th>${k.toUpperCase()}</th>`);
             html += `<th>Total</th></tr></thead><tbody>`;
 
-            const rows = [{
-                    label: 'Sales',
-                    d: s,
-                    k: revCols
-                },
-                {
-                    label: 'Collection',
-                    d: c,
-                    k: revCols
-                },
-            ];
-            rows.forEach(rw => {
-                const ft = rw.d.ftd || {},
-                    mt = rw.d.mtd || {};
-                const ftT = rw.k.reduce((a, k) => a + (ft[k] || 0), 0);
-                const mtT = rw.k.reduce((a, k) => a + (mt[k] || 0), 0);
+            [{label:'Sales',d:s,k:revCols},{label:'Collection',d:c,k:revCols}].forEach(rw => {
+                const ft = rw.d.ftd||{}, mt = rw.d.mtd||{};
+                const ftT = rw.k.reduce((a,k)=>a+(ft[k]||0),0);
+                const mtT = rw.k.reduce((a,k)=>a+(mt[k]||0),0);
                 html += `<tr><td>${rw.label}</td>`;
                 rw.k.forEach(k => html += `<td>${lk(ft[k])}</td>`);
                 html += `<td class="total-col ftd-total">${lk(ftT)}</td>`;
@@ -1016,105 +1230,48 @@
                 html += `<td class="total-col mtd-total">${lk(mtT)}</td></tr>`;
             });
 
-            // Discount partial
-            const dp = dc.ftd?.partial || {},
-                dpm = dc.mtd?.partial || {};
+            const dp=dc.ftd?.partial||{},dpm=dc.mtd?.partial||{};
             html += `<tr><td>Discount 99%</td>`;
-            revCols.forEach(k => html += `<td>${lk(dp[k])}</td>`);
-            const dpFtT = revCols.reduce((a, k) => a + (dp[k] || 0), 0);
-            html += `<td class="total-col ftd-total">${lk(dpFtT)}</td>`;
-            revCols.forEach(k => html += `<td>${lk(dpm[k])}</td>`);
-            const dpMtT = revCols.reduce((a, k) => a + (dpm[k] || 0), 0);
-            html += `<td class="total-col mtd-total">${lk(dpMtT)}</td></tr>`;
+            revCols.forEach(k=>html+=`<td>${lk(dp[k])}</td>`);
+            html += `<td class="total-col ftd-total">${lk(revCols.reduce((a,k)=>a+(dp[k]||0),0))}</td>`;
+            revCols.forEach(k=>html+=`<td>${lk(dpm[k])}</td>`);
+            html += `<td class="total-col mtd-total">${lk(revCols.reduce((a,k)=>a+(dpm[k]||0),0))}</td></tr>`;
 
-            // Discount full
-            const df = dc.ftd?.full || {},
-                dfm = dc.mtd?.full || {};
+            const df=dc.ftd?.full||{},dfm=dc.mtd?.full||{};
             html += `<tr><td>Discount 100%</td>`;
-            revCols.forEach(k => html += `<td>${lk(df[k])}</td>`);
-            const dfFtT = revCols.reduce((a, k) => a + (df[k] || 0), 0);
-            html += `<td class="total-col ftd-total">${lk(dfFtT)}</td>`;
-            revCols.forEach(k => html += `<td>${lk(dfm[k])}</td>`);
-            const dfMtT = revCols.reduce((a, k) => a + (dfm[k] || 0), 0);
-            html += `<td class="total-col mtd-total">${lk(dfMtT)}</td></tr>`;
+            revCols.forEach(k=>html+=`<td>${lk(df[k])}</td>`);
+            html += `<td class="total-col ftd-total">${lk(revCols.reduce((a,k)=>a+(df[k]||0),0))}</td>`;
+            revCols.forEach(k=>html+=`<td>${lk(dfm[k])}</td>`);
+            html += `<td class="total-col mtd-total">${lk(revCols.reduce((a,k)=>a+(dfm[k]||0),0))}</td></tr>`;
 
-            // Refund
-            const rf = r.ftd || {},
-                rm = r.mtd || {};
+            const rf=r.ftd||{},rm=r.mtd||{};
             html += `<tr><td>Refund</td>`;
-            revCols.forEach(k => html += `<td>${lk(rf[k])}</td>`);
-            const rfFtT = revCols.reduce((a, k) => a + (rf[k] || 0), 0);
-            html += `<td class="total-col ftd-total">${lk(rfFtT)}</td>`;
-            revCols.forEach(k => html += `<td>${lk(rm[k])}</td>`);
-            const rfMtT = revCols.reduce((a, k) => a + (rm[k] || 0), 0);
-            html += `<td class="total-col mtd-total">${lk(rfMtT)}</td></tr>`;
+            revCols.forEach(k=>html+=`<td>${lk(rf[k])}</td>`);
+            html += `<td class="total-col ftd-total">${lk(revCols.reduce((a,k)=>a+(rf[k]||0),0))}</td>`;
+            revCols.forEach(k=>html+=`<td>${lk(rm[k])}</td>`);
+            html += `<td class="total-col mtd-total">${lk(revCols.reduce((a,k)=>a+(rm[k]||0),0))}</td></tr>`;
 
             html += `</tbody></table></div></div>`;
 
-            // Volume section
-            const volTitle = isChromepet ? 'Volume Indicators & MRI' : 'Volume Indicators';
-            html +=
-                `<div class="section"><div class="section-head"><div class="section-title"><span class="material-icons-round">trending_up</span> ${volTitle}</div></div><div class="vol-grid">`;
+            // Volume section (existing — untouched)
+            html += `<div class="section"><div class="section-head"><div class="section-title"><span class="material-icons-round">trending_up</span> ${isChromepet?'Volume Indicators & MRI':'Volume Indicators'}</div></div><div class="vol-grid">`;
 
-            const vols = [{
-                    label: 'Occupancy',
-                    ftd: v.ftd?.occupancy || 0,
-                    mtd: v.mtd?.occupancy || 0
-                },
-                {
-                    label: 'Occupancy %',
-                    ftd: (v.ftd?.occupancy_pct || 0) + '%',
-                    mtd: (v.mtd?.occupancy_pct || 0) + '%'
-                },
-                {
-                    label: 'Admission',
-                    ftd: v.ftd?.admission || 0,
-                    mtd: v.mtd?.admission || 0
-                },
-                {
-                    label: 'Discharge',
-                    ftd: v.ftd?.discharge || 0,
-                    mtd: v.mtd?.discharge || 0
-                },
-                {
-                    label: 'Total OP',
-                    ftd: v.ftd?.total_op || 0,
-                    mtd: v.mtd?.total_op || 0
-                },
+            const vols = [
+                {label:'Occupancy',    ftd:v.ftd?.occupancy||0, mtd:v.mtd?.occupancy||0},
+                {label:'Occupancy %',  ftd:(v.ftd?.occupancy_pct||0)+'%', mtd:(v.mtd?.occupancy_pct||0)+'%'},
+                {label:'Admission',    ftd:v.ftd?.admission||0, mtd:v.mtd?.admission||0},
+                {label:'Discharge',    ftd:v.ftd?.discharge||0, mtd:v.mtd?.discharge||0},
+                {label:'Total OP',     ftd:v.ftd?.total_op||0,  mtd:v.mtd?.total_op||0},
             ];
-            if (isOragadam) {
-                vols.push({
-                    label: 'Total ER',
-                    ftd: v.ftd?.er_count || 0,
-                    mtd: v.mtd?.er_count || 0
-                });
-            }
-            if (isChromepet) {
-                vols.push({
-                    label: 'MRI OP (Count)',
-                    ftd: m.ftd?.op?.count || 0,
-                    mtd: m.mtd?.op?.count || 0
-                }, {
-                    label: 'MRI IP (Count)',
-                    ftd: m.ftd?.ip?.count || 0,
-                    mtd: m.mtd?.ip?.count || 0
-                }, {
-                    label: 'MRI OP Revenue',
-                    ftd: fmtRupee(m.ftd?.op?.revenue),
-                    mtd: fmtRupee(m.mtd?.op?.revenue),
-                    wide: true
-                }, {
-                    label: 'MRI IP Revenue',
-                    ftd: fmtRupee(m.ftd?.ip?.revenue),
-                    mtd: fmtRupee(m.mtd?.ip?.revenue),
-                    wide: true
-                }, );
-            }
+            if (isOragadam) vols.push({label:'Total ER', ftd:v.ftd?.er_count||0, mtd:v.mtd?.er_count||0});
+            if (isChromepet) vols.push(
+                {label:'MRI OP (Count)', ftd:m.ftd?.op?.count||0, mtd:m.mtd?.op?.count||0},
+                {label:'MRI IP (Count)', ftd:m.ftd?.ip?.count||0, mtd:m.mtd?.ip?.count||0},
+                {label:'MRI OP Revenue', ftd:fmtRupee(m.ftd?.op?.revenue), mtd:fmtRupee(m.mtd?.op?.revenue), wide:true},
+                {label:'MRI IP Revenue', ftd:fmtRupee(m.ftd?.ip?.revenue), mtd:fmtRupee(m.mtd?.ip?.revenue), wide:true},
+            );
             vols.forEach(vi => {
-                const wideClass = vi.wide ? ' wide' : '';
-                const numClass = vi.wide ? ' sm' : '';
-                html +=
-                    `<div class="vol-card${wideClass}"><div class="vol-label">${vi.label}</div><div class="vol-values"><div class="vol-item"><div class="vol-period">FTD</div><div class="vol-num ftd${numClass}">${vi.ftd}</div></div><div class="vol-item"><div class="vol-period">MTD</div><div class="vol-num mtd${numClass}">${vi.mtd}</div></div></div></div>`;
+                html += `<div class="vol-card${vi.wide?' wide':''}"><div class="vol-label">${vi.label}</div><div class="vol-values"><div class="vol-item"><div class="vol-period">FTD</div><div class="vol-num ftd${vi.wide?' sm':''}">${vi.ftd}</div></div><div class="vol-item"><div class="vol-period">MTD</div><div class="vol-num mtd${vi.wide?' sm':''}">${vi.mtd}</div></div></div></div>`;
             });
             html += `</div></div>`;
 

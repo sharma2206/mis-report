@@ -17,16 +17,12 @@ class BillItem extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'branch',
-        'bill_date',
-        'patient_id',
-        'patient_type',
-        'service_type',
-        'sub_department',
-        'amount',
-        'net_amount',
-        'quantity',
-        'status',
+        'branch', 'bill_date', 'bill_no', 'uhid', 'patient_id', 'patient_name',
+        'age', 'gender', 'ward', 'bed', 'visit_id',
+        'patient_type', 'payer_type', 'payer_name', 'payer_group', 'insurance_company', 'corporate_name',
+        'service_type', 'sub_department', 'service_item_code', 'service_item_name',
+        'treating_doctor', 'treating_doctor_speciality', 'treating_department', 'treating_sub_department',
+        'billing_category', 'amount', 'discount_amount', 'net_amount', 'quantity', 'payment_mode', 'status',
     ];
 
     /**
@@ -37,9 +33,10 @@ class BillItem extends Model
     protected function casts(): array
     {
         return [
-            'bill_date' => 'date',
-            'amount' => 'decimal:2',
-            'net_amount' => 'decimal:2',
+            'bill_date'       => 'date',
+            'amount'          => 'decimal:2',
+            'discount_amount' => 'decimal:2',
+            'net_amount'      => 'decimal:2',
         ];
     }
 

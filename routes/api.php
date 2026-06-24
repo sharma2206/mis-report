@@ -53,4 +53,7 @@ Route::middleware('auth:sanctum')->group(function () use ($branchConstraint, $da
     Route::get('/analytics/charts/doctor-revenue',    [AnalyticsController::class, 'doctorRevenue']);
     Route::get('/analytics/admissions',               [AnalyticsController::class, 'admissions']);
     Route::get('/analytics/surgeries',                [AnalyticsController::class, 'surgeries']);
+    Route::get('/analytics/ip-demographics',          [AnalyticsController::class, 'ipDemographics']);
+    Route::get('/analytics/surgery-detail',           [AnalyticsController::class, 'surgeryDetail']);
+    Route::get('/analytics/op-metrics',               [AnalyticsController::class, 'opMetrics']);
 });

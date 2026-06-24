@@ -395,6 +395,62 @@
         .skeleton { background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%); background-size:200%; animation:shimmer 1.4s infinite; border-radius:6px }
         @keyframes shimmer { from{background-position:200%} to{background-position:-200%} }
 
+        /* ── Demographics / Surgery UI ── */
+        .demo-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:.75rem; margin-bottom:1.1rem }
+        .demo-stat { background:#fff; border-radius:var(--radius-sm); padding:.85rem .9rem; box-shadow:var(--shadow-sm); border-top:3px solid var(--border) }
+        .demo-stat.blue   { border-top-color:var(--primary) }
+        .demo-stat.green  { border-top-color:var(--success) }
+        .demo-stat.amber  { border-top-color:var(--warning) }
+        .demo-stat.red    { border-top-color:var(--danger) }
+        .demo-stat.purple { border-top-color:var(--accent) }
+        .demo-stat.teal   { border-top-color:#0d9488 }
+        .demo-lbl { font-size:.63rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:.35rem }
+        .demo-val { font-size:1.55rem; font-weight:800; color:var(--text); letter-spacing:-.03em; line-height:1 }
+        .demo-sub { font-size:.65rem; color:var(--muted); margin-top:.25rem }
+
+        .section-2col { display:grid; grid-template-columns:1fr 1fr; gap:1.1rem; margin-bottom:1.1rem }
+        .section-3col { display:grid; grid-template-columns:1fr 1fr 1fr; gap:1.1rem; margin-bottom:1.1rem }
+        @media(max-width:900px) { .section-2col,.section-3col { grid-template-columns:1fr } }
+
+        .panel-card { background:#fff; border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow-sm); overflow:hidden }
+        .panel-head { display:flex; align-items:center; gap:.45rem; padding:.65rem 1rem; border-bottom:1px solid var(--border-light) }
+        .panel-head .material-icons-round { font-size:16px; color:var(--primary) }
+        .panel-head .ph-title { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted) }
+        .panel-body { padding:.75rem 1rem }
+
+        .ranked-list { display:flex; flex-direction:column; gap:.35rem }
+        .rank-row { display:flex; align-items:center; gap:.6rem }
+        .rank-num { width:20px; height:20px; border-radius:50%; background:var(--primary-soft); color:var(--primary); font-size:.62rem; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0 }
+        .rank-info { flex:1; min-width:0 }
+        .rank-name { font-size:.77rem; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+        .rank-sub  { font-size:.63rem; color:var(--muted) }
+        .rank-val  { font-size:.82rem; font-weight:700; color:var(--primary); flex-shrink:0 }
+        .rank-bar-wrap { margin-top:.15rem; height:3px; background:var(--border-light); border-radius:99px }
+        .rank-bar { height:3px; border-radius:99px; background:var(--primary); transition:width .4s ease }
+
+        .payer-chips { display:flex; flex-wrap:wrap; gap:.45rem; margin-top:.15rem }
+        .payer-chip  { display:flex; align-items:center; gap:.35rem; background:var(--border-light); border:1px solid var(--border); border-radius:9999px; padding:.3rem .7rem; font-size:.73rem; font-weight:600; color:var(--text-2) }
+        .payer-chip .pc-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0 }
+        .payer-chip .pc-cnt { color:var(--muted); font-weight:500; margin-left:.15rem }
+
+        .mini-chart-row { display:grid; grid-template-columns:1fr 1fr; gap:1.1rem }
+        @media(max-width:900px) { .mini-chart-row { grid-template-columns:1fr } }
+
+        .surg-kpi-row { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:.65rem; margin-bottom:1.1rem }
+        .surg-kpi { background:#fff; border-radius:var(--radius-sm); padding:.7rem .85rem; box-shadow:var(--shadow-sm); border-left:3px solid var(--primary) }
+        .surg-kpi.major  { border-left-color:var(--danger) }
+        .surg-kpi.minor  { border-left-color:var(--success) }
+        .surg-kpi.amber  { border-left-color:var(--warning) }
+        .surg-kpi.purple { border-left-color:var(--accent) }
+        .surg-kpi.teal   { border-left-color:#0d9488 }
+        .sk-label { font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:.3rem }
+        .sk-value { font-size:1.4rem; font-weight:800; color:var(--text); letter-spacing:-.03em }
+
+        .op-kpi-row { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:.75rem; margin-bottom:1.1rem }
+        .op-kpi { background:#fff; border-radius:var(--radius-sm); padding:.85rem 1rem; box-shadow:var(--shadow-sm); border-top:3px solid var(--primary) }
+        .ok-lbl { font-size:.63rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:.35rem }
+        .ok-val { font-size:1.4rem; font-weight:800; color:var(--primary); letter-spacing:-.03em }
+
         /* login handled by /login page */
 
         /* ── Responsive ── */
@@ -452,6 +508,15 @@
             </button>
             <button class="nav-item" data-tab="analytics" onclick="switchTab('analytics')">
                 <span class="material-icons-round">bar_chart</span><span class="ni-label">Analytics</span>
+            </button>
+            <button class="nav-item" data-tab="ip" onclick="switchTab('ip')">
+                <span class="material-icons-round">hotel</span><span class="ni-label">IP Analytics</span>
+            </button>
+            <button class="nav-item" data-tab="surgery" onclick="switchTab('surgery')">
+                <span class="material-icons-round">vaccines</span><span class="ni-label">Surgery</span>
+            </button>
+            <button class="nav-item" data-tab="op" onclick="switchTab('op')">
+                <span class="material-icons-round">person_outline</span><span class="ni-label">OP Analytics</span>
             </button>
         </div>
         <div class="sb-divider"></div>
@@ -562,6 +627,15 @@
         <button class="tab-btn" data-tab="analytics" onclick="switchTab('analytics')">
             <span class="material-icons-round">bar_chart</span> Analytics
         </button>
+        <button class="tab-btn" data-tab="ip" onclick="switchTab('ip')">
+            <span class="material-icons-round">hotel</span> IP
+        </button>
+        <button class="tab-btn" data-tab="surgery" onclick="switchTab('surgery')">
+            <span class="material-icons-round">vaccines</span> Surgery
+        </button>
+        <button class="tab-btn" data-tab="op" onclick="switchTab('op')">
+            <span class="material-icons-round">person_outline</span> OP
+        </button>
     </div>
 
     <!-- ── Content area ── -->
@@ -630,6 +704,39 @@
             </div>
         </div>
 
+        <!-- IP Analytics tab -->
+        <div class="tab-section" data-tab="ip">
+            <div id="sec-ip">
+                <div class="empty-state">
+                    <div class="es-icon"><span class="material-icons-round">hotel</span></div>
+                    <h3>No IP data loaded</h3>
+                    <p>Load a report to see IP patient demographics</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Surgery tab -->
+        <div class="tab-section" data-tab="surgery">
+            <div id="sec-surgery">
+                <div class="empty-state">
+                    <div class="es-icon"><span class="material-icons-round">vaccines</span></div>
+                    <h3>No surgery data loaded</h3>
+                    <p>Load a report to see surgery analytics</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- OP Analytics tab -->
+        <div class="tab-section" data-tab="op">
+            <div id="sec-op">
+                <div class="empty-state">
+                    <div class="es-icon"><span class="material-icons-round">person_outline</span></div>
+                    <h3>No OP data loaded</h3>
+                    <p>Load a report to see outpatient analytics</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Analytics tab (big charts) -->
         <div class="tab-section" data-tab="analytics">
             <div class="charts-grid" style="grid-template-columns:1fr;gap:1.25rem">
@@ -670,6 +777,7 @@
     let chartInstances = {};
     let sidebarCollapsed = false;
     let lastTrendData = null, lastPayerData = null, lastMixData = null;
+    let lastIPDemoData = null, lastSurgData = null, lastOPData = null;
 
     /* ═══════════════════════════════════════════════════════════════════════
        AUTH
@@ -717,8 +825,18 @@
             setTimeout(() => {
                 renderDailyTrendChart2(lastTrendData);
                 if (lastPayerData) renderPayerMixChart2(lastPayerData);
-                if (lastMixData) renderPatientMixChart2(lastMixData);
+                if (lastMixData)   renderPatientMixChart2(lastMixData);
             }, 50);
+        }
+        // Re-render canvas-based charts on tab show (canvas needs visible container)
+        if ((tab === 'ip') && lastIPDemoData) {
+            setTimeout(() => renderIPCharts(lastIPDemoData), 50);
+        }
+        if ((tab === 'surgery') && lastSurgData) {
+            setTimeout(() => renderSurgeryCharts(lastSurgData), 50);
+        }
+        if ((tab === 'op') && lastOPData) {
+            setTimeout(() => renderOPCharts(lastOPData), 50);
         }
     }
 
@@ -792,24 +910,31 @@
         document.getElementById('alertBox').classList.remove('show');
         updateExportLinks(date);
         try {
-            const [misResp,kpiResp,trendResp,payerResp,mixResp] = await Promise.all([
+            const [misResp,kpiResp,trendResp,payerResp,mixResp,ipDemoResp,surgResp,opResp] = await Promise.all([
                 apiFetch(`/api/mis/${branch}/${date}`),
                 apiFetch(`/api/analytics/kpi/${branch}/${date}`),
                 apiFetch(`/api/analytics/charts/daily-trend?branch=${branch}&from=${monthStart(date)}&to=${date}`),
                 apiFetch(`/api/analytics/charts/payer-mix?branch=${branch}&date=${date}`),
                 apiFetch(`/api/analytics/charts/patient-mix?branch=${branch}&from=${monthStart(date)}&to=${date}`),
+                apiFetch(`/api/analytics/ip-demographics?branch=${branch}&date=${date}`),
+                apiFetch(`/api/analytics/surgery-detail?branch=${branch}&date=${date}`),
+                apiFetch(`/api/analytics/op-metrics?branch=${branch}&date=${date}`),
             ]);
-            const [mis,kpi,trend,payer,mix] = await Promise.all([
-                misResp.json(),kpiResp.json(),trendResp.json(),payerResp.json(),mixResp.json()
+            const [mis,kpi,trend,payer,mix,ipDemo,surg,op] = await Promise.all([
+                misResp.json(),kpiResp.json(),trendResp.json(),payerResp.json(),mixResp.json(),
+                ipDemoResp.json(),surgResp.json(),opResp.json()
             ]);
 
             if (mis.success) {
                 reportData = mis.data;
                 renderReport(mis.data, date);
-                if (kpi.success)   renderKPI(kpi.data, date);
-                if (trend.success) { lastTrendData = trend.data; renderDailyTrendChart(trend.data); }
-                if (payer.success) { lastPayerData = payer.data; renderPayerMixChart(payer.data); }
-                if (mix.success)   { lastMixData   = mix.data;   renderPatientMixChart(mix.data); }
+                if (kpi.success)    renderKPI(kpi.data, date);
+                if (trend.success)  { lastTrendData = trend.data; renderDailyTrendChart(trend.data); }
+                if (payer.success)  { lastPayerData = payer.data; renderPayerMixChart(payer.data); }
+                if (mix.success)    { lastMixData   = mix.data;   renderPatientMixChart(mix.data); }
+                if (ipDemo.success) renderIPDemographics(ipDemo.data, date);
+                if (surg.success)   renderSurgeryDetail(surg.data, date);
+                if (op.success)     renderOPMetrics(op.data, date);
             } else {
                 showError(mis.message || 'No data found for this date');
                 document.getElementById('sec-summary').innerHTML = `
@@ -1130,6 +1255,312 @@
             },
             options:{ ...CHART_OPTS, scales:{ x:{stacked:true,ticks:{font:{size:9}},grid:{display:false}}, y:{stacked:true,ticks:{font:{size:9}},title:{display:true,text:'₹ Lakhs',font:{size:9}},grid:{color:'rgba(0,0,0,.04)'}} } }
         };
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       IP DEMOGRAPHICS
+    ═══════════════════════════════════════════════════════════════════════ */
+    function renderIPDemographics(d, date) {
+        lastIPDemoData = d;
+        if (!d || d.total === 0) {
+            document.getElementById('sec-ip').innerHTML = `<div class="empty-state"><div class="es-icon"><span class="material-icons-round">hotel</span></div><h3>No IP admissions on ${date}</h3><p>Upload an IP Admission file for this date.</p></div>`;
+            return;
+        }
+        const payerColors = ['#1d4ed8','#059669','#7c3aed','#d97706','#dc2626','#0891b2'];
+
+        const statsHtml = `
+            <div class="demo-grid">
+                <div class="demo-stat blue"><div class="demo-lbl">Total Admissions</div><div class="demo-val">${d.total}</div></div>
+                <div class="demo-stat green"><div class="demo-lbl">Age &lt; 18</div><div class="demo-val">${d.age_below_18}</div><div class="demo-sub">${d.total > 0 ? ((d.age_below_18/d.total)*100).toFixed(1)+'%' : '—'}</div></div>
+                <div class="demo-stat blue"><div class="demo-lbl">Age ≥ 18</div><div class="demo-val">${d.age_18_plus}</div><div class="demo-sub">${d.total > 0 ? ((d.age_18_plus/d.total)*100).toFixed(1)+'%' : '—'}</div></div>
+                <div class="demo-stat amber"><div class="demo-lbl">MLC Cases</div><div class="demo-val">${d.mlc_count}</div></div>
+                <div class="demo-stat red"><div class="demo-lbl">Deaths</div><div class="demo-val">${d.death_count}</div></div>
+                <div class="demo-stat purple"><div class="demo-lbl">Planned Discharge</div><div class="demo-val">${d.planned_discharge}</div></div>
+                <div class="demo-stat teal"><div class="demo-lbl">Avg LOS</div><div class="demo-val">${d.avg_los_days || '—'}</div><div class="demo-sub">days</div></div>
+            </div>`;
+
+        const payerChips = (d.by_payer_type || []).map((p,i) =>
+            `<div class="payer-chip"><div class="pc-dot" style="background:${payerColors[i%payerColors.length]}"></div>${p.payer_type}<span class="pc-cnt">${p.count}</span></div>`
+        ).join('');
+
+        const rankedDoctors = (d.top_doctors || []).slice(0,8).map((doc, i) => {
+            const max = (d.top_doctors[0] || {}).count || 1;
+            return `<div class="rank-row">
+                <div class="rank-num">${i+1}</div>
+                <div class="rank-info">
+                    <div class="rank-name">${doc.doctor}</div>
+                    <div class="rank-bar-wrap"><div class="rank-bar" style="width:${(doc.count/max*100).toFixed(0)}%"></div></div>
+                </div>
+                <div class="rank-val">${doc.count}</div>
+            </div>`;
+        }).join('');
+
+        const rankedWards = (d.by_ward || []).slice(0,8).map((w, i) => {
+            const max = (d.by_ward[0] || {}).count || 1;
+            return `<div class="rank-row">
+                <div class="rank-num">${i+1}</div>
+                <div class="rank-info">
+                    <div class="rank-name">${w.ward}</div>
+                    <div class="rank-bar-wrap"><div class="rank-bar" style="background:var(--success);width:${(w.count/max*100).toFixed(0)}%"></div></div>
+                </div>
+                <div class="rank-val">${w.count}</div>
+            </div>`;
+        }).join('');
+
+        const rankedSpec = (d.by_speciality || []).slice(0,8).map((s, i) => {
+            const max = (d.by_speciality[0] || {}).count || 1;
+            return `<div class="rank-row">
+                <div class="rank-num">${i+1}</div>
+                <div class="rank-info">
+                    <div class="rank-name">${s.speciality}</div>
+                    <div class="rank-bar-wrap"><div class="rank-bar" style="background:var(--accent);width:${(s.count/max*100).toFixed(0)}%"></div></div>
+                </div>
+                <div class="rank-val">${s.count}</div>
+            </div>`;
+        }).join('');
+
+        document.getElementById('sec-ip').innerHTML = `
+            <div class="section" style="padding-bottom:0;margin-bottom:0">
+                <div class="section-head">
+                    <div class="section-title"><span class="material-icons-round">hotel</span>IP Patient Demographics <span class="sub">${date}</span></div>
+                </div>
+            </div>
+            ${statsHtml}
+            <div class="section-2col">
+                <div class="panel-card">
+                    <div class="panel-head"><span class="material-icons-round">wc</span><span class="ph-title">Gender Breakdown</span></div>
+                    <div class="panel-body"><div style="height:180px"><canvas id="chartIPGender"></canvas></div></div>
+                </div>
+                <div class="panel-card">
+                    <div class="panel-head"><span class="material-icons-round">credit_card</span><span class="ph-title">Payer Type</span></div>
+                    <div class="panel-body"><div style="height:140px"><canvas id="chartIPPayer"></canvas></div><div class="payer-chips" style="margin-top:.65rem">${payerChips}</div></div>
+                </div>
+            </div>
+            <div class="section-3col">
+                <div class="panel-card">
+                    <div class="panel-head"><span class="material-icons-round">person</span><span class="ph-title">Top Doctors (Admissions)</span></div>
+                    <div class="panel-body"><div class="ranked-list">${rankedDoctors || '<p style="color:var(--muted);font-size:.8rem">No data</p>'}</div></div>
+                </div>
+                <div class="panel-card">
+                    <div class="panel-head"><span class="material-icons-round">bed</span><span class="ph-title">Ward-wise Admissions</span></div>
+                    <div class="panel-body"><div class="ranked-list">${rankedWards || '<p style="color:var(--muted);font-size:.8rem">No ward data</p>'}</div></div>
+                </div>
+                <div class="panel-card">
+                    <div class="panel-head"><span class="material-icons-round">medical_services</span><span class="ph-title">Speciality-wise</span></div>
+                    <div class="panel-body"><div class="ranked-list">${rankedSpec || '<p style="color:var(--muted);font-size:.8rem">No data</p>'}</div></div>
+                </div>
+            </div>`;
+
+        setTimeout(() => renderIPCharts(d), 80);
+    }
+
+    function renderIPCharts(d) {
+        destroyChart('ipGender'); destroyChart('ipPayer');
+        const gEl = document.getElementById('chartIPGender');
+        if (gEl && d.by_gender && d.by_gender.length) {
+            chartInstances['ipGender'] = new Chart(gEl, {
+                type: 'doughnut',
+                data: {
+                    labels: d.by_gender.map(g => g.gender),
+                    datasets: [{ data: d.by_gender.map(g => g.count), backgroundColor: ['#1d4ed8','#dc2626','#059669','#d97706'], borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
+                },
+                options: { ...CHART_OPTS, cutout: '60%', plugins: { ...CHART_OPTS.plugins, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed}` } } } }
+            });
+        }
+        const pEl = document.getElementById('chartIPPayer');
+        if (pEl && d.by_payer_type && d.by_payer_type.length) {
+            chartInstances['ipPayer'] = new Chart(pEl, {
+                type: 'bar',
+                data: {
+                    labels: d.by_payer_type.map(p => p.payer_type),
+                    datasets: [{ data: d.by_payer_type.map(p => p.count), backgroundColor: CHART_COLORS.palette, borderRadius: 4 }]
+                },
+                options: { ...CHART_OPTS, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { font: { size: 9 } }, grid: { color: 'rgba(0,0,0,.04)' } }, y: { ticks: { font: { size: 9 } }, grid: { display: false } } } }
+            });
+        }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       SURGERY DETAIL
+    ═══════════════════════════════════════════════════════════════════════ */
+    function renderSurgeryDetail(d, date) {
+        lastSurgData = d;
+        if (!d || d.total === 0) {
+            document.getElementById('sec-surgery').innerHTML = `<div class="empty-state"><div class="es-icon"><span class="material-icons-round">vaccines</span></div><h3>No surgeries on ${date}</h3><p>Upload a Surgery Detail file for this date.</p></div>`;
+            return;
+        }
+
+        const kpisHtml = `
+            <div class="surg-kpi-row">
+                <div class="surg-kpi"><div class="sk-label">Total</div><div class="sk-value">${d.total}</div></div>
+                <div class="surg-kpi major"><div class="sk-label">Major</div><div class="sk-value">${d.major}</div></div>
+                <div class="surg-kpi minor"><div class="sk-label">Minor</div><div class="sk-value">${d.minor}</div></div>
+                <div class="surg-kpi amber"><div class="sk-label">Elective</div><div class="sk-value">${d.elective}</div></div>
+                <div class="surg-kpi red"><div class="sk-label">Emergency</div><div class="sk-value">${d.emergency}</div></div>
+                <div class="surg-kpi purple"><div class="sk-label">Implant</div><div class="sk-value">${d.implant}</div></div>
+                <div class="surg-kpi teal"><div class="sk-label">Age &lt; 18</div><div class="sk-value">${d.age_below_18}</div></div>
+                <div class="surg-kpi"><div class="sk-label">Age ≥ 18</div><div class="sk-value">${d.age_18_plus}</div></div>
+            </div>`;
+
+        const surgeonList = (d.by_surgeon || []).slice(0,8).map((s,i) => {
+            const max = (d.by_surgeon[0] || {}).count || 1;
+            return `<div class="rank-row"><div class="rank-num">${i+1}</div><div class="rank-info"><div class="rank-name">${s.surgeon}</div><div class="rank-sub">${s.speciality || ''}</div><div class="rank-bar-wrap"><div class="rank-bar" style="width:${(s.count/max*100).toFixed(0)}%"></div></div></div><div class="rank-val">${s.count}</div></div>`;
+        }).join('');
+
+        const anaesthList = (d.by_anaesthetist || []).slice(0,8).map((a,i) => {
+            const max = (d.by_anaesthetist[0] || {}).count || 1;
+            return `<div class="rank-row"><div class="rank-num">${i+1}</div><div class="rank-info"><div class="rank-name">${a.anaesthetist}</div><div class="rank-bar-wrap"><div class="rank-bar" style="background:var(--accent);width:${(a.count/max*100).toFixed(0)}%"></div></div></div><div class="rank-val">${a.count}</div></div>`;
+        }).join('');
+
+        const deptList = (d.by_dept || []).slice(0,8).map((dept,i) => {
+            const max = (d.by_dept[0] || {}).count || 1;
+            return `<div class="rank-row"><div class="rank-num">${i+1}</div><div class="rank-info"><div class="rank-name">${dept.dept}</div><div class="rank-bar-wrap"><div class="rank-bar" style="background:var(--success);width:${(dept.count/max*100).toFixed(0)}%"></div></div></div><div class="rank-val">${dept.count}</div></div>`;
+        }).join('');
+
+        document.getElementById('sec-surgery').innerHTML = `
+            <div class="section" style="padding-bottom:0;margin-bottom:0">
+                <div class="section-head">
+                    <div class="section-title"><span class="material-icons-round">vaccines</span>Surgery Analytics <span class="sub">${date}</span></div>
+                </div>
+            </div>
+            ${kpisHtml}
+            <div class="section-2col">
+                <div class="panel-card">
+                    <div class="panel-head"><span class="material-icons-round">meeting_room</span><span class="ph-title">OT Room-wise Count</span></div>
+                    <div class="panel-body"><div style="height:200px"><canvas id="chartOTRoom"></canvas></div></div>
+                </div>
+                <div class="panel-card">
+                    <div class="panel-head"><span class="material-icons-round">credit_card</span><span class="ph-title">Payer Type</span></div>
+                    <div class="panel-body"><div style="height:200px"><canvas id="chartSurgPayer"></canvas></div></div>
+                </div>
+            </div>
+            <div class="section-3col">
+                <div class="panel-card">
+                    <div class="panel-head"><span class="material-icons-round">person</span><span class="ph-title">Top Surgeons</span></div>
+                    <div class="panel-body"><div class="ranked-list">${surgeonList || '<p style="color:var(--muted);font-size:.8rem">No data</p>'}</div></div>
+                </div>
+                <div class="panel-card">
+                    <div class="panel-head"><span class="material-icons-round">medication</span><span class="ph-title">Anaesthetist-wise</span></div>
+                    <div class="panel-body"><div class="ranked-list">${anaesthList || '<p style="color:var(--muted);font-size:.8rem">No data</p>'}</div></div>
+                </div>
+                <div class="panel-card">
+                    <div class="panel-head"><span class="material-icons-round">medical_services</span><span class="ph-title">Department-wise</span></div>
+                    <div class="panel-body"><div class="ranked-list">${deptList || '<p style="color:var(--muted);font-size:.8rem">No data</p>'}</div></div>
+                </div>
+            </div>`;
+
+        setTimeout(() => renderSurgeryCharts(d), 80);
+    }
+
+    function renderSurgeryCharts(d) {
+        destroyChart('otRoom'); destroyChart('surgPayer');
+        const otEl = document.getElementById('chartOTRoom');
+        if (otEl && d.by_ot_room && d.by_ot_room.length) {
+            chartInstances['otRoom'] = new Chart(otEl, {
+                type: 'bar',
+                data: {
+                    labels: d.by_ot_room.map(r => r.ot_name),
+                    datasets: [{ label: 'Surgeries', data: d.by_ot_room.map(r => r.count), backgroundColor: CHART_COLORS.palette, borderRadius: 5 }]
+                },
+                options: { ...CHART_OPTS, plugins: { legend: { display: false } }, scales: { y: { ticks: { font: { size: 9 } }, grid: { color: 'rgba(0,0,0,.04)' } }, x: { ticks: { font: { size: 9 } }, grid: { display: false } } } }
+            });
+        }
+        const spEl = document.getElementById('chartSurgPayer');
+        if (spEl && d.by_payer_type && d.by_payer_type.length) {
+            chartInstances['surgPayer'] = new Chart(spEl, {
+                type: 'doughnut',
+                data: {
+                    labels: d.by_payer_type.map(p => p.payer_type),
+                    datasets: [{ data: d.by_payer_type.map(p => p.count), backgroundColor: CHART_COLORS.palette, borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
+                },
+                options: { ...CHART_OPTS, cutout: '60%', plugins: { ...CHART_OPTS.plugins, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed}` } } } }
+            });
+        }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       OP METRICS
+    ═══════════════════════════════════════════════════════════════════════ */
+    function renderOPMetrics(d, date) {
+        lastOPData = d;
+        if (!d || d.total_visits === 0) {
+            document.getElementById('sec-op').innerHTML = `<div class="empty-state"><div class="es-icon"><span class="material-icons-round">person_outline</span></div><h3>No OP data on ${date}</h3><p>OP data is derived from the Bill Item file (patient_type = OP).</p></div>`;
+            return;
+        }
+
+        const kpisHtml = `
+            <div class="op-kpi-row">
+                <div class="op-kpi"><div class="ok-lbl">Total Visits</div><div class="ok-val">${d.total_visits}</div></div>
+                <div class="op-kpi"><div class="ok-lbl">Unique Patients</div><div class="ok-val">${d.unique_patients}</div></div>
+                <div class="op-kpi" style="border-top-color:var(--success)"><div class="ok-lbl">Total Revenue</div><div class="ok-val" style="color:var(--success)">${fmtL(d.total_revenue)}</div></div>
+                <div class="op-kpi" style="border-top-color:var(--danger)"><div class="ok-lbl">Total Discount</div><div class="ok-val" style="color:var(--danger)">${fmtL(d.total_discount)}</div></div>
+            </div>`;
+
+        const doctorList = (d.top_doctors || []).slice(0,10).map((doc,i) => {
+            const max = (d.top_doctors[0] || {}).visits || 1;
+            return `<div class="rank-row"><div class="rank-num">${i+1}</div><div class="rank-info"><div class="rank-name">${doc.doctor}</div><div class="rank-sub">${doc.speciality || ''} · ₹${Math.round(doc.revenue/1000)}K</div><div class="rank-bar-wrap"><div class="rank-bar" style="width:${(doc.visits/max*100).toFixed(0)}%"></div></div></div><div class="rank-val">${doc.visits} visits</div></div>`;
+        }).join('');
+
+        const deptList = (d.by_dept || []).slice(0,8).map((dept,i) => {
+            const max = (d.by_dept[0] || {}).visits || 1;
+            return `<div class="rank-row"><div class="rank-num">${i+1}</div><div class="rank-info"><div class="rank-name">${dept.dept}</div><div class="rank-sub">₹${Math.round(dept.revenue/1000)}K revenue</div><div class="rank-bar-wrap"><div class="rank-bar" style="background:var(--success);width:${(dept.visits/max*100).toFixed(0)}%"></div></div></div><div class="rank-val">${dept.visits}</div></div>`;
+        }).join('');
+
+        document.getElementById('sec-op').innerHTML = `
+            <div class="section" style="padding-bottom:0;margin-bottom:0">
+                <div class="section-head">
+                    <div class="section-title"><span class="material-icons-round">person_outline</span>OP Analytics <span class="sub">${date}</span></div>
+                </div>
+            </div>
+            ${kpisHtml}
+            <div class="section-2col">
+                <div class="panel-card">
+                    <div class="panel-head"><span class="material-icons-round">wc</span><span class="ph-title">Gender Breakdown</span></div>
+                    <div class="panel-body"><div style="height:180px"><canvas id="chartOPGender"></canvas></div></div>
+                </div>
+                <div class="panel-card">
+                    <div class="panel-head"><span class="material-icons-round">credit_card</span><span class="ph-title">Payer Mix (Visits)</span></div>
+                    <div class="panel-body"><div style="height:180px"><canvas id="chartOPPayer"></canvas></div></div>
+                </div>
+            </div>
+            <div class="section-2col">
+                <div class="panel-card">
+                    <div class="panel-head"><span class="material-icons-round">person</span><span class="ph-title">Top Doctors by Visits</span></div>
+                    <div class="panel-body"><div class="ranked-list">${doctorList || '<p style="color:var(--muted);font-size:.8rem">No data</p>'}</div></div>
+                </div>
+                <div class="panel-card">
+                    <div class="panel-head"><span class="material-icons-round">medical_services</span><span class="ph-title">Department-wise</span></div>
+                    <div class="panel-body"><div class="ranked-list">${deptList || '<p style="color:var(--muted);font-size:.8rem">No data</p>'}</div></div>
+                </div>
+            </div>`;
+
+        setTimeout(() => renderOPCharts(d), 80);
+    }
+
+    function renderOPCharts(d) {
+        destroyChart('opGender'); destroyChart('opPayer');
+        const gEl = document.getElementById('chartOPGender');
+        if (gEl && d.by_gender && d.by_gender.length) {
+            chartInstances['opGender'] = new Chart(gEl, {
+                type: 'doughnut',
+                data: {
+                    labels: d.by_gender.map(g => g.gender),
+                    datasets: [{ data: d.by_gender.map(g => g.visits), backgroundColor: ['#1d4ed8','#dc2626','#059669'], borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
+                },
+                options: { ...CHART_OPTS, cutout: '60%', plugins: { ...CHART_OPTS.plugins, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed} visits` } } } }
+            });
+        }
+        const pEl = document.getElementById('chartOPPayer');
+        if (pEl && d.by_payer_type && d.by_payer_type.length) {
+            chartInstances['opPayer'] = new Chart(pEl, {
+                type: 'bar',
+                data: {
+                    labels: d.by_payer_type.map(p => p.payer_type),
+                    datasets: [{ label: 'Visits', data: d.by_payer_type.map(p => p.visits), backgroundColor: CHART_COLORS.palette, borderRadius: 4 }]
+                },
+                options: { ...CHART_OPTS, plugins: { legend: { display: false } }, scales: { y: { ticks: { font: { size: 9 } }, grid: { color: 'rgba(0,0,0,.04)' } }, x: { ticks: { font: { size: 9 } }, grid: { display: false } } } }
+            });
+        }
     }
 
     /* ═══════════════════════════════════════════════════════════════════════

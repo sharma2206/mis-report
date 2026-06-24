@@ -444,4 +444,231 @@ class AnalyticsController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
     }
+
+    /**
+     * IP patient demographics breakdown.
+     * GET /api/analytics/ip-demographics?branch=chromepet&date=2026-06-23
+     */
+    public function ipDemographics(Request $request): JsonResponse
+    {
+        try {
+            $branch = $request->input('branch', 'chromepet');
+            $from   = $request->input('from', $request->input('date', Carbon::now()->format('Y-m-d')));
+            $to     = $request->input('to', $from);
+
+            $base = IpAdmission::where('branch', $branch)
+                ->whereDate('admission_date', '>=', $from)
+                ->whereDate('admission_date', '<=', $to);
+
+            $total        = (clone $base)->count();
+            $ageBelow18   = (clone $base)->where(DB::raw('CAST(age AS UNSIGNED)'), '<', 18)->count();
+            $age18Plus    = (clone $base)->where(DB::raw('CAST(age AS UNSIGNED)'), '>=', 18)->count();
+            $mlcCount     = (clone $base)->where('mlc', true)->count();
+            $deathCount   = (clone $base)->where('discharge_type', 'like', '%Death%')->count();
+            $plannedDischarge = (clone $base)->where('discharge_type', 'like', '%Planned%')->count();
+
+            $byGender = (clone $base)->select(
+                    DB::raw('IFNULL(gender, "Unknown") as gender'),
+                    DB::raw('COUNT(*) as count')
+                )->groupBy('gender')->orderByDesc('count')->get();
+
+            $byPayerType = (clone $base)->select(
+                    DB::raw('IFNULL(payer_type, "Unknown") as payer_type'),
+                    DB::raw('COUNT(*) as count')
+                )->groupBy('payer_type')->orderByDesc('count')->get();
+
+            $byWard = (clone $base)->select(
+                    'ward',
+                    DB::raw('COUNT(*) as count')
+                )->whereNotNull('ward')->where('ward', '!=', '')
+                ->groupBy('ward')->orderByDesc('count')->limit(10)->get();
+
+            $bySpeciality = (clone $base)->select(
+                    DB::raw('IFNULL(treating_doctor_speciality, "Unknown") as speciality'),
+                    DB::raw('COUNT(*) as count')
+                )->groupBy('speciality')->orderByDesc('count')->limit(10)->get();
+
+            $bySource = (clone $base)->select(
+                    DB::raw('IFNULL(admission_source, "Unknown") as source'),
+                    DB::raw('COUNT(*) as count')
+                )->groupBy('source')->orderByDesc('count')->get();
+
+            $topDoctors = (clone $base)->select(
+                    DB::raw('IFNULL(treating_doctor, "Unknown") as doctor'),
+                    DB::raw('IFNULL(treating_doctor_speciality, "") as speciality'),
+                    DB::raw('COUNT(*) as count')
+                )->whereNotNull('treating_doctor')
+                ->groupBy('doctor', 'speciality')->orderByDesc('count')->limit(10)->get();
+
+            $avgLos = (clone $base)->whereNotNull('actual_los')->avg('actual_los');
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'total'             => $total,
+                    'age_below_18'      => $ageBelow18,
+                    'age_18_plus'       => $age18Plus,
+                    'mlc_count'         => $mlcCount,
+                    'death_count'       => $deathCount,
+                    'planned_discharge' => $plannedDischarge,
+                    'avg_los_days'      => round((float) $avgLos, 1),
+                    'by_gender'         => $byGender,
+                    'by_payer_type'     => $byPayerType,
+                    'by_ward'           => $byWard,
+                    'by_speciality'     => $bySpeciality,
+                    'by_source'         => $bySource,
+                    'top_doctors'       => $topDoctors,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * Surgery deep analytics.
+     * GET /api/analytics/surgery-detail?branch=chromepet&date=2026-06-23
+     */
+    public function surgeryDetail(Request $request): JsonResponse
+    {
+        try {
+            $branch = $request->input('branch', 'chromepet');
+            $from   = $request->input('from', $request->input('date', Carbon::now()->format('Y-m-d')));
+            $to     = $request->input('to', $from);
+
+            $base = Surgery::where('branch', $branch)
+                ->whereDate('surgery_date', '>=', $from)
+                ->whereDate('surgery_date', '<=', $to);
+
+            $total       = (clone $base)->count();
+            $major       = (clone $base)->where('surgery_category', 'Major')->count();
+            $minor       = (clone $base)->where('surgery_category', 'Minor')->count();
+            $daySurgery  = (clone $base)->where('ot_surgery_type', 'like', '%Day%')->count();
+            $emergency   = (clone $base)->where('ot_surgery_type', 'Emergency')->count();
+            $elective    = (clone $base)->where('ot_surgery_type', 'Elective')->count();
+            $implant     = (clone $base)->where('implant_required', true)->count();
+            $ageBelow18  = (clone $base)->where(DB::raw('CAST(age AS UNSIGNED)'), '<', 18)->count();
+            $age18Plus   = (clone $base)->where(DB::raw('CAST(age AS UNSIGNED)'), '>=', 18)->count();
+
+            $byOtRoom = (clone $base)->select(
+                    DB::raw('IFNULL(ot_name, "Unknown") as ot_name'),
+                    DB::raw('COUNT(*) as count')
+                )->groupBy('ot_name')->orderByDesc('count')->get();
+
+            $bySurgeon = (clone $base)->select(
+                    DB::raw('IFNULL(performing_surgeon, "Unknown") as surgeon'),
+                    DB::raw('IFNULL(surgeon_speciality, "") as speciality'),
+                    DB::raw('COUNT(*) as count')
+                )->groupBy('surgeon', 'speciality')->orderByDesc('count')->limit(10)->get();
+
+            $byAnaesthetist = (clone $base)->select(
+                    DB::raw('IFNULL(component_doctor, "Unknown") as anaesthetist'),
+                    DB::raw('COUNT(*) as count')
+                )->groupBy('anaesthetist')->orderByDesc('count')->limit(10)->get();
+
+            $byDept = (clone $base)->select(
+                    DB::raw('IFNULL(surgery_department, "Unknown") as dept'),
+                    DB::raw('COUNT(*) as count')
+                )->groupBy('dept')->orderByDesc('count')->limit(10)->get();
+
+            $byPayerType = (clone $base)->select(
+                    DB::raw('IFNULL(payer_type, "Unknown") as payer_type'),
+                    DB::raw('COUNT(*) as count')
+                )->groupBy('payer_type')->orderByDesc('count')->get();
+
+            $byAnaesthesiaType = (clone $base)->select(
+                    DB::raw('IFNULL(anaesthesia_type, "Unknown") as anaesthesia_type'),
+                    DB::raw('COUNT(*) as count')
+                )->groupBy('anaesthesia_type')->orderByDesc('count')->get();
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'total'              => $total,
+                    'major'              => $major,
+                    'minor'              => $minor,
+                    'day_surgery'        => $daySurgery,
+                    'emergency'          => $emergency,
+                    'elective'           => $elective,
+                    'implant'            => $implant,
+                    'age_below_18'       => $ageBelow18,
+                    'age_18_plus'        => $age18Plus,
+                    'by_ot_room'         => $byOtRoom,
+                    'by_surgeon'         => $bySurgeon,
+                    'by_anaesthetist'    => $byAnaesthetist,
+                    'by_dept'            => $byDept,
+                    'by_payer_type'      => $byPayerType,
+                    'by_anaesthesia_type'=> $byAnaesthesiaType,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * OP doctor-wise visit count and payer breakdown from bill_items.
+     * GET /api/analytics/op-metrics?branch=chromepet&date=2026-06-23
+     */
+    public function opMetrics(Request $request): JsonResponse
+    {
+        try {
+            $branch = $request->input('branch', 'chromepet');
+            $from   = $request->input('from', $request->input('date', Carbon::now()->format('Y-m-d')));
+            $to     = $request->input('to', $from);
+
+            $base = BillItem::where('branch', $branch)
+                ->whereDate('bill_date', '>=', $from)
+                ->whereDate('bill_date', '<=', $to)
+                ->where('status', 'Sale')
+                ->where('patient_type', 'OP');
+
+            $totalVisits   = (clone $base)->distinct('visit_id')->count('visit_id');
+            $uniquePatients = (clone $base)->distinct('uhid')->count('uhid');
+
+            $byGender = (clone $base)->select(
+                    DB::raw('IFNULL(gender, "Unknown") as gender'),
+                    DB::raw('COUNT(DISTINCT visit_id) as visits')
+                )->groupBy('gender')->orderByDesc('visits')->get();
+
+            $byPayerType = (clone $base)->select(
+                    DB::raw('IFNULL(payer_type, "Unknown") as payer_type'),
+                    DB::raw('COUNT(DISTINCT visit_id) as visits'),
+                    DB::raw('SUM(net_amount) as revenue')
+                )->groupBy('payer_type')->orderByDesc('visits')->get();
+
+            $topDoctors = (clone $base)->select(
+                    DB::raw('IFNULL(treating_doctor, "Unknown") as doctor'),
+                    DB::raw('IFNULL(treating_doctor_speciality, "") as speciality'),
+                    DB::raw('COUNT(DISTINCT visit_id) as visits'),
+                    DB::raw('SUM(net_amount) as revenue')
+                )->whereNotNull('treating_doctor')
+                ->groupBy('doctor', 'speciality')->orderByDesc('visits')->limit(10)->get();
+
+            $byDept = (clone $base)->select(
+                    DB::raw('IFNULL(treating_department, "Unknown") as dept'),
+                    DB::raw('COUNT(DISTINCT visit_id) as visits'),
+                    DB::raw('SUM(net_amount) as revenue')
+                )->groupBy('dept')->orderByDesc('visits')->limit(10)->get();
+
+            $totalRevenue = (clone $base)->sum('net_amount');
+            $totalDiscount = (clone $base)->sum('discount_amount');
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'total_visits'    => $totalVisits,
+                    'unique_patients' => $uniquePatients,
+                    'total_revenue'   => (float) $totalRevenue,
+                    'total_discount'  => (float) $totalDiscount,
+                    'by_gender'       => $byGender,
+                    'by_payer_type'   => $byPayerType,
+                    'top_doctors'     => $topDoctors,
+                    'by_dept'         => $byDept,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
 }

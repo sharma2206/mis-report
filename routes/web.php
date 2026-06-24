@@ -3,7 +3,9 @@
 use App\Http\Controllers\Api\MISController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', fn() => view('upload'));
+Route::get('/',          fn() => view('login'));   // root → login
+Route::get('/login',     fn() => view('login'));
+Route::get('/upload',    fn() => view('upload'));
 Route::get('/dashboard', fn() => view('dashboard'));
 
 // Print preview (web, auth not required for now — token passed in URL)

@@ -15,41 +15,34 @@ Route::prefix('auth')->group(function () {
     });
 });
 
-// ─── MIS Reports ─────────────────────────────────────────────────────────────
+// ─── MIS Reports + Analytics (protected) ─────────────────────────────────────
 $branchConstraint = 'chromepet|oragadam';
 $dateConstraint   = '\d{4}-\d{2}-\d{2}';
 
-Route::middleware(['auth:sanctum', 'branch.access'])->group(function () use ($branchConstraint, $dateConstraint) {
+Route::middleware('auth:sanctum')->group(function () use ($branchConstraint, $dateConstraint) {
     Route::post('/mis/{branch}/upload', [MISController::class, 'upload'])
         ->where('branch', $branchConstraint);
 
     Route::get('/mis/{branch}/{date}', [MISController::class, 'show'])
-        ->where('branch', $branchConstraint)
-        ->where('date', $dateConstraint);
+        ->where('branch', $branchConstraint)->where('date', $dateConstraint);
 
     Route::get('/mis/{branch}/{date}/export', [MISController::class, 'export'])
-        ->where('branch', $branchConstraint)
-        ->where('date', $dateConstraint);
+        ->where('branch', $branchConstraint)->where('date', $dateConstraint);
 
     Route::get('/mis/{branch}/{date}/export-pdf', [MISController::class, 'exportPdf'])
-        ->where('branch', $branchConstraint)
-        ->where('date', $dateConstraint);
+        ->where('branch', $branchConstraint)->where('date', $dateConstraint);
 
     Route::get('/mis/{branch}/{date}/export-csv', [MISController::class, 'exportCsv'])
-        ->where('branch', $branchConstraint)
-        ->where('date', $dateConstraint);
+        ->where('branch', $branchConstraint)->where('date', $dateConstraint);
 
     Route::post('/mis/{branch}/{date}/email', [MISController::class, 'emailReport'])
-        ->where('branch', $branchConstraint)
-        ->where('date', $dateConstraint);
+        ->where('branch', $branchConstraint)->where('date', $dateConstraint);
 
     Route::get('/mis/dashboard/{date}', [MISController::class, 'dashboard'])
         ->where('date', $dateConstraint);
 
-    // ─── Analytics ───────────────────────────────────────────────────────────
     Route::get('/analytics/kpi/{branch}/{date}', [AnalyticsController::class, 'kpi'])
-        ->where('branch', $branchConstraint)
-        ->where('date', $dateConstraint);
+        ->where('branch', $branchConstraint)->where('date', $dateConstraint);
 
     Route::get('/analytics/charts/daily-trend',       [AnalyticsController::class, 'dailyTrend']);
     Route::get('/analytics/charts/monthly-trend',     [AnalyticsController::class, 'monthlyTrend']);

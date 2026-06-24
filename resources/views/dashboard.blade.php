@@ -914,6 +914,24 @@
         @media(max-width:600px) {
             .kpi-grid { grid-template-columns: repeat(2, 1fr) }
         }
+
+        /* Date presets */
+        .date-presets { display:flex; gap:4px; flex-wrap:wrap; margin-bottom:6px; }
+        .preset-btn {
+            padding: 4px 10px; font-size: 11px; border: 1px solid #cbd5e1;
+            border-radius: 20px; background: #fff; color: #475569; cursor: pointer;
+            transition: all .15s;
+        }
+        .preset-btn:hover  { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+        .preset-btn.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+
+        /* Print button */
+        .btn-print {
+            display:flex; align-items:center; padding:6px 10px;
+            background:#f0f4fa; border:1px solid #cbd5e1; border-radius:6px;
+            cursor:pointer; color:#475569; transition:.15s;
+        }
+        .btn-print:hover { background:#e2e8f0; color:#1e3a5f; }
     </style>
 </head>
 
@@ -931,6 +949,10 @@
             <a href="/" class="nav-link">
                 <span class="material-icons-round">upload_file</span> Upload
             </a>
+            <span id="userBadge" style="padding:.4rem .8rem;font-size:.78rem;font-weight:600;color:var(--text-secondary);background:var(--border-light);border-radius:6px;border:1px solid var(--border);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+            <button onclick="doLogout()" style="padding:.4rem .75rem;font-size:.78rem;font-weight:600;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--error);display:flex;align-items:center;gap:.3rem;font-family:inherit;transition:background .15s" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#fff'">
+                <span class="material-icons-round" style="font-size:16px">logout</span> Sign out
+            </button>
         </div>
     </div>
 
@@ -948,17 +970,29 @@
                 <button class="branch-pill" data-branch="oragadam" onclick="switchBranch('oragadam')">Oragadam</button>
             </div>
             <div class="date-control">
-                <button class="date-nav" onclick="shiftDate(-1)" title="Previous day">
-                    <span class="material-icons-round" style="font-size:16px">chevron_left</span>
-                </button>
-                <input type="date" class="date-input" id="reportDate">
-                <button class="date-nav" onclick="shiftDate(1)" title="Next day">
-                    <span class="material-icons-round" style="font-size:16px">chevron_right</span>
-                </button>
-                <button class="btn-load" id="loadBtn" onclick="loadReport()">
-                    <span class="material-icons-round" style="font-size:16px">refresh</span>
-                    <span id="loadText">Load Report</span>
-                </button>
+                <div class="date-presets">
+                    <button class="preset-btn" onclick="setPreset('today')">Today</button>
+                    <button class="preset-btn" onclick="setPreset('yesterday')">Yesterday</button>
+                    <button class="preset-btn" onclick="setPreset('week')">This Week</button>
+                    <button class="preset-btn" onclick="setPreset('mtd')">MTD</button>
+                    <button class="preset-btn" onclick="setPreset('last_month')">Last Month</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                    <button class="date-nav" onclick="shiftDate(-1)" title="Previous day">
+                        <span class="material-icons-round" style="font-size:16px">chevron_left</span>
+                    </button>
+                    <input type="date" class="date-input" id="reportDate">
+                    <button class="date-nav" onclick="shiftDate(1)" title="Next day">
+                        <span class="material-icons-round" style="font-size:16px">chevron_right</span>
+                    </button>
+                    <button class="btn-load" id="loadBtn" onclick="loadReport()">
+                        <span class="material-icons-round" style="font-size:16px">refresh</span>
+                        <span id="loadText">Load Report</span>
+                    </button>
+                    <button class="btn-print" onclick="openPrint()" title="Print preview">
+                        <span class="material-icons-round" style="font-size:16px">print</span>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -975,10 +1009,137 @@
         <div class="loader"></div>
     </div>
 
+    <!-- Login Modal -->
+    <div id="loginOverlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:20px;padding:2.5rem 2rem;width:100%;max-width:380px;box-shadow:0 25px 50px rgba(0,0,0,.18);position:relative;">
+            <div style="text-align:center;margin-bottom:1.75rem;">
+                <div style="width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;margin:0 auto .9rem;box-shadow:0 8px 20px rgba(37,99,235,.25)">
+                    <span class="material-icons-round" style="color:#fff;font-size:26px">local_hospital</span>
+                </div>
+                <h2 style="font-size:1.3rem;font-weight:800;color:#0f172a;margin-bottom:.3rem">Hospital MIS</h2>
+                <p style="font-size:.82rem;color:#64748b">Sign in to access reports</p>
+            </div>
+            <div id="loginError" style="display:none;background:#fee2e2;border:1px solid rgba(220,38,38,.2);color:#dc2626;border-radius:8px;padding:.65rem .9rem;font-size:.83rem;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem">
+                <span class="material-icons-round" style="font-size:17px">error</span>
+                <span id="loginErrorMsg">Invalid credentials</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:.9rem">
+                <div>
+                    <label style="font-size:.78rem;font-weight:600;color:#475569;display:block;margin-bottom:.35rem">Email</label>
+                    <input id="loginEmail" type="email" placeholder="admin@mis.local" autocomplete="username"
+                        style="width:100%;padding:.7rem .9rem;border:1px solid #e2e8f0;border-radius:9px;font-size:.88rem;font-family:inherit;outline:none;transition:border .2s"
+                        onfocus="this.style.borderColor='#2563eb';this.style.boxShadow='0 0 0 3px rgba(37,99,235,.12)'"
+                        onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
+                </div>
+                <div>
+                    <label style="font-size:.78rem;font-weight:600;color:#475569;display:block;margin-bottom:.35rem">Password</label>
+                    <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password"
+                        style="width:100%;padding:.7rem .9rem;border:1px solid #e2e8f0;border-radius:9px;font-size:.88rem;font-family:inherit;outline:none;transition:border .2s"
+                        onfocus="this.style.borderColor='#2563eb';this.style.boxShadow='0 0 0 3px rgba(37,99,235,.12)'"
+                        onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'"
+                        onkeydown="if(event.key==='Enter')doLogin()">
+                </div>
+                <button onclick="doLogin()" id="loginBtn"
+                    style="width:100%;padding:.8rem;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;border:none;border-radius:9px;font-size:.9rem;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:.5rem;transition:opacity .2s">
+                    <span id="loginBtnText">Sign In</span>
+                    <div id="loginSpinner" style="display:none;width:16px;height:16px;border:2.5px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const BED = { chromepet: 74, oragadam: 14 };
         let branch = 'chromepet', reportData = null;
         let chartInstances = {};
+
+        // ── Auth ─────────────────────────────────────────────────────────────────
+        function getToken()    { return localStorage.getItem('mis_token') || ''; }
+        function setToken(t)   { localStorage.setItem('mis_token', t); }
+        function clearToken()  { localStorage.removeItem('mis_token'); localStorage.removeItem('mis_user'); }
+        function authHeaders() { const t = getToken(); return t ? { 'Authorization': 'Bearer ' + t, 'Accept': 'application/json' } : { 'Accept': 'application/json' }; }
+
+        async function apiFetch(url) {
+            const r = await fetch(url, { headers: authHeaders() });
+            if (r.status === 401) { showLoginModal(); throw new Error('Unauthenticated'); }
+            return r;
+        }
+
+        function showLoginModal() {
+            document.getElementById('loginOverlay').style.display = 'flex';
+            setTimeout(() => document.getElementById('loginEmail').focus(), 100);
+        }
+
+        function hideLoginModal() {
+            document.getElementById('loginOverlay').style.display = 'none';
+        }
+
+        async function doLogin() {
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const errEl = document.getElementById('loginError');
+            const btn = document.getElementById('loginBtn');
+            const spinner = document.getElementById('loginSpinner');
+            const btnText = document.getElementById('loginBtnText');
+
+            if (!email || !password) {
+                errEl.style.display = 'flex';
+                document.getElementById('loginErrorMsg').textContent = 'Please enter email and password.';
+                return;
+            }
+            errEl.style.display = 'none';
+            btn.disabled = true; spinner.style.display = 'block'; btnText.textContent = 'Signing in…';
+
+            try {
+                const r = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({ email, password }),
+                });
+                const j = await r.json();
+                if (j.success && j.token) {
+                    setToken(j.token);
+                    localStorage.setItem('mis_user', JSON.stringify(j.user));
+                    updateUserBadge(j.user);
+                    hideLoginModal();
+                    loadReport();
+                } else {
+                    errEl.style.display = 'flex';
+                    const msg = j.errors?.email?.[0] || j.message || 'Login failed.';
+                    document.getElementById('loginErrorMsg').textContent = msg;
+                }
+            } catch (e) {
+                errEl.style.display = 'flex';
+                document.getElementById('loginErrorMsg').textContent = 'Network error. Please try again.';
+            } finally {
+                btn.disabled = false; spinner.style.display = 'none'; btnText.textContent = 'Sign In';
+            }
+        }
+
+        function doLogout() {
+            fetch('/api/auth/logout', { method: 'POST', headers: authHeaders() }).finally(() => {
+                clearToken();
+                showLoginModal();
+                document.getElementById('content').innerHTML = '';
+            });
+        }
+
+        function updateUserBadge(user) {
+            const el = document.getElementById('userBadge');
+            if (el && user) el.textContent = user.name || user.email;
+        }
+
+        // On page load: check token
+        window.addEventListener('DOMContentLoaded', () => {
+            const user = localStorage.getItem('mis_user');
+            if (getToken()) {
+                hideLoginModal();
+                if (user) try { updateUserBadge(JSON.parse(user)); } catch(_) {}
+                loadReport();
+            } else {
+                showLoginModal();
+            }
+        });
 
         const di = document.getElementById('reportDate');
         di.max = new Date().toISOString().split('T')[0];
@@ -997,6 +1158,31 @@
             if (s <= di.max) { di.value = s; loadReport(); }
         }
 
+        function setPreset(p) {
+            const today = new Date();
+            const fmt   = d => d.toISOString().split('T')[0];
+            let target;
+            if (p === 'today')      { target = fmt(today); }
+            else if (p === 'yesterday') { const d = new Date(today); d.setDate(d.getDate()-1); target = fmt(d); }
+            else if (p === 'week')  { const d = new Date(today); d.setDate(d.getDate() - d.getDay()); target = fmt(d); }
+            else if (p === 'mtd')   { target = fmt(today); }   // uses MTD from today's date
+            else if (p === 'last_month') {
+                const d = new Date(today.getFullYear(), today.getMonth() - 1 + 1, 0); // last day of prev month
+                target = fmt(d);
+            }
+            if (target && target <= di.max) {
+                di.value = target;
+                document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+                event.currentTarget.classList.add('active');
+                loadReport();
+            }
+        }
+
+        function openPrint() {
+            if (!di.value) return;
+            window.open(`/print/${branch}/${di.value}`, '_blank');
+        }
+
         async function loadReport() {
             const date = di.value;
             if (!date) return;
@@ -1005,11 +1191,11 @@
             document.getElementById('alertBox').classList.remove('show');
             try {
                 const [misResp, kpiResp, trendResp, payerResp, mixResp] = await Promise.all([
-                    fetch(`/api/mis/${branch}/${date}`),
-                    fetch(`/api/analytics/kpi/${branch}/${date}`),
-                    fetch(`/api/analytics/charts/daily-trend?branch=${branch}&from=${monthStart(date)}&to=${date}`),
-                    fetch(`/api/analytics/charts/payer-mix?branch=${branch}&date=${date}`),
-                    fetch(`/api/analytics/charts/patient-mix?branch=${branch}&from=${monthStart(date)}&to=${date}`),
+                    apiFetch(`/api/mis/${branch}/${date}`),
+                    apiFetch(`/api/analytics/kpi/${branch}/${date}`),
+                    apiFetch(`/api/analytics/charts/daily-trend?branch=${branch}&from=${monthStart(date)}&to=${date}`),
+                    apiFetch(`/api/analytics/charts/payer-mix?branch=${branch}&date=${date}`),
+                    apiFetch(`/api/analytics/charts/patient-mix?branch=${branch}&from=${monthStart(date)}&to=${date}`),
                 ]);
                 const [mis, kpi, trend, payer, mix] = await Promise.all([misResp.json(), kpiResp.json(), trendResp.json(), payerResp.json(), mixResp.json()]);
 
@@ -1025,7 +1211,7 @@
                     document.getElementById('content').innerHTML = `<div class="no-data"><div class="nd-icon"><span class="material-icons-round">warning</span></div><p>${mis.message || 'No data for this date'}</p><p class="sub">Try uploading CSV files for this date first</p></div>`;
                 }
             } catch (e) {
-                showError('Network error: ' + e.message);
+                if (e.message !== 'Unauthenticated') showError('Network error: ' + e.message);
             } finally {
                 btn.disabled = false; lt.textContent = 'Load Report'; lo.classList.remove('show');
             }

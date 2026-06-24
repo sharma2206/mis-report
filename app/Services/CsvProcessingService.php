@@ -24,9 +24,13 @@ class CsvProcessingService
     /**
      * Process uploaded CSV files for a given branch and date.
      *
-     * Required: bill_file + cashier_file
-     * Chromepet only: package_file
-     * Optional (all branches): er_file, ip_file, surgery_file
+     * Returns import row counts PLUS derived volume indicators so the controller
+     * can pass them to MISService without requiring manual form input.
+     *
+     *   derived.admission  — count of IP admissions for this branch+date (from ip_admissions)
+     *   derived.discharge  — count of IP discharges on this date  (discharge_date = date)
+     *   derived.er_count   — count of ER visits for this branch+date (from er_admissions)
+     *   derived.sources    — which fields were auto-derived vs still manual
      */
     public function process(
         Branch $branch,
@@ -41,13 +45,16 @@ class CsvProcessingService
         return DB::transaction(function () use ($branch, $date, $billFile, $cashierFile, $packageFile, $erFile, $ipFile, $surgeryFile) {
 
             $this->deleteExisting($branch, $date);
+            \App\Repositories\CachedMisRepository::bustFor($branch->value, $date);
 
+            // ── Core files ────────────────────────────────────────────────────
             $billImport = new BillItemImport($branch, $date);
             Excel::import($billImport, $billFile);
 
             $cashierImport = new CashierCollectionImport($branch, $date);
             Excel::import($cashierImport, $cashierFile);
 
+            // ── Chromepet: package consumption ────────────────────────────────
             $packageCount = 0;
             if ($branch === Branch::CHROMEPET && $packageFile) {
                 $packageImport = new PackageConsumptionImport($branch, $date);
@@ -55,20 +62,29 @@ class CsvProcessingService
                 $packageCount = $packageImport->rowCount;
             }
 
-            $erCount = 0;
+            // ── ER admissions ─────────────────────────────────────────────────
+            $erImportCount   = 0;
+            $erCountDerived  = false;
             if ($erFile) {
                 $erImport = new ErAdmissionImport($branch, $date);
                 Excel::import($erImport, $erFile);
-                $erCount = $erImport->rowCount;
+                $erImportCount  = $erImport->rowCount;
+                $erCountDerived = true;
             }
 
-            $ipCount = 0;
+            // ── IP admissions ─────────────────────────────────────────────────
+            $ipImportCount       = 0;
+            $admissionDerived    = false;
+            $dischargeDerived    = false;
             if ($ipFile) {
                 $ipImport = new IpAdmissionImport($branch, $date);
                 Excel::import($ipImport, $ipFile);
-                $ipCount = $ipImport->rowCount;
+                $ipImportCount    = $ipImport->rowCount;
+                $admissionDerived = true;
+                $dischargeDerived = true;
             }
 
+            // ── Surgeries ─────────────────────────────────────────────────────
             $surgeryCount = 0;
             if ($surgeryFile) {
                 $surgImport = new SurgeryImport($branch, $date);
@@ -76,13 +92,45 @@ class CsvProcessingService
                 $surgeryCount = $surgImport->rowCount;
             }
 
+            // ── Derive volume indicators from freshly imported data ───────────
+            $derivedAdmission = $admissionDerived
+                ? IpAdmission::where('branch', $branch->value)
+                    ->whereDate('admission_date', $date)
+                    ->count()
+                : null;
+
+            $derivedDischarge = $dischargeDerived
+                ? IpAdmission::where('branch', $branch->value)
+                    ->whereDate('discharge_date', $date)
+                    ->count()
+                : null;
+
+            $derivedErCount = $erCountDerived
+                ? ErAdmission::where('branch', $branch->value)
+                    ->whereDate('admission_date', $date)
+                    ->count()
+                : null;
+
             return [
+                // Row import counts
                 'bill_items'           => $billImport->rowCount,
                 'cashier_collections'  => $cashierImport->rowCount,
                 'package_consumptions' => $packageCount,
-                'er_admissions'        => $erCount,
-                'ip_admissions'        => $ipCount,
+                'er_admissions'        => $erImportCount,
+                'ip_admissions'        => $ipImportCount,
                 'surgeries'            => $surgeryCount,
+
+                // Derived volume indicators (null = not available, must use manual value)
+                'derived' => [
+                    'admission'  => $derivedAdmission,
+                    'discharge'  => $derivedDischarge,
+                    'er_count'   => $derivedErCount,
+                    'sources'    => [
+                        'admission' => $admissionDerived ? 'ip_file'  : 'manual',
+                        'discharge' => $dischargeDerived ? 'ip_file'  : 'manual',
+                        'er_count'  => $erCountDerived   ? 'er_file'  : 'manual',
+                    ],
+                ],
             ];
         });
     }

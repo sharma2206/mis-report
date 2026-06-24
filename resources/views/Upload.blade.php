@@ -804,19 +804,21 @@
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Admission</label>
-                        <input type="number" name="admission" min="0" placeholder="0">
+                        <label>Admission <span id="admissionAutoTag" style="display:none;font-size:.7rem;background:#d1fae5;color:#059669;padding:.1rem .45rem;border-radius:9999px;font-weight:600;border:1px solid rgba(5,150,105,.2)">Auto from IP file</span></label>
+                        <input type="number" name="admission" id="admissionInput" min="0" placeholder="0">
+                        <span class="help" id="admissionHelp">Enter manually or upload IP file to auto-calculate</span>
                     </div>
                     <div class="form-group">
-                        <label>Discharge</label>
-                        <input type="number" name="discharge" min="0" placeholder="0">
+                        <label>Discharge <span id="dischargeAutoTag" style="display:none;font-size:.7rem;background:#d1fae5;color:#059669;padding:.1rem .45rem;border-radius:9999px;font-weight:600;border:1px solid rgba(5,150,105,.2)">Auto from IP file</span></label>
+                        <input type="number" name="discharge" id="dischargeInput" min="0" placeholder="0">
+                        <span class="help" id="dischargeHelp">Enter manually or upload IP file to auto-calculate</span>
                     </div>
                 </div>
                 <div id="erCountSection" class="form-row single" style="display:none;">
                     <div class="form-group">
-                        <label>ER Count (Manual Entry) <span class="req">*</span></label>
+                        <label>ER Count <span class="req" id="erCountReq">*</span> <span id="erCountAutoTag" style="display:none;font-size:.7rem;background:#d1fae5;color:#059669;padding:.1rem .45rem;border-radius:9999px;font-weight:600;border:1px solid rgba(5,150,105,.2)">Auto from ER file</span></label>
                         <input type="number" name="er_count" id="erCountInput" min="0" placeholder="0">
-                        <span class="help">Enter the ER count for this day (Oragadam only)</span>
+                        <span class="help" id="erCountHelp">Enter manually or upload ER file to auto-calculate</span>
                     </div>
                 </div>
             </div>
@@ -847,23 +849,59 @@
     </div>
 
     <script>
-        const BED_COUNTS = {
-            chromepet: 74,
-            oragadam: 14
-        };
+        const BED_COUNTS = { chromepet: 74, oragadam: 14 };
         let currentBranch = 'chromepet';
+
+        function getToken() { return localStorage.getItem('mis_token') || ''; }
+        function authFetchHeaders() {
+            const t = getToken();
+            return t ? { 'Authorization': 'Bearer ' + t, 'Accept': 'application/json' } : { 'Accept': 'application/json' };
+        }
         document.getElementById('dateInput').max = new Date().toISOString().split('T')[0];
 
         function onFile(inp) {
             const b = document.getElementById('badge_' + inp.name);
             const z = inp.closest('.file-zone');
-            if (inp.files && inp.files.length) {
+            const hasFile = inp.files && inp.files.length;
+            if (hasFile) {
                 b.querySelector('.fn').textContent = inp.files[0].name;
                 b.classList.add('show');
                 z.classList.add('selected');
             } else {
                 b.classList.remove('show');
                 z.classList.remove('selected');
+            }
+
+            // Auto-derive indicators
+            if (inp.name === 'ip_file') {
+                const show = !!hasFile;
+                ['admissionAutoTag', 'dischargeAutoTag'].forEach(id => {
+                    document.getElementById(id).style.display = show ? 'inline' : 'none';
+                });
+                ['admissionInput', 'dischargeInput'].forEach(id => {
+                    const el = document.getElementById(id);
+                    el.placeholder = show ? 'Auto from IP file' : '0';
+                    el.style.background = show ? '#f0fdf4' : '';
+                });
+                document.getElementById('admissionHelp').textContent = show
+                    ? 'Will be auto-calculated from IP file (manual entry overridden)'
+                    : 'Enter manually or upload IP file to auto-calculate';
+                document.getElementById('dischargeHelp').textContent = show
+                    ? 'Will be auto-calculated from IP file (manual entry overridden)'
+                    : 'Enter manually or upload IP file to auto-calculate';
+            }
+
+            if (inp.name === 'er_file') {
+                const show = !!hasFile;
+                document.getElementById('erCountAutoTag').style.display = show ? 'inline' : 'none';
+                document.getElementById('erCountReq').style.display = show ? 'none' : 'inline';
+                const erInput = document.getElementById('erCountInput');
+                erInput.required = !show;
+                erInput.placeholder = show ? 'Auto from ER file' : '0';
+                erInput.style.background = show ? '#f0fdf4' : '';
+                document.getElementById('erCountHelp').textContent = show
+                    ? 'Will be auto-calculated from ER file (manual entry overridden)'
+                    : 'Enter manually or upload ER file to auto-calculate';
             }
         }
 
@@ -892,10 +930,13 @@
                 document.getElementById('zone_package_file').classList.remove('selected');
             }
             const erSection = document.getElementById('erCountSection'),
-                erInput = document.getElementById('erCountInput');
+                erInput = document.getElementById('erCountInput'),
+                erFileInput = document.querySelector('input[name="er_file"]');
             if (branch === 'oragadam') {
                 erSection.style.display = 'block';
-                erInput.required = true;
+                // Only required if no er_file uploaded (auto-derive takes over)
+                const hasErFile = erFileInput && erFileInput.files && erFileInput.files.length;
+                erInput.required = !hasErFile;
             } else {
                 erSection.style.display = 'none';
                 erInput.required = false;
@@ -950,8 +991,14 @@
             try {
                 const r = await fetch('/api/mis/' + currentBranch + '/upload', {
                     method: 'POST',
+                    headers: authFetchHeaders(),
                     body: fd
                 });
+                if (r.status === 401) {
+                    showAlert('error', 'Session expired. Please sign in again.');
+                    setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
+                    return;
+                }
                 const j = await r.json();
                 if (j.success) {
                     showAlert('success', j.message || 'Done!');
@@ -982,6 +1029,17 @@
             const d = j.data || {}, s = d.sales || {}, ftd = s.ftd || {};
             const tot = ((ftd.op || 0) + (ftd.ip || 0) + (ftd.er || 0) + (ftd.ph || 0)).toFixed(2);
             h += '<div class="stat-box"><div class="stat-label">FTD Sales</div><div class="stat-value">₹' + Number(tot).toLocaleString() + '</div></div>';
+            // Show derived volume indicators if available
+            const derived = j.derived || {};
+            if (derived.admission !== null && derived.admission !== undefined) {
+                h += '<div class="stat-box" title="Auto-derived from IP file"><div class="stat-label">Admissions <span style="color:#059669;font-size:.6rem">AUTO</span></div><div class="stat-value" style="color:#059669">' + derived.admission + '</div></div>';
+            }
+            if (derived.discharge !== null && derived.discharge !== undefined) {
+                h += '<div class="stat-box" title="Auto-derived from IP file"><div class="stat-label">Discharges <span style="color:#059669;font-size:.6rem">AUTO</span></div><div class="stat-value" style="color:#059669">' + derived.discharge + '</div></div>';
+            }
+            if (derived.er_count !== null && derived.er_count !== undefined) {
+                h += '<div class="stat-box" title="Auto-derived from ER file"><div class="stat-label">ER Count <span style="color:#059669;font-size:.6rem">AUTO</span></div><div class="stat-value" style="color:#059669">' + derived.er_count + '</div></div>';
+            }
             stats.innerHTML = h;
             card.classList.add('show');
             const date = document.getElementById('dateInput').value;

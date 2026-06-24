@@ -130,7 +130,7 @@ class AnalyticsController extends Controller
                     DB::raw('SUM(CASE WHEN patient_type IS NULL THEN net_amount ELSE 0 END) as ph_revenue')
                 )
                 ->where('branch', $branch)
-                ->whereBetween('bill_date', [$from, $to])
+                ->whereDate('bill_date', '>=', $from)->whereDate('bill_date', '<=', $to)
                 ->where('status', 'Sale')
                 ->groupBy('day')
                 ->orderBy('day')
@@ -199,7 +199,7 @@ class AnalyticsController extends Controller
                     DB::raw('COUNT(*) as transactions')
                 )
                 ->where('branch', $branch)
-                ->whereBetween('bill_date', [$from, $to])
+                ->whereDate('bill_date', '>=', $from)->whereDate('bill_date', '<=', $to)
                 ->where('status', 'Sale')
                 ->whereNotNull('treating_department')
                 ->where('treating_department', '!=', '')
@@ -231,7 +231,7 @@ class AnalyticsController extends Controller
                     DB::raw('COUNT(*) as transactions')
                 )
                 ->where('branch', $branch)
-                ->whereBetween('collection_date', [$from, $to])
+                ->whereDate('collection_date', '>=', $from)->whereDate('collection_date', '<=', $to)
                 ->groupBy('payer_type')
                 ->orderByDesc('amount')
                 ->get();
@@ -261,7 +261,7 @@ class AnalyticsController extends Controller
                     DB::raw('SUM(CASE WHEN patient_type IS NULL THEN net_amount ELSE 0 END) as pharmacy')
                 )
                 ->where('branch', $branch)
-                ->whereBetween('bill_date', [$from, $to])
+                ->whereDate('bill_date', '>=', $from)->whereDate('bill_date', '<=', $to)
                 ->where('status', 'Sale')
                 ->groupBy('day')
                 ->orderBy('day')
@@ -288,19 +288,19 @@ class AnalyticsController extends Controller
                 $result[$branch->value] = [
                     'label'      => $branch->label(),
                     'revenue'    => (float) BillItem::where('branch', $branch->value)
-                                    ->whereBetween('bill_date', [$from, $to])
+                                    ->whereDate('bill_date', '>=', $from)->whereDate('bill_date', '<=', $to)
                                     ->where('status', 'Sale')
                                     ->sum('net_amount'),
                     'collection' => (float) CashierCollection::where('branch', $branch->value)
-                                    ->whereBetween('collection_date', [$from, $to])
+                                    ->whereDate('collection_date', '>=', $from)->whereDate('collection_date', '<=', $to)
                                     ->sum('paid_amount'),
                     'patients'   => BillItem::where('branch', $branch->value)
-                                    ->whereBetween('bill_date', [$from, $to])
+                                    ->whereDate('bill_date', '>=', $from)->whereDate('bill_date', '<=', $to)
                                     ->where('status', 'Sale')
                                     ->distinct('uhid')
                                     ->count('uhid'),
                     'surgeries'  => Surgery::where('branch', $branch->value)
-                                    ->whereBetween('surgery_date', [$from, $to])
+                                    ->whereDate('surgery_date', '>=', $from)->whereDate('surgery_date', '<=', $to)
                                     ->count(),
                 ];
             }
@@ -329,7 +329,7 @@ class AnalyticsController extends Controller
                     DB::raw('COUNT(DISTINCT uhid) as patients')
                 )
                 ->where('branch', $branch)
-                ->whereBetween('bill_date', [$from, $to])
+                ->whereDate('bill_date', '>=', $from)->whereDate('bill_date', '<=', $to)
                 ->where('status', 'Sale')
                 ->whereNotNull('treating_doctor')
                 ->where('treating_doctor', '!=', '')
@@ -357,13 +357,13 @@ class AnalyticsController extends Controller
 
             $byCategory = Surgery::select('surgery_category', DB::raw('COUNT(*) as count'))
                 ->where('branch', $branch)
-                ->whereBetween('surgery_date', [$from, $to])
+                ->whereDate('surgery_date', '>=', $from)->whereDate('surgery_date', '<=', $to)
                 ->groupBy('surgery_category')
                 ->get();
 
             $byDept = Surgery::select('surgery_department', DB::raw('COUNT(*) as count'))
                 ->where('branch', $branch)
-                ->whereBetween('surgery_date', [$from, $to])
+                ->whereDate('surgery_date', '>=', $from)->whereDate('surgery_date', '<=', $to)
                 ->whereNotNull('surgery_department')
                 ->groupBy('surgery_department')
                 ->orderByDesc('count')
@@ -372,7 +372,7 @@ class AnalyticsController extends Controller
 
             $bySurgeon = Surgery::select('performing_surgeon', 'surgeon_speciality', DB::raw('COUNT(*) as count'))
                 ->where('branch', $branch)
-                ->whereBetween('surgery_date', [$from, $to])
+                ->whereDate('surgery_date', '>=', $from)->whereDate('surgery_date', '<=', $to)
                 ->whereNotNull('performing_surgeon')
                 ->groupBy('performing_surgeon', 'surgeon_speciality')
                 ->orderByDesc('count')
@@ -381,7 +381,7 @@ class AnalyticsController extends Controller
 
             $byPayerType = Surgery::select('payer_type', DB::raw('COUNT(*) as count'))
                 ->where('branch', $branch)
-                ->whereBetween('surgery_date', [$from, $to])
+                ->whereDate('surgery_date', '>=', $from)->whereDate('surgery_date', '<=', $to)
                 ->groupBy('payer_type')
                 ->get();
 
@@ -392,7 +392,7 @@ class AnalyticsController extends Controller
                     'by_dept'      => $byDept,
                     'by_surgeon'   => $bySurgeon,
                     'by_payer_type'=> $byPayerType,
-                    'total'        => Surgery::where('branch', $branch)->whereBetween('surgery_date', [$from, $to])->count(),
+                    'total'        => Surgery::where('branch', $branch)->whereDate('surgery_date', '>=', $from)->whereDate('surgery_date', '<=', $to)->count(),
                 ],
             ]);
         } catch (\Exception $e) {
@@ -412,28 +412,28 @@ class AnalyticsController extends Controller
             $to     = $request->input('to',   Carbon::now()->format('Y-m-d'));
 
             $ipByPayerType = IpAdmission::select('payer_type', DB::raw('COUNT(*) as count'))
-                ->where('branch', $branch)->whereBetween('admission_date', [$from, $to])
+                ->where('branch', $branch)->whereDate('admission_date', '>=', $from)->whereDate('admission_date', '<=', $to)
                 ->groupBy('payer_type')->get();
 
             $ipByDept = IpAdmission::select('treating_department', DB::raw('COUNT(*) as count'))
-                ->where('branch', $branch)->whereBetween('admission_date', [$from, $to])
+                ->where('branch', $branch)->whereDate('admission_date', '>=', $from)->whereDate('admission_date', '<=', $to)
                 ->whereNotNull('treating_department')
                 ->groupBy('treating_department')->orderByDesc('count')->limit(10)->get();
 
             $erByAdmissionType = ErAdmission::select('admission_type', DB::raw('COUNT(*) as count'))
-                ->where('branch', $branch)->whereBetween('admission_date', [$from, $to])
+                ->where('branch', $branch)->whereDate('admission_date', '>=', $from)->whereDate('admission_date', '<=', $to)
                 ->groupBy('admission_type')->get();
 
             $avgLos = IpAdmission::where('branch', $branch)
-                ->whereBetween('admission_date', [$from, $to])
+                ->whereDate('admission_date', '>=', $from)->whereDate('admission_date', '<=', $to)
                 ->whereNotNull('actual_los')
                 ->avg('actual_los');
 
             return response()->json([
                 'success' => true,
                 'data'    => [
-                    'ip_total'          => IpAdmission::where('branch', $branch)->whereBetween('admission_date', [$from, $to])->count(),
-                    'er_total'          => ErAdmission::where('branch', $branch)->whereBetween('admission_date', [$from, $to])->count(),
+                    'ip_total'          => IpAdmission::where('branch', $branch)->whereDate('admission_date', '>=', $from)->whereDate('admission_date', '<=', $to)->count(),
+                    'er_total'          => ErAdmission::where('branch', $branch)->whereDate('admission_date', '>=', $from)->whereDate('admission_date', '<=', $to)->count(),
                     'ip_by_payer_type'  => $ipByPayerType,
                     'ip_by_dept'        => $ipByDept,
                     'er_by_type'        => $erByAdmissionType,

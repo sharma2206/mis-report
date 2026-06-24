@@ -52,13 +52,36 @@ class MISController extends Controller
                 $request->file('surgery_file')
             );
 
-            // 2. Auto-generate MIS report from the freshly imported data
-            $report = $this->misService->generateMIS($branchEnum, $date, $request->volumeData());
+            // 2. Build volume data: use derived counts from uploaded files where available,
+            //    fall back to manual form values for fields not covered by file uploads.
+            $volumeData = $request->volumeData();
+            $derived    = $imported['derived'] ?? [];
+
+            if (isset($derived['admission']) && $derived['admission'] !== null) {
+                $volumeData['ftd']['admission'] = $derived['admission'];
+            }
+            if (isset($derived['discharge']) && $derived['discharge'] !== null) {
+                $volumeData['ftd']['discharge'] = $derived['discharge'];
+            }
+            if (isset($derived['er_count']) && $derived['er_count'] !== null) {
+                $volumeData['ftd']['er_count'] = $derived['er_count'];
+            }
+
+            // 3. Generate MIS report
+            $report = $this->misService->generateMIS($branchEnum, $date, $volumeData);
+
+            \App\Models\AuditLog::record('upload', [
+                'branch'   => $branch,
+                'date'     => $date,
+                'imported' => array_diff_key($imported, ['derived' => null]),
+                'derived'  => $derived['sources'] ?? [],
+            ], $branch, $date, $request);
 
             return response()->json([
                 'success'  => true,
                 'message'  => 'Files processed and MIS report generated successfully.',
                 'imported' => $imported,
+                'derived'  => $derived,
                 'data'     => $report,
             ]);
         } catch (Exception $e) {
@@ -83,6 +106,8 @@ class MISController extends Controller
             $request->merge(['branch' => $branch, 'date' => $date]);
 
             $data = $this->misService->generateMIS($request->branch(), $request->reportDate());
+
+            \App\Models\AuditLog::record('report_viewed', ['branch' => $branch, 'date' => $date], $branch, $date, $request);
 
             return response()->json([
                 'success' => true,
@@ -112,6 +137,8 @@ class MISController extends Controller
             $data = $this->misService->generateMIS($request->branch(), $request->reportDate());
 
             $filename = $this->formatReportFilename($request->branch(), $request->reportDate());
+
+            \App\Models\AuditLog::record('export_excel', ['branch' => $branch, 'date' => $date], $branch, $date, $request);
 
             return \Maatwebsite\Excel\Facades\Excel::download(
                 new \App\Exports\MISExport($data),
@@ -145,12 +172,50 @@ class MISController extends Controller
 
             $filename = $this->formatReportFilename($request->branch(), $request->reportDate());
 
+            \App\Models\AuditLog::record('export_pdf', ['branch' => $branch, 'date' => $date], $branch, $date, $request);
+
             return $pdf->download("{$filename}.pdf");
         } catch (Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
             ], 422);
+        }
+    }
+
+    /**
+     * Export MIS report as CSV (flat tabular rows).
+     */
+    public function exportCsv(MISRequest $request, string $branch, string $date)
+    {
+        try {
+            $request->merge(['branch' => $branch, 'date' => $date]);
+            $data     = $this->misService->generateMIS($request->branch(), $request->reportDate());
+            $filename = $this->formatReportFilename($request->branch(), $request->reportDate(), 'MIS');
+            \App\Models\AuditLog::record('export_csv', ['branch' => $branch, 'date' => $date], $branch, $date, $request);
+            return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\MisCsvExport($data), "{$filename}.csv", \Maatwebsite\Excel\Excel::CSV);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * Queue an email of the PDF report to a given address.
+     * POST /api/mis/{branch}/{date}/email   body: { "to": "email@example.com" }
+     */
+    public function emailReport(MISRequest $request, string $branch, string $date): JsonResponse
+    {
+        try {
+            $request->validate(['to' => 'required|email']);
+            $request->merge(['branch' => $branch, 'date' => $date]);
+            $data = $this->misService->generateMIS($request->branch(), $request->reportDate());
+
+            \App\Jobs\EmailReportJob::dispatch($data, $request->input('to'), $branch, $date);
+            \App\Models\AuditLog::record('email_queued', ['to' => $request->input('to'), 'branch' => $branch, 'date' => $date], $branch, $date, $request);
+
+            return response()->json(['success' => true, 'message' => 'Report email queued successfully.']);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
     }
 
@@ -174,6 +239,21 @@ class MISController extends Controller
                 'success' => false,
                 'message' => $e->getMessage(),
             ], 422);
+        }
+    }
+
+    /**
+     * Print-preview page (browser prints / saves to PDF).
+     * GET /print/{branch}/{date}
+     */
+    public function printPreview(string $branch, string $date)
+    {
+        try {
+            $branchEnum = \App\Enums\Branch::from($branch);
+            $data       = $this->misService->generateMIS($branchEnum, $date);
+            return view('print_preview', compact('data', 'branch', 'date'));
+        } catch (Exception $e) {
+            abort(422, $e->getMessage());
         }
     }
 

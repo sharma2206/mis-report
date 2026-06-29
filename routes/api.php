@@ -6,7 +6,7 @@ use App\Http\Controllers\Api\MISController;
 use Illuminate\Support\Facades\Route;
 
 // ─── Auth (public) ───────────────────────────────────────────────────────────
-Route::prefix('auth')->group(function () {
+Route::prefix('auth')->middleware('throttle:10,1')->group(function () {
     Route::post('login',    [AuthController::class, 'login']);
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('logout',   [AuthController::class, 'logout']);
@@ -19,7 +19,7 @@ Route::prefix('auth')->group(function () {
 $branchConstraint = 'chromepet|oragadam';
 $dateConstraint   = '\d{4}-\d{2}-\d{2}';
 
-Route::middleware('auth:sanctum')->group(function () use ($branchConstraint, $dateConstraint) {
+Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () use ($branchConstraint, $dateConstraint) {
     Route::post('/mis/{branch}/upload', [MISController::class, 'upload'])
         ->where('branch', $branchConstraint);
 

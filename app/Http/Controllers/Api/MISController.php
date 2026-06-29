@@ -10,6 +10,7 @@ use App\Services\MISService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Exception;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Carbon\Carbon;
 
@@ -36,6 +37,8 @@ class MISController extends Controller
      */
     public function upload(MISUploadRequest $request, string $branch): JsonResponse
     {
+        $this->assertBranchAccess($request, $branch);
+
         try {
             $branchEnum = $request->branch();
             $date       = $request->reportDate();
@@ -102,6 +105,8 @@ class MISController extends Controller
      */
     public function show(MISRequest $request, string $branch, string $date): JsonResponse
     {
+        $this->assertBranchAccess($request, $branch);
+
         try {
             $request->merge(['branch' => $branch, 'date' => $date]);
 
@@ -131,6 +136,8 @@ class MISController extends Controller
      */
     public function export(MISRequest $request, string $branch, string $date)
     {
+        $this->assertBranchAccess($request, $branch);
+
         try {
             $request->merge(['branch' => $branch, 'date' => $date]);
 
@@ -162,6 +169,8 @@ class MISController extends Controller
      */
     public function exportPdf(MISRequest $request, string $branch, string $date)
     {
+        $this->assertBranchAccess($request, $branch);
+
         try {
             $request->merge(['branch' => $branch, 'date' => $date]);
 
@@ -188,6 +197,8 @@ class MISController extends Controller
      */
     public function exportCsv(MISRequest $request, string $branch, string $date)
     {
+        $this->assertBranchAccess($request, $branch);
+
         try {
             $request->merge(['branch' => $branch, 'date' => $date]);
             $data     = $this->misService->generateMIS($request->branch(), $request->reportDate());
@@ -205,6 +216,8 @@ class MISController extends Controller
      */
     public function emailReport(MISRequest $request, string $branch, string $date): JsonResponse
     {
+        $this->assertBranchAccess($request, $branch);
+
         try {
             $request->validate(['to' => 'required|email']);
             $request->merge(['branch' => $branch, 'date' => $date]);
@@ -265,6 +278,13 @@ class MISController extends Controller
      * @param string $prefix
      * @return string
      */
+    private function assertBranchAccess(Request $request, string $branch): void
+    {
+        if (!$request->user()->canAccessBranch($branch)) {
+            abort(403, 'You are not authorised to access the ' . $branch . ' branch.');
+        }
+    }
+
     private function formatReportFilename(\App\Enums\Branch $branchEnum, string $date, string $prefix = 'Sales VS Collection'): string
     {
         $dt = Carbon::createFromFormat('Y-m-d', $date);

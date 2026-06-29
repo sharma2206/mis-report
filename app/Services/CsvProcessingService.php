@@ -48,28 +48,44 @@ class CsvProcessingService
             \App\Repositories\CachedMisRepository::bustFor($branch->value, $date);
 
             // ── Core files ────────────────────────────────────────────────────
-            $billImport = new BillItemImport($branch, $date);
-            Excel::import($billImport, $billFile);
+            try {
+                $billImport = new BillItemImport($branch, $date);
+                Excel::import($billImport, $billFile);
+            } catch (\Throwable $e) {
+                throw new \RuntimeException('Bill item import failed: ' . $e->getMessage(), 0, $e);
+            }
 
-            $cashierImport = new CashierCollectionImport($branch, $date);
-            Excel::import($cashierImport, $cashierFile);
+            try {
+                $cashierImport = new CashierCollectionImport($branch, $date);
+                Excel::import($cashierImport, $cashierFile);
+            } catch (\Throwable $e) {
+                throw new \RuntimeException('Cashier collection import failed: ' . $e->getMessage(), 0, $e);
+            }
 
             // ── Chromepet: package consumption ────────────────────────────────
             $packageCount = 0;
             if ($branch === Branch::CHROMEPET && $packageFile) {
-                $packageImport = new PackageConsumptionImport($branch, $date);
-                Excel::import($packageImport, $packageFile);
-                $packageCount = $packageImport->rowCount;
+                try {
+                    $packageImport = new PackageConsumptionImport($branch, $date);
+                    Excel::import($packageImport, $packageFile);
+                    $packageCount = $packageImport->rowCount;
+                } catch (\Throwable $e) {
+                    throw new \RuntimeException('Package consumption import failed: ' . $e->getMessage(), 0, $e);
+                }
             }
 
             // ── ER admissions ─────────────────────────────────────────────────
             $erImportCount   = 0;
             $erCountDerived  = false;
             if ($erFile) {
-                $erImport = new ErAdmissionImport($branch, $date);
-                Excel::import($erImport, $erFile);
-                $erImportCount  = $erImport->rowCount;
-                $erCountDerived = true;
+                try {
+                    $erImport = new ErAdmissionImport($branch, $date);
+                    Excel::import($erImport, $erFile);
+                    $erImportCount  = $erImport->rowCount;
+                    $erCountDerived = true;
+                } catch (\Throwable $e) {
+                    throw new \RuntimeException('ER admission import failed: ' . $e->getMessage(), 0, $e);
+                }
             }
 
             // ── IP admissions ─────────────────────────────────────────────────
@@ -77,19 +93,27 @@ class CsvProcessingService
             $admissionDerived    = false;
             $dischargeDerived    = false;
             if ($ipFile) {
-                $ipImport = new IpAdmissionImport($branch, $date);
-                Excel::import($ipImport, $ipFile);
-                $ipImportCount    = $ipImport->rowCount;
-                $admissionDerived = true;
-                $dischargeDerived = true;
+                try {
+                    $ipImport = new IpAdmissionImport($branch, $date);
+                    Excel::import($ipImport, $ipFile);
+                    $ipImportCount    = $ipImport->rowCount;
+                    $admissionDerived = true;
+                    $dischargeDerived = true;
+                } catch (\Throwable $e) {
+                    throw new \RuntimeException('IP admission import failed: ' . $e->getMessage(), 0, $e);
+                }
             }
 
             // ── Surgeries ─────────────────────────────────────────────────────
             $surgeryCount = 0;
             if ($surgeryFile) {
-                $surgImport = new SurgeryImport($branch, $date);
-                Excel::import($surgImport, $surgeryFile);
-                $surgeryCount = $surgImport->rowCount;
+                try {
+                    $surgImport = new SurgeryImport($branch, $date);
+                    Excel::import($surgImport, $surgeryFile);
+                    $surgeryCount = $surgImport->rowCount;
+                } catch (\Throwable $e) {
+                    throw new \RuntimeException('Surgery import failed: ' . $e->getMessage(), 0, $e);
+                }
             }
 
             // ── Derive volume indicators from freshly imported data ───────────

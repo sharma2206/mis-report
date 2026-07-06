@@ -33,7 +33,7 @@ class SurgeryImport implements ToCollection, WithHeadingRow, WithChunkReading
 
             $insert[] = [
                 'branch'               => $this->branch->value,
-                'surgery_date'         => $this->date,
+                'surgery_date'         => $this->parseDateOnly($this->getValue($row, ['surgery_start_date_and_time', 'surgery_scheduled_date_time', 'surgery_booking_date_and_time'], null)) ?? $this->date,
                 'admission_no'         => $admissionNo ?: null,
                 'uhid'                 => trim($row['uhid'] ?? '') ?: null,
                 'patient_name'         => trim($row['patient_name'] ?? '') ?: null,
@@ -113,6 +113,22 @@ class SurgeryImport implements ToCollection, WithHeadingRow, WithChunkReading
         }
 
         return $default;
+    }
+
+    private function parseDateOnly($value): ?string
+    {
+        if (!$value || trim((string) $value) === '') {
+            return null;
+        }
+        try {
+            return Carbon::createFromFormat('d/m/Y, h:i a', trim((string) $value))->format('Y-m-d');
+        } catch (\Exception) {
+            try {
+                return Carbon::parse($value)->format('Y-m-d');
+            } catch (\Exception) {
+                return null;
+            }
+        }
     }
 
     private function parseDateTime($value): ?string

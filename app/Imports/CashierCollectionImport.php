@@ -4,6 +4,7 @@ namespace App\Imports;
 
 use App\Enums\Branch;
 use App\Models\CashierCollection;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
@@ -35,7 +36,7 @@ class CashierCollectionImport implements ToCollection, WithHeadingRow, WithChunk
 
             $insert[] = [
                 'branch'               => $this->branch->value,
-                'collection_date'      => $this->date,
+                'collection_date'      => $this->parseDateOnly($this->getValue($row, ['receiptrefund_date_time', 'receipt_refund_date_time', 'receipt_date_time'], null)) ?? $this->date,
                 'uhid'                 => trim($row['uhid'] ?? '') ?: null,
                 'patient_name'         => trim($row['patient_name'] ?? '') ?: null,
                 'visit_id'             => trim($row['visit_id'] ?? '') ?: null,
@@ -64,6 +65,22 @@ class CashierCollectionImport implements ToCollection, WithHeadingRow, WithChunk
     public function chunkSize(): int
     {
         return 1000;
+    }
+
+    private function parseDateOnly($value): ?string
+    {
+        if (!$value || trim((string) $value) === '') {
+            return null;
+        }
+        try {
+            return Carbon::createFromFormat('d/m/Y, h:i a', trim((string) $value))->format('Y-m-d');
+        } catch (\Exception) {
+            try {
+                return Carbon::parse($value)->format('Y-m-d');
+            } catch (\Exception) {
+                return null;
+            }
+        }
     }
 
     private function resolvePaymentMode($row): ?string

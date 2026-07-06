@@ -35,6 +35,9 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () use ($b
     Route::get('/mis/{branch}/{date}/export-csv', [MISController::class, 'exportCsv'])
         ->where('branch', $branchConstraint)->where('date', $dateConstraint);
 
+    Route::get('/mis/{branch}/export-brm', [MISController::class, 'exportBrm'])
+        ->where('branch', $branchConstraint);
+
     Route::post('/mis/{branch}/{date}/email', [MISController::class, 'emailReport'])
         ->where('branch', $branchConstraint)->where('date', $dateConstraint);
 
@@ -56,4 +59,7 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () use ($b
     Route::get('/analytics/ip-demographics',          [AnalyticsController::class, 'ipDemographics']);
     Route::get('/analytics/surgery-detail',           [AnalyticsController::class, 'surgeryDetail']);
     Route::get('/analytics/op-metrics',               [AnalyticsController::class, 'opMetrics']);
+    Route::get('/analytics/collection',               [AnalyticsController::class, 'collectionReport']);
+    Route::get('/analytics/service-revenue',          [AnalyticsController::class, 'serviceRevenue']);
+    Route::get('/analytics/doctor-performance',       [AnalyticsController::class, 'doctorPerformance']);
 });

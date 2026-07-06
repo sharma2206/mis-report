@@ -31,5 +31,21 @@ Schedule::command('mis:send-report all monthly')
     ->runInBackground()
     ->appendOutputTo(storage_path('logs/scheduled-reports.log'));
 
+// ─── BRM Reports ─────────────────────────────────────────────────────────────
+
+// Weekly BRM: Every Monday 8:30 AM — covers previous Monday to Sunday
+Schedule::command('brm:send-report all weekly')
+    ->weekly()->mondays()->at('08:30')
+    ->withoutOverlapping()
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/scheduled-reports.log'));
+
+// Monthly BRM: Last day of every month at 10:00 PM — covers 1st to last day
+Schedule::command('brm:send-report all monthly')
+    ->lastDayOfMonth('22:00')
+    ->withoutOverlapping()
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/scheduled-reports.log'));
+
 // Housekeeping: prune failed jobs older than 7 days
 Schedule::command('queue:prune-failed --hours=168')->weekly();

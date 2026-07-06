@@ -453,6 +453,271 @@ const AnalyticsTab = ({ payer, mix, isLoading }) => (
     </div>
 );
 
+// ─── Collection Tab ───────────────────────────────────────────────────────────
+const PAYMENT_COLORS = ['#1d4ed8','#7c3aed','#059669','#d97706','#dc2626','#0891b2'];
+
+const CollectionTab = ({ data, isLoading }) => {
+    if (isLoading) return <div className="space-y-4"><ChartSkeleton height={220} /><TableSkeleton rows={6} cols={3} /></div>;
+    if (!data) return <EmptyState title="No collection data" description="Upload a cashier collection file to see payment analytics." />;
+
+    const byMode   = data.by_payment_mode || [];
+    const byType   = data.by_patient_type || [];
+    const byTxn    = data.by_transaction_category || [];
+    const daily    = data.daily_trend || [];
+    const total    = data.total_collection || 0;
+
+    const fmt = (v) => `₹${Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+
+    return (
+        <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                    ['Total Collection', fmt(total), 'blue'],
+                    ['Cash',     fmt(byMode.find(m => m.mode === 'Cash')?.total),         'green'],
+                    ['Digital',  fmt(byMode.find(m => /UPI|Digital/i.test(m.mode))?.total), 'violet'],
+                    ['TPA',      fmt(byMode.find(m => /TPA/i.test(m.mode))?.total),       'amber'],
+                ].map(([label, val, color]) => (
+                    <div key={label} className={`bg-${color}-50 border border-${color}-100 rounded-xl p-3`}>
+                        <div className="text-[10px] font-700 uppercase tracking-wider text-slate-500 mb-1">{label}</div>
+                        <div className={`text-[1.1rem] font-800 text-${color}-700`}>{val || '₹0'}</div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <Section title="Payment Mode Breakdown">
+                    {byMode.length ? (
+                        <>
+                            <ResponsiveContainer width="100%" height={180}>
+                                <PieChart>
+                                    <Pie data={byMode} dataKey="total" nameKey="mode" cx="50%" cy="50%" outerRadius={70} label={({ mode, percent }) => `${mode} ${(percent * 100).toFixed(0)}%`} labelLine={false} fontSize={10}>
+                                        {byMode.map((_, i) => <Cell key={i} fill={PAYMENT_COLORS[i % PAYMENT_COLORS.length]} />)}
+                                    </Pie>
+                                    <Tooltip formatter={(v) => fmt(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                            <div className="space-y-1.5 mt-2">
+                                {byMode.map((m, i) => (
+                                    <div key={i} className="flex items-center justify-between text-[12px]">
+                                        <div className="flex items-center gap-2">
+                                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: PAYMENT_COLORS[i % PAYMENT_COLORS.length] }} />
+                                            <span className="text-slate-600 font-500">{m.mode}</span>
+                                        </div>
+                                        <span className="font-700 text-slate-700">{fmt(m.total)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    ) : <EmptyState title="No payment mode data" />}
+                </Section>
+
+                <Section title="Collection by Patient Type">
+                    {byType.length ? (
+                        <RankedList items={byType} nameKey="patient_type" valueKey="total" barColor="#1d4ed8"
+                            valueFormat={(v) => fmt(v)} />
+                    ) : <EmptyState title="No patient type data" />}
+                    {byTxn.length > 0 && (
+                        <div className="mt-4">
+                            <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Transaction Type</p>
+                            <RankedList items={byTxn} nameKey="transaction_category" valueKey="total" barColor="#7c3aed"
+                                valueFormat={(v) => fmt(v)} />
+                        </div>
+                    )}
+                </Section>
+            </div>
+
+            {daily.length > 0 && (
+                <Section title="Daily Collection Trend">
+                    <ResponsiveContainer width="100%" height={200}>
+                        <AreaChart data={daily} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                            <defs>
+                                <linearGradient id="collGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#1d4ed8" stopOpacity={0.15} />
+                                    <stop offset="95%" stopColor="#1d4ed8" stopOpacity={0} />
+                                </linearGradient>
+                            </defs>
+                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false}
+                                tickFormatter={(v) => v?.slice(5)} />
+                            <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false}
+                                tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                            <Tooltip formatter={(v) => [fmt(v), 'Collection']} labelFormatter={(l) => `Date: ${l}`}
+                                contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                            <Area type="monotone" dataKey="total" stroke="#1d4ed8" strokeWidth={2} fill="url(#collGrad)" dot={false} />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </Section>
+            )}
+        </div>
+    );
+};
+
+// ─── Service Mix Tab ──────────────────────────────────────────────────────────
+const ServiceMixTab = ({ data, isLoading }) => {
+    if (isLoading) return <div className="space-y-4"><ChartSkeleton height={220} /><TableSkeleton rows={6} cols={3} /></div>;
+    if (!data) return <EmptyState title="No service data" description="Upload a bill items file to see service mix analytics." />;
+
+    const byType   = data.by_service_type   || [];
+    const byPtype  = data.by_patient_type   || [];
+    const topItems = data.top_items         || [];
+    const byDept   = data.by_department     || [];
+    const total    = data.total_revenue     || 0;
+    const discount = data.total_discount    || 0;
+
+    const fmt = (v) => `₹${Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+    const SERVICE_COLORS = ['#1d4ed8','#7c3aed','#059669','#d97706','#dc2626','#0891b2','#be185d','#0f766e'];
+
+    return (
+        <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                    <div className="text-[10px] font-700 uppercase tracking-wider text-slate-500 mb-1">Total Revenue</div>
+                    <div className="text-[1.1rem] font-800 text-blue-700">{fmt(total)}</div>
+                </div>
+                <div className="bg-red-50 border border-red-100 rounded-xl p-3">
+                    <div className="text-[10px] font-700 uppercase tracking-wider text-slate-500 mb-1">Total Discount</div>
+                    <div className="text-[1.1rem] font-800 text-red-600">{fmt(discount)}</div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <Section title="Revenue by Service Type">
+                    {byType.length ? (
+                        <>
+                            <ResponsiveContainer width="100%" height={220}>
+                                <BarChart data={byType} layout="vertical" margin={{ top: 4, right: 60, left: 0, bottom: 0 }}>
+                                    <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false}
+                                        tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                                    <YAxis type="category" dataKey="service_type" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={90} />
+                                    <Tooltip formatter={(v) => [fmt(v), 'Revenue']} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                                    <Bar dataKey="total_revenue" radius={[0, 3, 3, 0]}>
+                                        {byType.map((_, i) => <Cell key={i} fill={SERVICE_COLORS[i % SERVICE_COLORS.length]} />)}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </>
+                    ) : <EmptyState title="No service type data" />}
+                </Section>
+
+                <Section title="Revenue by Patient Type">
+                    {byPtype.length ? (
+                        <RankedList items={byPtype} nameKey="patient_type" valueKey="total_revenue" barColor="#7c3aed"
+                            valueFormat={(v) => fmt(v)} />
+                    ) : <EmptyState title="No patient type data" />}
+                    {byDept.length > 0 && (
+                        <div className="mt-4">
+                            <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">Top Departments</p>
+                            <RankedList items={byDept.slice(0, 6)} nameKey="department" valueKey="total_revenue" barColor="#059669"
+                                valueFormat={(v) => fmt(v)} />
+                        </div>
+                    )}
+                </Section>
+            </div>
+
+            {topItems.length > 0 && (
+                <Section title="Top Revenue Items">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-[12px]">
+                            <thead>
+                                <tr className="text-[10px] font-700 text-slate-400 uppercase text-left border-b border-slate-100">
+                                    <th className="pb-1.5 pr-3">#</th>
+                                    <th className="pb-1.5 pr-3">Item</th>
+                                    <th className="pb-1.5 pr-3">Type</th>
+                                    <th className="pb-1.5 pr-3 text-right">Revenue</th>
+                                    <th className="pb-1.5 text-right">Count</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {topItems.slice(0, 12).map((item, i) => (
+                                    <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
+                                        <td className="py-1.5 pr-3 text-slate-400 font-600">{i + 1}</td>
+                                        <td className="py-1.5 pr-3 font-600 text-slate-700 max-w-[200px] truncate">{item.item_name}</td>
+                                        <td className="py-1.5 pr-3 text-slate-500">{item.service_type}</td>
+                                        <td className="py-1.5 pr-3 text-right font-700 text-blue-700">{fmt(item.total_revenue)}</td>
+                                        <td className="py-1.5 text-right text-slate-500">{item.count}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </Section>
+            )}
+        </div>
+    );
+};
+
+// ─── Doctor Performance Tab ───────────────────────────────────────────────────
+const DoctorPerfTab = ({ data, isLoading }) => {
+    const [sortKey, setSortKey] = useState('total_revenue');
+
+    if (isLoading) return <TableSkeleton rows={10} cols={6} />;
+    if (!data) return <EmptyState title="No doctor performance data" description="Upload bill items with doctor data to see this report." />;
+
+    const doctors      = [...(data.doctors || [])].sort((a, b) => (b[sortKey] || 0) - (a[sortKey] || 0));
+    const bySpeciality = data.by_speciality || [];
+
+    const fmt  = (v) => `₹${Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+    const cols = [
+        { key: 'total_revenue', label: 'Revenue' },
+        { key: 'unique_patients', label: 'Patients' },
+        { key: 'visit_count', label: 'Visits' },
+        { key: 'ip_admissions', label: 'IP Adm.' },
+        { key: 'surgeries', label: 'Surgeries' },
+    ];
+
+    return (
+        <div className="space-y-4">
+            {bySpeciality.length > 0 && (
+                <Section title="Revenue by Speciality">
+                    <RankedList items={bySpeciality.slice(0, 8)} nameKey="speciality" valueKey="total_revenue" barColor="#1d4ed8"
+                        valueFormat={(v) => fmt(v)} />
+                </Section>
+            )}
+
+            <Section title="Doctor Performance" action={
+                <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-slate-400">Sort:</span>
+                    <select value={sortKey} onChange={(e) => setSortKey(e.target.value)}
+                        className="text-[11px] border border-slate-200 rounded-md px-2 py-0.5 text-slate-600 bg-white cursor-pointer">
+                        {cols.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+                    </select>
+                </div>
+            }>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-[12px]">
+                        <thead>
+                            <tr className="text-[10px] font-700 text-slate-400 uppercase text-left border-b border-slate-100">
+                                <th className="pb-1.5 pr-3">#</th>
+                                <th className="pb-1.5 pr-3">Doctor</th>
+                                <th className="pb-1.5 pr-3">Speciality</th>
+                                {cols.map(c => (
+                                    <th key={c.key} className={`pb-1.5 pr-3 text-right cursor-pointer hover:text-slate-600 ${sortKey === c.key ? 'text-blue-600' : ''}`}
+                                        onClick={() => setSortKey(c.key)}>{c.label}</th>
+                                ))}
+                                <th className="pb-1.5 text-right">Avg LOS</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {doctors.slice(0, 20).map((d, i) => (
+                                <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
+                                    <td className="py-1.5 pr-3 text-slate-400 font-600">{i + 1}</td>
+                                    <td className="py-1.5 pr-3 font-600 text-slate-700 max-w-[160px] truncate">{d.doctor_name}</td>
+                                    <td className="py-1.5 pr-3 text-slate-500 max-w-[120px] truncate">{d.speciality || '—'}</td>
+                                    <td className="py-1.5 pr-3 text-right font-700 text-blue-700">{fmt(d.total_revenue)}</td>
+                                    <td className="py-1.5 pr-3 text-right text-slate-600">{d.unique_patients || 0}</td>
+                                    <td className="py-1.5 pr-3 text-right text-slate-600">{d.visit_count || 0}</td>
+                                    <td className="py-1.5 pr-3 text-right text-slate-600">{d.ip_admissions || 0}</td>
+                                    <td className="py-1.5 pr-3 text-right text-slate-600">{d.surgeries || 0}</td>
+                                    <td className="py-1.5 text-right text-slate-500">{d.avg_los ? `${Number(d.avg_los).toFixed(1)}d` : '—'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </Section>
+        </div>
+    );
+};
+
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function Dashboard() {
     const token  = useSelector(selectToken);
@@ -461,7 +726,7 @@ export default function Dashboard() {
     const tab    = useSelector(selectActiveTab);
 
     const [enabled, setEnabled] = useState(false);
-    const { mis, kpi, trend, payer, mix, ipDemo, surgery, op, isLoading, isError, refetch } =
+    const { mis, kpi, trend, payer, mix, ipDemo, surgery, op, collection, serviceRev, doctorPerf, isLoading, isError, refetch } =
         useDashboard(enabled ? branch : null, enabled ? date : null);
 
     if (!token) return <Navigate to="/login" replace />;
@@ -518,6 +783,12 @@ export default function Dashboard() {
                         <OPMetrics data={op} isLoading={isLoading} />
                     </Section>
                 );
+            case 'collection':
+                return <CollectionTab data={collection} isLoading={isLoading} />;
+            case 'service':
+                return <ServiceMixTab data={serviceRev} isLoading={isLoading} />;
+            case 'doctors':
+                return <DoctorPerfTab data={doctorPerf} isLoading={isLoading} />;
             default:
                 return null;
         }

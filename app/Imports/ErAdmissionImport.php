@@ -33,7 +33,7 @@ class ErAdmissionImport implements ToCollection, WithHeadingRow, WithChunkReadin
 
             $insert[] = [
                 'branch'              => $this->branch->value,
-                'admission_date'      => $this->date,
+                'admission_date'      => $this->parseDateOnly($row['admission_date_time'] ?? null) ?? $this->date,
                 'admission_no'        => $admissionNo ?: null,
                 'uhid'                => $uhid ?: null,
                 'patient_name'        => trim($row['patient_name'] ?? '') ?: null,
@@ -101,6 +101,22 @@ class ErAdmissionImport implements ToCollection, WithHeadingRow, WithChunkReadin
         }
 
         return $default;
+    }
+
+    private function parseDateOnly($value): ?string
+    {
+        if (!$value || trim((string) $value) === '') {
+            return null;
+        }
+        try {
+            return Carbon::createFromFormat('d/m/Y, h:i a', trim((string) $value))->format('Y-m-d');
+        } catch (\Exception) {
+            try {
+                return Carbon::parse($value)->format('Y-m-d');
+            } catch (\Exception) {
+                return null;
+            }
+        }
     }
 
     private function parseDateTime(?string $value): ?string

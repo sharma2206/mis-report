@@ -328,6 +328,7 @@
         .btn-sm:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-soft) }
         .btn-sm.pdf-btn:hover { border-color:var(--danger); color:var(--danger); background:var(--danger-light) }
         .btn-sm.csv-btn:hover { border-color:var(--success); color:var(--success); background:var(--success-light) }
+        .btn-sm.brm-btn:hover { border-color:#0369a1; color:#0369a1; background:#e0f2fe }
 
         /* ── Revenue table ── */
         .table-wrap { background:#fff; border-radius:var(--radius); box-shadow:var(--shadow-sm); overflow:hidden }
@@ -597,6 +598,9 @@
                     </a>
                     <a class="export-item" id="exportCsv" href="#" target="_blank">
                         <span class="material-icons-round" style="color:#d97706">data_object</span> CSV (Flat)
+                    </a>
+                    <a class="export-item" id="exportBrm" href="#" target="_blank">
+                        <span class="material-icons-round" style="color:#0369a1">analytics</span> BRM Report (.xlsx)
                     </a>
                     <div class="export-item" onclick="openPrint()">
                         <span class="material-icons-round" style="color:#7c3aed">print</span> Print Preview
@@ -891,10 +895,34 @@
         }
     });
 
+    async function authDownload(url, suggestedName) {
+        try {
+            const r = await fetch(url, { headers: authHeaders() });
+            if (r.status === 401) { clearToken(); window.location.replace('/login'); return; }
+            if (!r.ok) { alert('Download failed: ' + r.statusText); return; }
+            const blob = await r.blob();
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = suggestedName || 'export';
+            document.body.appendChild(a); a.click();
+            setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        } catch (err) { alert('Download error: ' + err.message); }
+    }
+
     function updateExportLinks(date) {
-        document.getElementById('exportExcel').href = `/api/mis/${branch}/${date}/export`;
-        document.getElementById('exportPdf').href   = `/api/mis/${branch}/${date}/export-pdf`;
-        document.getElementById('exportCsv').href   = `/api/mis/${branch}/${date}/export-csv`;
+        const exportLinks = {
+            exportExcel: [`/api/mis/${branch}/${date}/export`,     `MIS_${branch}_${date}.xlsx`],
+            exportPdf:   [`/api/mis/${branch}/${date}/export-pdf`, `MIS_${branch}_${date}.pdf`],
+            exportCsv:   [`/api/mis/${branch}/${date}/export-csv`, `MIS_${branch}_${date}.csv`],
+            exportBrm:   [`/api/mis/${branch}/${date}/export-brm`, `BRM-${branch.substring(0,3).toUpperCase()}-${date}.xlsx`],
+        };
+        for (const [id, [url, name]] of Object.entries(exportLinks)) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.href = '#';
+                el.onclick = (e) => { e.preventDefault(); authDownload(url, name); };
+            }
+        }
     }
 
     /* ═══════════════════════════════════════════════════════════════════════
@@ -1092,9 +1120,10 @@
                 <div class="section-head">
                     <div class="section-title"><span class="material-icons-round">table_chart</span>Revenue Breakdown <span class="sub">(₹ in Lakhs)</span></div>
                     <div class="section-actions">
-                        <a class="btn-sm" href="/api/mis/${branch}/${date}/export" target="_blank"><span class="material-icons-round">download</span>Excel</a>
-                        <a class="btn-sm pdf-btn" href="/api/mis/${branch}/${date}/export-pdf" target="_blank"><span class="material-icons-round">picture_as_pdf</span>PDF</a>
-                        <a class="btn-sm csv-btn" href="/api/mis/${branch}/${date}/export-csv" target="_blank"><span class="material-icons-round">data_object</span>CSV</a>
+                        <a class="btn-sm" href="#" onclick="authDownload('/api/mis/${branch}/${date}/export','MIS_${branch}_${date}.xlsx');return false"><span class="material-icons-round">download</span>Excel</a>
+                        <a class="btn-sm pdf-btn" href="#" onclick="authDownload('/api/mis/${branch}/${date}/export-pdf','MIS_${branch}_${date}.pdf');return false"><span class="material-icons-round">picture_as_pdf</span>PDF</a>
+                        <a class="btn-sm csv-btn" href="#" onclick="authDownload('/api/mis/${branch}/${date}/export-csv','MIS_${branch}_${date}.csv');return false"><span class="material-icons-round">data_object</span>CSV</a>
+                        <a class="btn-sm brm-btn" href="#" onclick="authDownload('/api/mis/${branch}/${date}/export-brm','BRM-${branch.substring(0,3).toUpperCase()}-${date}.xlsx');return false"><span class="material-icons-round">analytics</span>BRM</a>
                     </div>
                 </div>
                 <div class="table-wrap">

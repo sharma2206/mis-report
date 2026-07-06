@@ -4,6 +4,7 @@ namespace App\Imports;
 
 use App\Enums\Branch;
 use App\Models\BillItem;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
@@ -49,7 +50,7 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
 
             $insert[] = [
                 'branch'                   => $this->branch->value,
-                'bill_date'                => $this->date,
+                'bill_date'                => $this->parseDateOnly($this->getValue($row, ['bill_date_time', 'bill_date'], null)) ?? $this->date,
                 'bill_no'                  => $billNo ?: null,
                 'uhid'                     => $uhid ?: null,
                 'patient_id'               => $uhid ?: trim($this->getValue($row, ['patient_id'], '')),
@@ -125,6 +126,22 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
         }
 
         return $default;
+    }
+
+    private function parseDateOnly($value): ?string
+    {
+        if (!$value || trim((string) $value) === '') {
+            return null;
+        }
+        try {
+            return Carbon::createFromFormat('d/m/Y, h:i a', trim((string) $value))->format('Y-m-d');
+        } catch (\Exception) {
+            try {
+                return Carbon::parse($value)->format('Y-m-d');
+            } catch (\Exception) {
+                return null;
+            }
+        }
     }
 
     private function normalizePatientType(?string $type): ?string

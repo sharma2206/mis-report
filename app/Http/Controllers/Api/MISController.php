@@ -271,6 +271,39 @@ class MISController extends Controller
     }
 
     /**
+     * Export doctor-wise BRM (Business Revenue Management) report as multi-sheet Excel.
+     * Sheets: ER IP | OP SERVICES | OP CONSULTATIONS
+     * Query params: from=Y-m-d&to=Y-m-d
+     */
+    public function exportBrm(Request $request, string $branch)
+    {
+        $this->assertBranchAccess($request, $branch);
+
+        try {
+            $branchEnum = \App\Enums\Branch::from($branch);
+            $from = $request->query('from') ?: Carbon::today()->toDateString();
+            $to   = $request->query('to')   ?: $from;
+
+            $fromDt = Carbon::createFromFormat('Y-m-d', $from);
+            $toDt   = Carbon::createFromFormat('Y-m-d', $to);
+
+            $branchShort = strtoupper(substr($branch, 0, 3));
+            $filename    = "BRM-{$branchShort}-{$fromDt->format('dMY')}-{$toDt->format('dMY')}";
+
+            \App\Models\AuditLog::record('export_brm', [
+                'branch' => $branch, 'from' => $from, 'to' => $to,
+            ], $branch, $from, $request);
+
+            return \Maatwebsite\Excel\Facades\Excel::download(
+                new \App\Exports\BRMExport($branchEnum->value, $from, $to),
+                "{$filename}.xlsx"
+            );
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
      * Format report filename like: "Sales VS Collection 3rd June 2026(Chromepet)"
      *
      * @param \App\Enums\Branch $branchEnum

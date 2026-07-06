@@ -62,8 +62,8 @@ export const PharmacyTrendChart = ({ data, isLoading }) => {
     if (isLoading) return <ChartSkeleton height={180} />;
     if (!data?.length) return <EmptyState title="No pharmacy trend data" />;
     const chartData = data.map(d => ({
-        date: d.date?.slice(5) || d.date,
-        pharmacy: toLakhs(d.pharmacy_revenue || d.pharmacy || 0),
+        date: (d.day || d.date)?.slice(5) || d.day || d.date,
+        pharmacy: toLakhs(d.ph_revenue || d.pharmacy_revenue || d.pharmacy || 0),
     }));
     return (
         <ResponsiveContainer width="100%" height={180}>
@@ -88,7 +88,7 @@ export const BedOccupancyChart = ({ data, occupancyPct, isLoading }) => {
     if (isLoading) return <ChartSkeleton height={180} />;
     if (!data?.length && !occupancyPct) return <EmptyState title="No occupancy data" />;
     const chartData = data?.length
-        ? data.map(d => ({ date: d.date?.slice(5)||d.date, occupancy: Number(d.occupancy_pct||0).toFixed(1) }))
+        ? data.map(d => ({ date: (d.day||d.date)?.slice(5)||d.day||d.date, occupancy: Number(d.occupancy_pct||0).toFixed(1) }))
         : [{ date: 'FTD', occupancy: Number(occupancyPct||0).toFixed(1) }];
     return (
         <ResponsiveContainer width="100%" height={180}>

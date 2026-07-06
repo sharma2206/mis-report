@@ -170,8 +170,8 @@ const TrendChart = ({ data, isLoading }) => {
     if (isLoading) return <ChartSkeleton height={240} />;
     if (!data?.length) return <EmptyState title="No trend data" />;
     const chartData = data.map(d => ({
-        date: d.date?.slice(5) || d.date,
-        ftd: toLakhs(d.total_revenue || d.ftd_revenue),
+        date: (d.day || d.date)?.slice(5) || d.day || d.date,
+        ftd: toLakhs(d.revenue || d.total_revenue || d.ftd_revenue),
         op:  toLakhs(d.op_revenue),
         ip:  toLakhs(d.ip_revenue),
     }));
@@ -200,7 +200,7 @@ const PayerChart = ({ data, isLoading }) => {
     if (isLoading) return <ChartSkeleton height={200} />;
     if (!data?.length) return <EmptyState title="No payer data" />;
     const chartData = data.slice(0, 8).map(d => ({
-        name: d.payer_name || d.payer || 'Unknown',
+        name: d.payer_type || d.payer_name || d.payer || 'Unknown',
         value: toLakhs(d.amount || d.total_amount),
     }));
     return (
@@ -232,10 +232,10 @@ const PatientMixChart = ({ data, isLoading }) => {
     if (isLoading) return <ChartSkeleton height={200} />;
     if (!data?.length) return <EmptyState title="No patient mix data" />;
     const chartData = data.map(d => ({
-        date: d.date?.slice(5) || d.date,
-        OP: d.op_count || 0,
-        IP: d.ip_count || 0,
-        ER: d.er_count || 0,
+        date: (d.day || d.date)?.slice(5) || d.day || d.date,
+        OP: d.op ?? d.op_count ?? 0,
+        IP: d.ip ?? d.ip_count ?? 0,
+        ER: d.er ?? d.er_count ?? 0,
     }));
     return (
         <ResponsiveContainer width="100%" height={200}>
@@ -256,50 +256,65 @@ const PatientMixChart = ({ data, isLoading }) => {
 const IPDemographics = ({ data, isLoading }) => {
     if (isLoading) return <TableSkeleton rows={5} cols={4} />;
     if (!data) return <EmptyState title="No IP demographics data" />;
-    const admissions = data.admissions || [];
-    const ageGroups  = data.age_groups || data.ageGroups || [];
+
+    const byGender     = data.by_gender     || [];
+    const byPayerType  = data.by_payer_type  || [];
+    const byWard       = data.by_ward        || [];
+    const bySpeciality = data.by_speciality  || [];
+    const topDoctors   = data.top_doctors    || [];
+
+    const StatBox = ({ label, value, color = 'blue' }) => (
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-center">
+            <div className="text-[9px] font-700 text-slate-400 uppercase tracking-wider mb-0.5">{label}</div>
+            <div className={`text-[18px] font-800 text-${color}-700`}>{(value ?? 0).toLocaleString()}</div>
+        </div>
+    );
+
     return (
         <div className="space-y-4">
-            {admissions.length > 0 && (
-                <div>
-                    <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">Recent Admissions</p>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-[12px]">
-                            <thead>
-                                <tr className="text-[10px] font-700 text-slate-400 uppercase text-left border-b border-slate-100">
-                                    <th className="pb-1.5 pr-3">Patient</th>
-                                    <th className="pb-1.5 pr-3">Ward</th>
-                                    <th className="pb-1.5 pr-3">Doctor</th>
-                                    <th className="pb-1.5 text-right">Date</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {admissions.slice(0, 8).map((a, i) => (
-                                    <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
-                                        <td className="py-1.5 pr-3 font-600 text-slate-700">{a.patient_name || a.name}</td>
-                                        <td className="py-1.5 pr-3 text-slate-500">{a.ward || a.room || '—'}</td>
-                                        <td className="py-1.5 pr-3 text-slate-500">{a.doctor_name || a.doctor || '—'}</td>
-                                        <td className="py-1.5 text-right text-slate-400">{a.admission_date?.slice(5) || '—'}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+            {/* Summary stats */}
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                <StatBox label="Total IP"    value={data.total}          color="blue" />
+                <StatBox label="Below 18"   value={data.age_below_18}   color="violet" />
+                <StatBox label="18+ Years"  value={data.age_18_plus}    color="slate" />
+                <StatBox label="Avg LOS"    value={data.avg_los_days ? `${data.avg_los_days}d` : 0} color="cyan" />
+                <StatBox label="MLC"        value={data.mlc_count}      color="amber" />
+                <StatBox label="Deaths"     value={data.death_count}    color="red" />
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {/* By Gender */}
+                {byGender.length > 0 && (
+                    <div>
+                        <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Gender</p>
+                        <RankedList items={byGender} nameKey="gender" valueKey="count" barColor="#1d4ed8" />
                     </div>
-                </div>
-            )}
-            {ageGroups.length > 0 && (
-                <div>
-                    <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">Age Distribution</p>
-                    <div className="grid grid-cols-3 gap-2">
-                        {ageGroups.map((g, i) => (
-                            <div key={i} className="bg-slate-50 border border-slate-200 rounded-lg p-2 text-center">
-                                <div className="text-[10px] text-slate-500 font-700 mb-0.5">{g.age_group || g.group}</div>
-                                <div className="text-[15px] font-800 text-blue-700">{g.count}</div>
-                            </div>
-                        ))}
+                )}
+                {/* By Payer Type */}
+                {byPayerType.length > 0 && (
+                    <div>
+                        <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Payer</p>
+                        <RankedList items={byPayerType} nameKey="payer_type" valueKey="count" barColor="#7c3aed" />
                     </div>
-                </div>
-            )}
+                )}
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {/* By Ward */}
+                {byWard.length > 0 && (
+                    <div>
+                        <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Ward</p>
+                        <RankedList items={byWard.slice(0, 8)} nameKey="ward" valueKey="count" barColor="#059669" />
+                    </div>
+                )}
+                {/* Top Doctors */}
+                {topDoctors.length > 0 && (
+                    <div>
+                        <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">Top Doctors</p>
+                        <RankedList items={topDoctors.slice(0, 8)} nameKey="doctor" valueKey="count" barColor="#d97706" />
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
@@ -308,44 +323,54 @@ const IPDemographics = ({ data, isLoading }) => {
 const SurgeryDetail = ({ data, isLoading }) => {
     if (isLoading) return <TableSkeleton rows={6} cols={4} />;
     if (!data) return <EmptyState title="No surgery data" description="Upload a surgery file to see details." />;
-    const surgeries = data.surgeries || data.list || [];
-    const bySurgeon = data.by_surgeon || data.bySurgeon || [];
+
+    // API: { total, major, minor, day_surgery, emergency, elective, implant, by_surgeon, by_dept, by_anaesthetist, by_payer_type, by_ot_room }
+    const bySurgeon = data.by_surgeon || [];
+    const byDept    = data.by_dept    || [];
+    const byOtRoom  = data.by_ot_room || [];
+
+    const StatBox = ({ label, value }) => (
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-center">
+            <div className="text-[9px] font-700 text-slate-400 uppercase tracking-wider mb-0.5">{label}</div>
+            <div className="text-[18px] font-800 text-blue-700">{value ?? 0}</div>
+        </div>
+    );
+
     return (
         <div className="space-y-4">
-            {bySurgeon.length > 0 && (
-                <div>
-                    <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Surgeon</p>
-                    <RankedList items={bySurgeon} nameKey="surgeon_name" valueKey="count" barColor="#1d4ed8" />
-                </div>
-            )}
-            {surgeries.length > 0 && (
-                <div>
-                    <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">Recent Surgeries</p>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-[12px]">
-                            <thead>
-                                <tr className="text-[10px] font-700 text-slate-400 uppercase text-left border-b border-slate-100">
-                                    <th className="pb-1.5 pr-3">Patient</th>
-                                    <th className="pb-1.5 pr-3">Procedure</th>
-                                    <th className="pb-1.5 pr-3">Surgeon</th>
-                                    <th className="pb-1.5 text-right">Date</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {surgeries.slice(0, 10).map((s, i) => (
-                                    <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
-                                        <td className="py-1.5 pr-3 font-600 text-slate-700">{s.patient_name || s.patient}</td>
-                                        <td className="py-1.5 pr-3 text-slate-500">{s.procedure_name || s.procedure}</td>
-                                        <td className="py-1.5 pr-3 text-slate-500">{s.surgeon_name || s.surgeon}</td>
-                                        <td className="py-1.5 text-right text-slate-400">{s.surgery_date?.slice(5) || '—'}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+            {/* Summary stats */}
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                <StatBox label="Total"      value={data.total} />
+                <StatBox label="Major"      value={data.major} />
+                <StatBox label="Minor"      value={data.minor} />
+                <StatBox label="Day Surgery" value={data.day_surgery} />
+                <StatBox label="Emergency"  value={data.emergency} />
+                <StatBox label="Implants"   value={data.implant} />
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {bySurgeon.length > 0 && (
+                    <div>
+                        <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Surgeon</p>
+                        <RankedList items={bySurgeon.slice(0, 10)} nameKey="surgeon" valueKey="count" barColor="#1d4ed8" />
                     </div>
+                )}
+                {byDept.length > 0 && (
+                    <div>
+                        <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Department</p>
+                        <RankedList items={byDept.slice(0, 10)} nameKey="dept" valueKey="count" barColor="#7c3aed" />
+                    </div>
+                )}
+            </div>
+
+            {byOtRoom.length > 0 && (
+                <div>
+                    <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By OT Room</p>
+                    <RankedList items={byOtRoom} nameKey="ot_name" valueKey="count" barColor="#059669" />
                 </div>
             )}
-            {!bySurgeon.length && !surgeries.length && (
+
+            {!bySurgeon.length && !byDept.length && (
                 <EmptyState title="No surgeries recorded" description="No surgeries found for selected date." />
             )}
         </div>
@@ -356,35 +381,59 @@ const SurgeryDetail = ({ data, isLoading }) => {
 const OPMetrics = ({ data, isLoading }) => {
     if (isLoading) return <TableSkeleton rows={5} cols={3} />;
     if (!data) return <EmptyState title="No OP metrics" />;
-    const byDoctor  = data.by_doctor  || data.byDoctor  || [];
-    const byDept    = data.by_dept    || data.byDept    || [];
-    const summary   = data.summary    || {};
+
+    // API: { total_visits, unique_patients, total_revenue, total_discount, by_gender, by_payer_type, top_doctors, by_dept }
+    const topDoctors = data.top_doctors || data.by_doctor || [];
+    const byDept     = data.by_dept     || [];
+    const byGender   = data.by_gender   || [];
+    const byPayer    = data.by_payer_type || [];
+
     return (
         <div className="space-y-4">
-            {Object.keys(summary).length > 0 && (
-                <div className="grid grid-cols-3 gap-2">
-                    {[
-                        ['Total OPs',    summary.total_op || summary.op_count || 0],
-                        ['New Patients', summary.new_patients || 0],
-                        ['Reviews',      summary.review_patients || summary.reviews || 0],
-                    ].map(([label, val]) => (
-                        <div key={label} className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-center">
-                            <div className="text-[10px] font-700 text-slate-500 uppercase mb-0.5">{label}</div>
-                            <div className="text-[1.1rem] font-800 text-blue-700">{(val).toLocaleString()}</div>
+            {/* Summary stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                    ['Total Visits',    data.total_visits    ?? 0, 'blue'],
+                    ['Unique Patients', data.unique_patients ?? 0, 'violet'],
+                    ['Total Revenue',   `₹${Number(data.total_revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, 'green'],
+                    ['Discount',        `₹${Number(data.total_discount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, 'amber'],
+                ].map(([label, val, color]) => (
+                    <div key={label} className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-center">
+                        <div className="text-[9px] font-700 text-slate-400 uppercase tracking-wider mb-0.5">{label}</div>
+                        <div className={`text-[16px] font-800 text-${color}-700`}>{typeof val === 'number' ? val.toLocaleString() : val}</div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {topDoctors.length > 0 && (
+                    <div>
+                        <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">Top Doctors by Visit Count</p>
+                        <RankedList items={topDoctors} nameKey="doctor" valueKey="visits" barColor="#059669" />
+                    </div>
+                )}
+                {byDept.length > 0 && (
+                    <div>
+                        <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Department</p>
+                        <RankedList items={byDept} nameKey="dept" valueKey="visits" barColor="#7c3aed" />
+                    </div>
+                )}
+            </div>
+
+            {(byGender.length > 0 || byPayer.length > 0) && (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    {byGender.length > 0 && (
+                        <div>
+                            <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Gender</p>
+                            <RankedList items={byGender} nameKey="gender" valueKey="visits" barColor="#0891b2" />
                         </div>
-                    ))}
-                </div>
-            )}
-            {byDoctor.length > 0 && (
-                <div>
-                    <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">Top Doctors by OP Count</p>
-                    <RankedList items={byDoctor} nameKey="doctor_name" valueKey="op_count" barColor="#059669" />
-                </div>
-            )}
-            {byDept.length > 0 && (
-                <div>
-                    <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Department</p>
-                    <RankedList items={byDept} nameKey="dept_name" valueKey="patient_count" barColor="#7c3aed" />
+                    )}
+                    {byPayer.length > 0 && (
+                        <div>
+                            <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Payer Type</p>
+                            <RankedList items={byPayer} nameKey="payer_type" valueKey="visits" barColor="#d97706" />
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -425,7 +474,15 @@ const OverviewTab = ({ mis, kpi, trend, payer, mix, collection, serviceRev, admi
                     <PatientMixChart data={mix} isLoading={isLoading} />
                 </Section>
                 <Section title="Admissions vs Discharges">
-                    <AdmissionsChart data={admissions?.admissions || admissions?.list || admissions || []} isLoading={isLoading} />
+                    <AdmissionsChart data={
+                        // API returns aggregate { ip_total, er_total } — convert to chart-friendly array
+                        admissions
+                            ? [
+                                { date: 'IP', admissions: admissions.ip_total || 0, discharges: 0 },
+                                { date: 'ER', admissions: admissions.er_total || 0, discharges: 0 },
+                              ]
+                            : []
+                    } isLoading={isLoading} />
                 </Section>
             </div>
 
@@ -478,10 +535,11 @@ const CollectionTab = ({ data, isLoading }) => {
     if (isLoading) return <div className="space-y-4"><ChartSkeleton height={220} /><TableSkeleton rows={6} cols={3} /></div>;
     if (!data) return <EmptyState title="No collection data" description="Upload a cashier collection file to see payment analytics." />;
 
-    const byMode   = data.by_payment_mode || [];
+    // API returns: payment_modes, by_patient_type, by_category, daily_trend, by_payer_type
+    const byMode   = data.payment_modes  || data.by_payment_mode || [];
     const byType   = data.by_patient_type || [];
-    const byTxn    = data.by_transaction_category || [];
-    const daily    = data.daily_trend || [];
+    const byTxn    = data.by_category    || data.by_transaction_category || [];
+    const daily    = data.daily_trend    || [];
     const total    = data.total_collection || 0;
 
     const fmt = (v) => `₹${Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
@@ -491,9 +549,9 @@ const CollectionTab = ({ data, isLoading }) => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
                     ['Total Collection', fmt(total), 'blue'],
-                    ['Cash',     fmt(byMode.find(m => m.mode === 'Cash')?.total),         'green'],
-                    ['Digital',  fmt(byMode.find(m => /UPI|Digital/i.test(m.mode))?.total), 'violet'],
-                    ['TPA',      fmt(byMode.find(m => /TPA/i.test(m.mode))?.total),       'amber'],
+                    ['Cash',     fmt(byMode.find(m => m.mode === 'Cash')?.amount),         'green'],
+                    ['Digital',  fmt(byMode.find(m => /UPI|Digital/i.test(m.mode))?.amount), 'violet'],
+                    ['TPA',      fmt(byMode.find(m => /TPA/i.test(m.mode))?.amount),       'amber'],
                 ].map(([label, val, color]) => (
                     <div key={label} className={`bg-${color}-50 border border-${color}-100 rounded-xl p-3`}>
                         <div className="text-[10px] font-700 uppercase tracking-wider text-slate-500 mb-1">{label}</div>
@@ -508,7 +566,7 @@ const CollectionTab = ({ data, isLoading }) => {
                         <>
                             <ResponsiveContainer width="100%" height={180}>
                                 <PieChart>
-                                    <Pie data={byMode} dataKey="total" nameKey="mode" cx="50%" cy="50%" outerRadius={70} label={({ mode, percent }) => `${mode} ${(percent * 100).toFixed(0)}%`} labelLine={false} fontSize={10}>
+                                    <Pie data={byMode} dataKey="amount" nameKey="mode" cx="50%" cy="50%" outerRadius={70} label={({ mode, percent }) => `${mode} ${(percent * 100).toFixed(0)}%`} labelLine={false} fontSize={10}>
                                         {byMode.map((_, i) => <Cell key={i} fill={PAYMENT_COLORS[i % PAYMENT_COLORS.length]} />)}
                                     </Pie>
                                     <Tooltip formatter={(v) => fmt(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
@@ -521,7 +579,7 @@ const CollectionTab = ({ data, isLoading }) => {
                                             <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: PAYMENT_COLORS[i % PAYMENT_COLORS.length] }} />
                                             <span className="text-slate-600 font-500">{m.mode}</span>
                                         </div>
-                                        <span className="font-700 text-slate-700">{fmt(m.total)}</span>
+                                        <span className="font-700 text-slate-700">{fmt(m.amount)}</span>
                                     </div>
                                 ))}
                             </div>
@@ -531,13 +589,13 @@ const CollectionTab = ({ data, isLoading }) => {
 
                 <Section title="Collection by Patient Type">
                     {byType.length ? (
-                        <RankedList items={byType} nameKey="patient_type" valueKey="total" barColor="#1d4ed8"
+                        <RankedList items={byType} nameKey="patient_type" valueKey="amount" barColor="#1d4ed8"
                             valueFormat={(v) => fmt(v)} />
                     ) : <EmptyState title="No patient type data" />}
                     {byTxn.length > 0 && (
                         <div className="mt-4">
                             <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Transaction Type</p>
-                            <RankedList items={byTxn} nameKey="transaction_category" valueKey="total" barColor="#7c3aed"
+                            <RankedList items={byTxn} nameKey="category" valueKey="amount" barColor="#7c3aed"
                                 valueFormat={(v) => fmt(v)} />
                         </div>
                     )}
@@ -554,13 +612,13 @@ const CollectionTab = ({ data, isLoading }) => {
                                     <stop offset="95%" stopColor="#1d4ed8" stopOpacity={0} />
                                 </linearGradient>
                             </defs>
-                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false}
+                            <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false}
                                 tickFormatter={(v) => v?.slice(5)} />
                             <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false}
                                 tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
                             <Tooltip formatter={(v) => [fmt(v), 'Collection']} labelFormatter={(l) => `Date: ${l}`}
                                 contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }} />
-                            <Area type="monotone" dataKey="total" stroke="#1d4ed8" strokeWidth={2} fill="url(#collGrad)" dot={false} />
+                            <Area type="monotone" dataKey="amount" stroke="#1d4ed8" strokeWidth={2} fill="url(#collGrad)" dot={false} />
                         </AreaChart>
                     </ResponsiveContainer>
                 </Section>
@@ -648,10 +706,10 @@ const ServiceMixTab = ({ data, isLoading }) => {
                                 {topItems.slice(0, 12).map((item, i) => (
                                     <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
                                         <td className="py-1.5 pr-3 text-slate-400 font-600">{i + 1}</td>
-                                        <td className="py-1.5 pr-3 font-600 text-slate-700 max-w-[200px] truncate">{item.item_name}</td>
+                                        <td className="py-1.5 pr-3 font-600 text-slate-700 max-w-[200px] truncate">{item.service_item_name || item.item_name}</td>
                                         <td className="py-1.5 pr-3 text-slate-500">{item.service_type}</td>
-                                        <td className="py-1.5 pr-3 text-right font-700 text-blue-700">{fmt(item.total_revenue)}</td>
-                                        <td className="py-1.5 text-right text-slate-500">{item.count}</td>
+                                        <td className="py-1.5 pr-3 text-right font-700 text-blue-700">{fmt(item.revenue || item.total_revenue)}</td>
+                                        <td className="py-1.5 text-right text-slate-500">{item.qty ?? item.count ?? 0}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -718,7 +776,7 @@ const DoctorPerfTab = ({ data, isLoading }) => {
                             {doctors.slice(0, 20).map((d, i) => (
                                 <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
                                     <td className="py-1.5 pr-3 text-slate-400 font-600">{i + 1}</td>
-                                    <td className="py-1.5 pr-3 font-600 text-slate-700 max-w-[160px] truncate">{d.doctor_name}</td>
+                                    <td className="py-1.5 pr-3 font-600 text-slate-700 max-w-[160px] truncate">{d.doctor || d.doctor_name}</td>
                                     <td className="py-1.5 pr-3 text-slate-500 max-w-[120px] truncate">{d.speciality || '—'}</td>
                                     <td className="py-1.5 pr-3 text-right font-700 text-blue-700">{fmt(d.total_revenue)}</td>
                                     <td className="py-1.5 pr-3 text-right text-slate-600">{d.unique_patients || 0}</td>
@@ -746,20 +804,21 @@ export default function Dashboard() {
     const periodFrom = useSelector(selectPeriodFrom);
     const periodTo   = useSelector(selectPeriodTo);
 
-    const [enabled, setEnabled] = useState(false);
     const [rangeFrom, setRangeFrom] = useState(null);
 
     const effectiveFrom = periodMode === 'custom' ? periodFrom : rangeFrom;
 
     const { mis, kpi, trend, payer, mix, ipDemo, surgery, op, collection, serviceRev, doctorPerf, admissions, isLoading, isError, refetch } =
-        useDashboard(enabled ? branch : null, enabled ? date : null, enabled ? effectiveFrom : null);
+        useDashboard(branch, date, effectiveFrom);
 
     if (!token) return <Navigate to="/login" replace />;
 
-    const handleLoad = useCallback((from, to) => {
+    // Called by Topbar/period selector when the user changes period or clicks Refresh.
+    // Just updating rangeFrom is enough — TanStack Query re-fetches automatically
+    // when its key changes, so no explicit refetch() needed here.
+    const handleLoad = useCallback((from, _to) => {
         if (from) setRangeFrom(from);
-        setEnabled(true);
-        refetch();
+        else refetch(); // explicit refresh with same params
     }, [refetch]);
 
     const handlePrint = () => {
@@ -829,24 +888,9 @@ export default function Dashboard() {
             <Topbar onLoad={handleLoad} isLoading={isLoading} onPrint={handlePrint} />
         }>
             <main className="flex-1 overflow-y-auto p-4">
-                {enabled && !isLoading && <SmartAlerts mis={mis} kpi={kpi} />}
+                {!isLoading && <SmartAlerts mis={mis} kpi={kpi} />}
                 <AnimatePresence mode="wait">
-                    {!enabled ? (
-                        <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            className="flex items-center justify-center h-[60vh]">
-                            <EmptyState
-                                icon={Activity}
-                                title="Select a branch and date"
-                                description="Choose your branch and date above, then click Load Report to view the MIS dashboard."
-                                action={
-                                    <button onClick={() => handleLoad()}
-                                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-700 to-violet-600 text-white text-[14px] font-700 rounded-lg shadow-md hover:opacity-90 transition-all cursor-pointer border-0">
-                                        Load Report
-                                    </button>
-                                }
-                            />
-                        </motion.div>
-                    ) : isError ? (
+                    {isError ? (
                         <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                             className="flex items-center justify-center h-[60vh]">
                             <EmptyState

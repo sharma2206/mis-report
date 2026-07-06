@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { selectToken } from '../store/authSlice';
-import { selectBranch as selBranch, setBranch } from '../store/reportSlice';
+import { selectBranch as selBranch, setBranch, setDate, setLastImportInfo } from '../store/reportSlice';
 import { Navigate } from 'react-router-dom';
 import { misApi } from '../services/api';
 import { today } from '../utils/dateHelpers';
@@ -775,6 +775,10 @@ export default function ImportCenter() {
                 const res       = fieldResults[fieldName];
                 return { ...item, status: 'done', progress: 100, rowCount: res?.count ?? null, issues: [] };
             }));
+
+            // ── Sync Redux date to the imported date so Dashboard auto-loads correct data ──
+            dispatch(setDate(importDate));
+            dispatch(setLastImportInfo({ branch, date: importDate, uploadedAt: new Date().toISOString() }));
 
             setResult({ success: true, imported: totalImported, skipped: totalSkipped, errors: totalErrors, message: data.message || 'Import complete' });
 

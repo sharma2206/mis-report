@@ -142,18 +142,17 @@ export const KPIStrip = ({ mis, kpi, collection, isLoading }) => {
         );
     }
 
-    const ftdRev = mis?.revenue?.ftd || {};
-    const mtdRev = mis?.revenue?.mtd || {};
+    const ftdRev = mis?.sales?.ftd || {};
+    const mtdRev = mis?.sales?.mtd || {};
     const ftdVol = mis?.volume?.ftd  || {};
     const mtdVol = mis?.volume?.mtd  || {};
     const col    = collection || {};
 
-    // Compute total revenue if not explicitly given
-    const totalFtd = ftdRev.total ?? (
-        (Number(ftdRev.op) || 0) + (Number(ftdRev.ip) || 0) + (Number(ftdRev.er) || 0) +
-        (Number(ftdRev.pharmacy) || 0) + (Number(ftdRev.packages) || 0) + (Number(ftdRev.mri) || 0)
-    );
-    const totalMtd = mtdRev.total ?? 0;
+    // API sales keys: ph, op, ip, er
+    const totalFtd = (Number(ftdRev.op) || 0) + (Number(ftdRev.ip) || 0) +
+                     (Number(ftdRev.er) || 0) + (Number(ftdRev.ph) || 0);
+    const totalMtd = (Number(mtdRev.op) || 0) + (Number(mtdRev.ip) || 0) +
+                     (Number(mtdRev.er) || 0) + (Number(mtdRev.ph) || 0);
 
     const cards = [
         {
@@ -173,7 +172,7 @@ export const KPIStrip = ({ mis, kpi, collection, isLoading }) => {
             icon: HeartPulse,          color: 'red',                 format: 'rupee',
         },
         {
-            label: 'Pharmacy Rev',     ftd: ftdRev.pharmacy,        mtd: mtdRev.pharmacy,
+            label: 'Pharmacy Rev',     ftd: ftdRev.ph,              mtd: mtdRev.ph,
             icon: ShoppingBag,         color: 'amber',               format: 'rupee',
         },
         {
@@ -185,15 +184,15 @@ export const KPIStrip = ({ mis, kpi, collection, isLoading }) => {
             icon: AlertCircle,         color: 'rose',                format: 'rupee',
         },
         {
-            label: 'Package Rev',      ftd: ftdRev.packages,        mtd: mtdRev.packages,
+            label: 'Package Rev',      ftd: kpi?.package_revenue ?? 0, mtd: null,
             icon: Package,             color: 'indigo',              format: 'rupee',
         },
         {
-            label: 'OP Count',         ftd: ftdVol.op_count,        mtd: mtdVol.op_count,
+            label: 'OP Count',         ftd: ftdVol.total_op,        mtd: mtdVol.total_op,
             icon: Users,               color: 'green',               format: 'count',
         },
         {
-            label: 'IP Count',         ftd: ftdVol.ip_count,        mtd: mtdVol.ip_count,
+            label: 'IP Count',         ftd: ftdVol.admission,       mtd: mtdVol.admission,
             icon: BedDouble,           color: 'violet',              format: 'count',
         },
         {

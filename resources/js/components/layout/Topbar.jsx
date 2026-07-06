@@ -95,9 +95,7 @@ export const Topbar = ({ onLoad, isLoading, onPrint }) => {
 
     return (
         <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm flex-shrink-0 no-print">
-            {/* Scrollable row so nothing overflows on small screens */}
-            <div className="overflow-x-auto scrollbar-none">
-                <div className="flex items-center gap-2.5 px-4 h-[54px] min-w-max">
+            <div className="flex items-center gap-2.5 px-4 h-[54px]">
                     {/* Branch selector pills */}
                     <div className="flex gap-1.5 flex-shrink-0">
                         {Object.entries(BRANCHES).map(([key, { label }]) => (
@@ -118,7 +116,7 @@ export const Topbar = ({ onLoad, isLoading, onPrint }) => {
 
                     <div className="w-px h-5 bg-slate-200 flex-shrink-0" />
 
-                    {/* Period Selector */}
+                    {/* Period Selector — must NOT be inside overflow:auto containers or the dropdown gets clipped */}
                     <ReportPeriodSelector onLoad={handlePeriodLoad} />
 
                     <div className="flex gap-2 ml-auto items-center flex-shrink-0">
@@ -220,7 +218,6 @@ export const Topbar = ({ onLoad, isLoading, onPrint }) => {
                             </div>
                         </div>
                     </div>
-                </div>
             </div>
         </header>
     );

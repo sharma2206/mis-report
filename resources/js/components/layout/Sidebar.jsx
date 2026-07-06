@@ -126,7 +126,7 @@ export const Sidebar = ({ isMobile = false }) => {
             </div>
 
             {/* ── Nav ── */}
-            <nav className="flex-1 py-2 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'none' }}>
+            <nav className="sidebar-scroll flex-1 py-2 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.12) transparent' }}>
                 <div className="px-2">
                     {NAV_GROUPS.map(({ label, items }) => (
                         <div key={label}>

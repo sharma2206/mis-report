@@ -3,7 +3,7 @@ import {
     TrendingUp, TrendingDown, Minus,
     CreditCard, BedDouble, Users, Stethoscope,
     Package, ShoppingBag, Activity, HeartPulse,
-    Wallet, AlertCircle, Clock, Star,
+    Wallet, Scissors, Star,
 } from 'lucide-react';
 import { fmtL, fmtPct } from '../../utils/formatters';
 
@@ -50,10 +50,10 @@ const NA_CLS = 'text-slate-400 text-[11px] font-500 italic';
 
 // ── Single KPI Card ───────────────────────────────────────────────────────────
 const KPICard = ({ label, ftd, mtd, icon: Icon, color = 'blue', format = 'rupee', index = 0, suffix = '' }) => {
-    const isNA = ftd === null;
+    const isNA = ftd === null || ftd === undefined;
 
     const fmtVal = (v) => {
-        if (v === null) return null;
+        if (v === null || v === undefined) return null;
         if (format === 'rupee') return fmtL(v);
         if (format === 'pct')   return fmtPct(v);
         if (format === 'count') return fmtCount(v);
@@ -67,10 +67,10 @@ const KPICard = ({ label, ftd, mtd, icon: Icon, color = 'blue', format = 'rupee'
         <motion.div
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.035, duration: 0.22 }}
-            className={`relative flex-shrink-0 w-[155px] bg-white border border-slate-200 rounded-xl
+            transition={{ delay: index * 0.03, duration: 0.2 }}
+            className={`relative flex-shrink-0 w-[148px] bg-white border border-slate-200 rounded-xl
                         hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-default
-                        overflow-hidden kpi-card-glow-${color}`}
+                        overflow-hidden`}
             style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
         >
             {/* Top gradient accent */}
@@ -83,7 +83,7 @@ const KPICard = ({ label, ftd, mtd, icon: Icon, color = 'blue', format = 'rupee'
                                     flex items-center justify-center shadow-sm`}>
                         {Icon && <Icon className="w-3.5 h-3.5 text-white" />}
                     </div>
-                    <TrendArrow current={ftd} previous={mtd} />
+                    <TrendArrow current={isNA ? null : ftd} previous={mtd} />
                 </div>
 
                 {/* Label */}
@@ -95,8 +95,8 @@ const KPICard = ({ label, ftd, mtd, icon: Icon, color = 'blue', format = 'rupee'
                 {isNA ? (
                     <p className={NA_CLS}>N/A</p>
                 ) : (
-                    <p className={`text-[1.1rem] font-800 leading-none tabular-nums mb-1 ${TEXT[color] || TEXT.blue}`}>
-                        {displayFtd}{!isNA && suffix}
+                    <p className={`text-[1.05rem] font-800 leading-none tabular-nums mb-1 ${TEXT[color] || TEXT.blue}`}>
+                        {displayFtd}{suffix}
                     </p>
                 )}
 
@@ -105,7 +105,7 @@ const KPICard = ({ label, ftd, mtd, icon: Icon, color = 'blue', format = 'rupee'
                     <div className="flex items-center gap-1">
                         <span className="text-[9px] font-700 uppercase text-slate-400">MTD</span>
                         <span className="text-[10px] font-600 text-slate-500 tabular-nums">
-                            {mtd === null ? 'N/A' : `${displayMtd}${suffix}`}
+                            {mtd === null || mtd === undefined ? 'N/A' : `${displayMtd}${suffix}`}
                         </span>
                     </div>
                 )}
@@ -118,9 +118,9 @@ const KPICard = ({ label, ftd, mtd, icon: Icon, color = 'blue', format = 'rupee'
 export const KPIStrip = ({ mis, kpi, collection, isLoading }) => {
     if (isLoading) {
         return (
-            <div className="flex gap-3 overflow-x-auto scrollbar-none pb-1">
+            <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-1">
                 {Array.from({ length: 10 }).map((_, i) => (
-                    <div key={i} className="flex-shrink-0 w-[155px] h-[108px] rounded-xl bg-slate-100 skeleton-shimmer" />
+                    <div key={i} className="flex-shrink-0 w-[148px] h-[108px] rounded-xl bg-slate-100 animate-pulse" />
                 ))}
             </div>
         );
@@ -130,40 +130,47 @@ export const KPIStrip = ({ mis, kpi, collection, isLoading }) => {
     const mtdRev = mis?.sales?.mtd || {};
     const ftdVol = mis?.volume?.ftd  || {};
     const mtdVol = mis?.volume?.mtd  || {};
-    const col    = collection || {};
 
     const totalFtd = (Number(ftdRev.op) || 0) + (Number(ftdRev.ip) || 0) +
                      (Number(ftdRev.er) || 0) + (Number(ftdRev.ph) || 0);
     const totalMtd = (Number(mtdRev.op) || 0) + (Number(mtdRev.ip) || 0) +
                      (Number(mtdRev.er) || 0) + (Number(mtdRev.ph) || 0);
 
+    // kpi keys from AnalyticsController.kpi():
+    //   total_revenue, total_patients, op_count, ip_count, er_count,
+    //   discount_amount, net_collection, package_consumption, pharmacy_sales,
+    //   bed_occupancy_pct, bed_occupancy, bed_count, avg_revenue_per_patient,
+    //   surgery_count, major_surgeries
+
     const cards = [
-        { label: 'Total Revenue',   ftd: totalFtd,                  mtd: totalMtd,                  icon: TrendingUp,  color: 'blue',   format: 'rupee' },
-        { label: 'OP Revenue',      ftd: ftdRev.op,                 mtd: mtdRev.op,                 icon: CreditCard,  color: 'green',  format: 'rupee' },
-        { label: 'IP Revenue',      ftd: ftdRev.ip,                 mtd: mtdRev.ip,                 icon: BedDouble,   color: 'violet', format: 'rupee' },
-        { label: 'ER Revenue',      ftd: ftdRev.er,                 mtd: mtdRev.er,                 icon: HeartPulse,  color: 'red',    format: 'rupee' },
-        { label: 'Pharmacy Rev',    ftd: ftdRev.ph,                 mtd: mtdRev.ph,                 icon: ShoppingBag, color: 'amber',  format: 'rupee' },
-        { label: 'Cash Collection', ftd: col.total_collection,      mtd: null,                      icon: Wallet,      color: 'cyan',   format: 'rupee' },
-        { label: 'Outstanding',     ftd: kpi?.outstanding,          mtd: null,                      icon: AlertCircle, color: 'rose',   format: 'rupee' },
-        { label: 'Package Rev',     ftd: kpi?.package_revenue ?? 0, mtd: null,                      icon: Package,     color: 'indigo', format: 'rupee' },
-        { label: 'OP Count',        ftd: ftdVol.total_op,           mtd: mtdVol.total_op,           icon: Users,       color: 'green',  format: 'count' },
-        { label: 'IP Count',        ftd: ftdVol.admission,          mtd: mtdVol.admission,          icon: BedDouble,   color: 'violet', format: 'count' },
-        { label: 'ER Count',        ftd: ftdVol.er_count,           mtd: mtdVol.er_count,           icon: HeartPulse,  color: 'red',    format: 'count' },
-        { label: 'Admissions',      ftd: ftdVol.admission,          mtd: mtdVol.admission,          icon: Activity,    color: 'sky',    format: 'count' },
-        { label: 'Discharges',      ftd: ftdVol.discharge,          mtd: mtdVol.discharge,          icon: Star,        color: 'teal',   format: 'count' },
-        { label: 'Bed Occupancy',   ftd: ftdVol.occupancy_pct,      mtd: mtdVol.occupancy_pct,      icon: Stethoscope, color: 'amber',  format: 'pct'   },
-        { label: 'Avg LOS (days)',  ftd: kpi?.avg_los ?? ftdVol.avg_los, mtd: null,                 icon: Clock,       color: 'cyan',   format: 'count', suffix: 'd' },
+        { label: 'Total Revenue',   ftd: totalFtd,                    mtd: totalMtd,            icon: TrendingUp,  color: 'blue',   format: 'rupee' },
+        { label: 'OP Revenue',      ftd: ftdRev.op,                   mtd: mtdRev.op,           icon: CreditCard,  color: 'green',  format: 'rupee' },
+        { label: 'IP Revenue',      ftd: ftdRev.ip,                   mtd: mtdRev.ip,           icon: BedDouble,   color: 'violet', format: 'rupee' },
+        { label: 'ER Revenue',      ftd: ftdRev.er,                   mtd: mtdRev.er,           icon: HeartPulse,  color: 'red',    format: 'rupee' },
+        { label: 'Pharmacy Rev',    ftd: ftdRev.ph,                   mtd: mtdRev.ph,           icon: ShoppingBag, color: 'amber',  format: 'rupee' },
+        { label: 'Net Collection',  ftd: kpi?.net_collection,         mtd: null,                icon: Wallet,      color: 'cyan',   format: 'rupee' },
+        { label: 'Package',         ftd: kpi?.package_consumption,    mtd: null,                icon: Package,     color: 'indigo', format: 'rupee' },
+        { label: 'OP Visits',       ftd: kpi?.op_count   ?? ftdVol.total_op, mtd: mtdVol.total_op, icon: Users,   color: 'green',  format: 'count' },
+        { label: 'IP Patients',     ftd: kpi?.ip_count   ?? ftdVol.admission, mtd: null,        icon: BedDouble,   color: 'violet', format: 'count' },
+        { label: 'ER Patients',     ftd: kpi?.er_count   ?? ftdVol.er_count,  mtd: null,        icon: HeartPulse,  color: 'red',    format: 'count' },
+        { label: 'Admissions',      ftd: ftdVol.admission,            mtd: mtdVol.admission,    icon: Activity,    color: 'sky',    format: 'count' },
+        { label: 'Discharges',      ftd: ftdVol.discharge,            mtd: mtdVol.discharge,    icon: Star,        color: 'teal',   format: 'count' },
+        { label: 'Surgeries',       ftd: kpi?.surgery_count,          mtd: null,                icon: Scissors,    color: 'rose',   format: 'count' },
+        { label: 'Bed Occupancy',   ftd: ftdVol.occupancy_pct,        mtd: mtdVol.occupancy_pct,icon: Stethoscope, color: 'amber',  format: 'pct'   },
     ];
+
+    // Only show cards that have data (non-null, non-undefined FTD value)
+    const visibleCards = cards.filter(c => c.ftd !== null && c.ftd !== undefined);
 
     return (
         <div className="relative">
-            <div className="flex gap-3 overflow-x-auto scrollbar-none pb-1 pt-0.5">
-                {cards.map((card, i) => (
+            <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-1 pt-0.5">
+                {visibleCards.map((card, i) => (
                     <KPICard key={card.label} {...card} index={i} />
                 ))}
             </div>
-            {/* Fade hint on right */}
-            <div className="absolute right-0 top-0 bottom-1 w-10 bg-gradient-to-l from-slate-50/80 to-transparent pointer-events-none" />
+            {/* Right-fade scroll hint */}
+            <div className="absolute right-0 top-0 bottom-1 w-8 bg-gradient-to-l from-slate-50/90 to-transparent pointer-events-none rounded-r-xl" />
         </div>
     );
 };

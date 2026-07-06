@@ -10,7 +10,7 @@ import { KPISkeleton } from './Skeleton';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-const fmtCount = (v) => (v ?? 0).toLocaleString('en-IN');
+const fmtCount = (v) => v === null ? 'N/A' : (v ?? 0).toLocaleString('en-IN');
 
 const TrendArrow = ({ current, previous }) => {
     if (!previous || previous === 0) return <Minus className="w-3 h-3 text-slate-300" />;
@@ -79,7 +79,7 @@ const KPICard = ({ label, ftd, mtd, icon: Icon, color = 'blue', format = 'rupee'
         if (format === 'rupee') return fmtL(v);
         if (format === 'pct')   return fmtPct(v);
         if (format === 'count') return fmtCount(v);
-        return String(v ?? 0);
+        return v === null ? 'N/A' : String(v ?? 0);
     };
 
     return (

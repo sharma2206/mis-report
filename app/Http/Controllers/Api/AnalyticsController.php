@@ -11,6 +11,7 @@ use App\Models\IpAdmission;
 use App\Models\MisReport;
 use App\Models\PackageConsumption;
 use App\Models\Surgery;
+use App\Services\DashboardKpiService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,19 +19,23 @@ use Illuminate\Support\Facades\DB;
 
 class AnalyticsController extends Controller
 {
+    public function __construct(private DashboardKpiService $kpi) {}
+
     /**
      * KPI summary cards for a branch on a given date.
      * GET /api/analytics/kpi/{branch}/{date}
+     *
+     * Every KPI below is calculated live from the reporting database via
+     * DashboardKpiService (the same service used by the Dashboard and MIS/BRM
+     * reports) — a null value means the source report was never uploaded for
+     * this branch+date, and should render as DashboardKpiService::NA_MESSAGE.
      */
     public function kpi(string $branch, string $date): JsonResponse
     {
         try {
             $branchEnum = Branch::from($branch);
 
-            $totalRevenue = (float) BillItem::forBranch($branch)
-                ->forDate($date)
-                ->where('status', 'Sale')
-                ->sum('net_amount');
+            $totalRevenue = $this->kpi->calculateRevenue($branchEnum, $date);
 
             $totalPatients = BillItem::forBranch($branch)
                 ->forDate($date)
@@ -39,45 +44,24 @@ class AnalyticsController extends Controller
                 ->distinct('uhid')
                 ->count('uhid');
 
-            $opCount = BillItem::forBranch($branch)
-                ->forDate($date)
-                ->where('patient_type', 'OP')
-                ->where('status', 'Sale')
-                ->distinct('uhid')
-                ->count('uhid');
-
-            $ipCount = IpAdmission::forBranch($branch)->forDate($date)->count();
-
-            $erCount = ErAdmission::forBranch($branch)->forDate($date)->count();
+            $opCount = $this->kpi->calculateOpCount($branchEnum, $date);
+            $ipCount = $this->kpi->calculateIpCount($branchEnum, $date);
+            $erCount = $this->kpi->calculateErCount($branchEnum, $date);
 
             $discountAmount = (float) BillItem::forBranch($branch)
                 ->forDate($date)
                 ->where('status', 'Sale')
                 ->sum('discount_amount');
 
-            $netCollection = (float) CashierCollection::forBranch($branch)
-                ->forDate($date)
-                ->sum('paid_amount');
+            $netCollection      = $this->kpi->calculateCashCollection($branchEnum, $date);
+            $packageConsumption = $this->kpi->calculatePackageRevenue($branchEnum, $date);
+            $pharmacySales      = $this->kpi->calculatePharmacyRevenue($branchEnum, $date);
 
-            $packageConsumption = (float) PackageConsumption::forBranch($branch)
-                ->forDate($date)
-                ->sum('amount');
+            $occupancyPct = $this->kpi->calculateOccupancy($branchEnum, $date);
+            $occupancy    = $this->kpi->calculateBedsOccupied($branchEnum, $date);
+            $bedCount     = $branchEnum->bedCount();
 
-            $pharmacySales = (float) BillItem::forBranch($branch)
-                ->forDate($date)
-                ->whereNull('patient_type')
-                ->where('status', 'Sale')
-                ->sum('net_amount');
-
-            $misReport = MisReport::where('branch', $branch)
-                ->whereDate('report_date', $date)
-                ->first();
-
-            $occupancyPct  = $misReport ? (float) $misReport->occupancy_pct : 0;
-            $occupancy     = $misReport ? (int)   $misReport->occupancy : 0;
-            $bedCount      = $branchEnum->bedCount();
-
-            $avgRevenuePerPatient = $totalPatients > 0
+            $avgRevenuePerPatient = ($totalPatients > 0 && $totalRevenue !== null)
                 ? round($totalRevenue / $totalPatients, 2)
                 : 0;
 

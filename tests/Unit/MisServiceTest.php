@@ -5,8 +5,10 @@ namespace Tests\Unit;
 use App\Enums\Branch;
 use App\Models\BillItem;
 use App\Models\CashierCollection;
+use App\Models\IpAdmission;
 use App\Models\PackageConsumption;
 use App\Repositories\MisRepository;
+use App\Services\DashboardKpiService;
 use App\Services\MISService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -21,7 +23,7 @@ class MisServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new MISService(new MisRepository());
+        $this->service = new MISService(new MisRepository(), new DashboardKpiService());
     }
 
     public function test_generate_mis_returns_expected_structure(): void
@@ -89,8 +91,17 @@ class MisServiceTest extends TestCase
 
     public function test_persists_report_to_database(): void
     {
+        // 3 active admissions as of $this->date (admitted before/on date, not yet discharged)
+        for ($i = 0; $i < 3; $i++) {
+            IpAdmission::create(['branch' => 'oragadam', 'admission_date' => $this->date, 'discharge_date' => null]);
+        }
+        // 2 discharges on $this->date (bed freed same day — not counted as occupied)
+        for ($i = 0; $i < 2; $i++) {
+            IpAdmission::create(['branch' => 'oragadam', 'admission_date' => '2026-06-10', 'discharge_date' => $this->date]);
+        }
+
         $this->service->generateMIS(Branch::ORAGADAM, $this->date, [
-            'ftd' => ['occupancy' => 10, 'occupancy_pct' => 71, 'admission' => 3, 'discharge' => 2, 'total_op' => 50, 'er_count' => 5],
+            'bill' => true, 'cashier' => true, 'ip' => true,
         ]);
 
         $this->assertDatabaseHas('mis_reports', [
@@ -99,7 +110,15 @@ class MisServiceTest extends TestCase
 
         $report = \App\Models\MisReport::where('branch', 'oragadam')->first();
         $this->assertNotNull($report);
-        $this->assertEquals(10, $report->occupancy);
-        $this->assertEquals(3,  $report->admission);
+        $this->assertEquals(3, $report->occupancy);
+        $this->assertEquals(2, $report->discharge);
+    }
+
+    public function test_beds_occupied_is_na_when_ip_report_not_uploaded(): void
+    {
+        $result = $this->service->generateMIS(Branch::ORAGADAM, $this->date, ['bill' => true, 'cashier' => true]);
+
+        $this->assertNull($result['volume']['ftd']['occupancy']);
+        $this->assertNull($result['volume']['ftd']['admission']);
     }
 }

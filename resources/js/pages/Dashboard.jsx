@@ -152,10 +152,10 @@ const VolumeGrid = ({ mis, isLoading }) => {
                         <tr key={key} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                             <td className="py-2 pr-4 font-500 text-slate-700">{label}</td>
                             <td className="py-2 pr-4 text-right font-700 text-blue-700">
-                                {key === 'occupancy_pct' ? fmtPct(ftd[key]) : (ftd[key] ?? 0).toLocaleString()}
+                                {key === 'occupancy_pct' ? fmtPct(ftd[key]) : ftd[key] === null ? 'N/A' : (ftd[key] ?? 0).toLocaleString()}
                             </td>
                             <td className="py-2 text-right text-slate-500 font-600">
-                                {key === 'occupancy_pct' ? fmtPct(mtd[key]) : (mtd[key] ?? 0).toLocaleString()}
+                                {key === 'occupancy_pct' ? fmtPct(mtd[key]) : mtd[key] === null ? 'N/A' : (mtd[key] ?? 0).toLocaleString()}
                             </td>
                         </tr>
                     ))}

@@ -55,36 +55,23 @@ class MISController extends Controller
                 $request->file('surgery_file')
             );
 
-            // 2. Build volume data: use derived counts from uploaded files where available,
-            //    fall back to manual form values for fields not covered by file uploads.
-            $volumeData = $request->volumeData();
-            $derived    = $imported['derived'] ?? [];
-
-            if (isset($derived['admission']) && $derived['admission'] !== null) {
-                $volumeData['ftd']['admission'] = $derived['admission'];
-            }
-            if (isset($derived['discharge']) && $derived['discharge'] !== null) {
-                $volumeData['ftd']['discharge'] = $derived['discharge'];
-            }
-            if (isset($derived['er_count']) && $derived['er_count'] !== null) {
-                $volumeData['ftd']['er_count'] = $derived['er_count'];
-            }
-
-            // 3. Generate MIS report
-            $report = $this->misService->generateMIS($branchEnum, $date, $volumeData);
+            // 2. Generate MIS report — every KPI is calculated automatically from the
+            //    freshly imported data; $sources records which optional files were
+            //    included so future dashboard loads know which KPIs are available.
+            $sources = $imported['sources'] ?? [];
+            $report  = $this->misService->generateMIS($branchEnum, $date, $sources);
 
             \App\Models\AuditLog::record('upload', [
                 'branch'   => $branch,
                 'date'     => $date,
-                'imported' => array_diff_key($imported, ['derived' => null]),
-                'derived'  => $derived['sources'] ?? [],
+                'imported' => array_diff_key($imported, ['sources' => null]),
+                'sources'  => $sources,
             ], $branch, $date, $request);
 
             return response()->json([
                 'success'  => true,
                 'message'  => 'Files processed and MIS report generated successfully.',
                 'imported' => $imported,
-                'derived'  => $derived,
                 'data'     => $report,
             ]);
         } catch (Exception $e) {

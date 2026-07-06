@@ -583,29 +583,23 @@ const HistoryRow = ({ item }) => {
     );
 };
 
-// ─── Volume fields ────────────────────────────────────────────────────────────
-const VolumeFields = ({ values, onChange }) => (
+// ─── Auto-calculated KPIs notice ───────────────────────────────────────────────
+const AutoKpiNotice = () => (
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-            <span className="text-[12px] font-700 text-slate-700">Volume Data (optional)</span>
-            <span className="text-[10px] text-slate-400">Defaults to 0 if blank</span>
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+            <CheckCheck className="w-4 h-4 text-slate-400" />
+            <span className="text-[12px] font-700 text-slate-700">KPIs — Calculated Automatically</span>
         </div>
-        <div className="p-4 grid grid-cols-2 gap-3">
-            {[
-                { key: 'occupancy', label: 'Beds Occupied',  placeholder: 'e.g. 56' },
-                { key: 'admission', label: 'Admissions',     placeholder: 'e.g. 8'  },
-                { key: 'discharge', label: 'Discharges',     placeholder: 'e.g. 6'  },
-                { key: 'er_count',  label: 'ER Count',       placeholder: 'e.g. 14' },
-            ].map(({ key, label, placeholder }) => (
-                <div key={key}>
-                    <label className="block text-[10px] font-700 text-slate-500 uppercase tracking-wider mb-1">{label}</label>
-                    <input
-                        type="number" min="0" value={values[key] || ''} placeholder={placeholder}
-                        onChange={e => onChange(key, e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-[12px] border border-slate-200 rounded-lg focus:outline-none focus:border-blue-400 bg-white"
-                    />
-                </div>
-            ))}
+        <div className="p-4">
+            <p className="text-[11px] text-slate-500 leading-relaxed mb-2">
+                Beds Occupied, Admissions, Discharges, ER Count and every other KPI are
+                derived from the imported reports — nothing to enter manually.
+            </p>
+            <ul className="text-[11px] text-slate-500 space-y-1">
+                <li>• <strong>Beds Occupied / Admissions / Discharges</strong> — from IP Admission report</li>
+                <li>• <strong>ER Count</strong> — from ER Admission report</li>
+                <li>• A KPI shows <em>N/A (Source report not uploaded)</em> if its report wasn't included</li>
+            </ul>
         </div>
     </div>
 );
@@ -630,7 +624,6 @@ export default function ImportCenter() {
     const [isDragging,  setIsDragging]  = useState(false);
     const [isImporting, setIsImporting] = useState(false);
     const [result,      setResult]      = useState(null);
-    const [volume,      setVolume]      = useState({ occupancy: '', admission: '', discharge: '', er_count: '' });
 
     // Period detection state
     const [periodMode,  setPeriodMode]  = useState('auto');   // 'auto' | 'manual'
@@ -742,11 +735,7 @@ export default function ImportCenter() {
 
         try {
             const fd = new FormData();
-            fd.append('date',      importDate);
-            fd.append('occupancy', volume.occupancy  || '0');
-            fd.append('admission', volume.admission  || '0');
-            fd.append('discharge', volume.discharge  || '0');
-            fd.append('er_count',  volume.er_count   || '0');
+            fd.append('date', importDate);
 
             for (const item of items) {
                 const fieldName = FILE_FIELD_MAP[detectFile(item.name).typeKey];
@@ -968,8 +957,8 @@ export default function ImportCenter() {
                     {/* 2. Validation */}
                     <ValidationPanel items={items} branch={branch} />
 
-                    {/* 3. Volume Data */}
-                    <VolumeFields values={volume} onChange={(k, v) => setVolume(p => ({ ...p, [k]: v }))} />
+                    {/* 3. Auto-calculated KPIs notice */}
+                    <AutoKpiNotice />
 
                     {/* 4. Import History */}
                     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">

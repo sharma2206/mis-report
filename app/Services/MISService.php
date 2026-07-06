@@ -11,26 +11,20 @@ use Carbon\Carbon;
 
 class MISService
 {
-    public function __construct(private MisRepositoryInterface $repo) {}
+    public function __construct(private MisRepositoryInterface $repo, private DashboardKpiService $kpi) {}
 
-    public function generateMIS(Branch $branch, string $date, array $volumeData = []): array
+    /**
+     * Build the full MIS report for a branch+date. Every KPI is calculated fresh
+     * from the reporting database via DashboardKpiService — nothing here accepts
+     * a manually entered value.
+     *
+     * @param array|null $sources  Which optional CSV files were part of *this* upload
+     *                             (only passed by the upload flow). When null (e.g. a
+     *                             plain dashboard GET), previously persisted sources
+     *                             for this branch+date are used unchanged.
+     */
+    public function generateMIS(Branch $branch, string $date, ?array $sources = null): array
     {
-        if (empty($volumeData)) {
-            $existing = MisReport::where('branch', $branch->value)->where('report_date', $date)->first();
-            if ($existing) {
-                $volumeData = [
-                    'ftd' => [
-                        'occupancy'     => $existing->occupancy,
-                        'occupancy_pct' => (float) $existing->occupancy_pct,
-                        'admission'     => $existing->admission,
-                        'discharge'     => $existing->discharge,
-                        'total_op'      => $existing->total_op,
-                        'er_count'      => $existing->er_count ?? 0,
-                    ]
-                ];
-            }
-        }
-
         $pkgAdj = $this->repo->getPackageAdjustment($branch, $date);
         $sales  = $this->repo->getSalesData($branch, $date);
 
@@ -45,12 +39,12 @@ class MISService
         $volRaw = $this->repo->getVolumeData($branch, $date);
 
         $ftd = [
-            'occupancy'     => round($volumeData['ftd']['occupancy']     ?? 0, 0),
-            'occupancy_pct' => round($volumeData['ftd']['occupancy_pct'] ?? 0, 0),
-            'admission'     => $volumeData['ftd']['admission'] ?? 0,
-            'discharge'     => $volumeData['ftd']['discharge'] ?? 0,
+            'occupancy'     => $this->kpi->calculateBedsOccupied($branch, $date, $sources),
+            'occupancy_pct' => $this->kpi->calculateOccupancy($branch, $date, $sources),
+            'admission'     => $this->kpi->calculateAdmissions($branch, $date, null, $sources),
+            'discharge'     => $this->kpi->calculateDischarges($branch, $date, null, $sources),
             'total_op'      => $volRaw['ftd_op'],
-            'er_count'      => $volumeData['ftd']['er_count'] ?? 0,
+            'er_count'      => $this->kpi->calculateErCount($branch, $date, null, $sources),
         ];
         $mtd = $this->buildMtdVolume($branch, $date, $ftd, $volRaw['mtd_op']);
 
@@ -70,7 +64,7 @@ class MISService
 
         $data['totals'] = $this->calculateTotals($data);
 
-        $this->persistReport($branch, $date, $volumeData);
+        $this->persistVolume($branch, $date, $ftd, $sources);
 
         return $data;
     }
@@ -97,19 +91,19 @@ class MISService
     {
         $prev = $this->repo->getPreviousMtdReports($branch, $date);
 
-        $occ    = $todayFtd['occupancy'];
-        $adm    = $todayFtd['admission'];
-        $dis    = $todayFtd['discharge'];
-        $er     = $todayFtd['er_count'];
-        $pctSum = $todayFtd['occupancy_pct'];
+        $occ    = $todayFtd['occupancy']     ?? 0;
+        $adm    = $todayFtd['admission']     ?? 0;
+        $dis    = $todayFtd['discharge']     ?? 0;
+        $er     = $todayFtd['er_count']      ?? 0;
+        $pctSum = $todayFtd['occupancy_pct'] ?? 0;
         $days   = 1;
 
         foreach ($prev as $r) {
-            $occ    += $r->occupancy;
-            $adm    += $r->admission;
-            $dis    += $r->discharge;
-            $er     += ($r->er_count ?? 0);
-            $pctSum += (float) $r->occupancy_pct;
+            $occ    += $r->occupancy     ?? 0;
+            $adm    += $r->admission     ?? 0;
+            $dis    += $r->discharge     ?? 0;
+            $er     += $r->er_count      ?? 0;
+            $pctSum += (float) ($r->occupancy_pct ?? 0);
             $days++;
         }
 
@@ -135,18 +129,21 @@ class MISService
         ];
     }
 
-    private function persistReport(Branch $branch, string $date, array $volumeData): void
+    private function persistVolume(Branch $branch, string $date, array $ftd, ?array $sources = null): void
     {
-        MisReport::updateOrCreate(
-            ['branch' => $branch->value, 'report_date' => $date],
-            [
-                'occupancy'     => $volumeData['ftd']['occupancy']     ?? 0,
-                'occupancy_pct' => $volumeData['ftd']['occupancy_pct'] ?? 0,
-                'admission'     => $volumeData['ftd']['admission']     ?? 0,
-                'discharge'     => $volumeData['ftd']['discharge']     ?? 0,
-                'total_op'      => $volumeData['ftd']['total_op']      ?? 0,
-                'er_count'      => $volumeData['ftd']['er_count']      ?? 0,
-            ]
-        );
+        $values = [
+            'occupancy'     => $ftd['occupancy']     ?? 0,
+            'occupancy_pct' => $ftd['occupancy_pct'] ?? 0,
+            'admission'     => $ftd['admission']     ?? 0,
+            'discharge'     => $ftd['discharge']     ?? 0,
+            'total_op'      => $ftd['total_op']      ?? 0,
+            'er_count'      => $ftd['er_count']      ?? 0,
+        ];
+
+        if ($sources !== null) {
+            $values['sources'] = $sources;
+        }
+
+        MisReport::updateOrCreate(['branch' => $branch->value, 'report_date' => $date], $values);
     }
 }

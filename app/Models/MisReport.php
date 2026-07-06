@@ -25,6 +25,7 @@ class MisReport extends Model
         'discharge',
         'total_op',
         'er_count',
+        'sources',
     ];
 
     /**
@@ -38,6 +39,7 @@ class MisReport extends Model
             'report_date' => 'date',
             'occupancy_pct' => 'decimal:2',
             'report_data' => 'array',
+            'sources' => 'array',
         ];
     }
 

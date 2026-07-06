@@ -24,13 +24,10 @@ class CsvProcessingService
     /**
      * Process uploaded CSV files for a given branch and date.
      *
-     * Returns import row counts PLUS derived volume indicators so the controller
-     * can pass them to MISService without requiring manual form input.
-     *
-     *   derived.admission  — count of IP admissions for this branch+date (from ip_admissions)
-     *   derived.discharge  — count of IP discharges on this date  (discharge_date = date)
-     *   derived.er_count   — count of ER visits for this branch+date (from er_admissions)
-     *   derived.sources    — which fields were auto-derived vs still manual
+     * Returns import row counts plus a `sources` map recording which optional
+     * report types were included in this upload. DashboardKpiService reads
+     * `sources` (persisted on the mis_reports row) to decide whether a KPI can
+     * be calculated or must show "N/A (Source report not uploaded)".
      */
     public function process(
         Branch $branch,
@@ -75,30 +72,24 @@ class CsvProcessingService
             }
 
             // ── ER admissions ─────────────────────────────────────────────────
-            $erImportCount   = 0;
-            $erCountDerived  = false;
+            $erImportCount = 0;
             if ($erFile) {
                 try {
                     $erImport = new ErAdmissionImport($branch, $date);
                     Excel::import($erImport, $erFile);
-                    $erImportCount  = $erImport->rowCount;
-                    $erCountDerived = true;
+                    $erImportCount = $erImport->rowCount;
                 } catch (\Throwable $e) {
                     throw new \RuntimeException('ER admission import failed: ' . $e->getMessage(), 0, $e);
                 }
             }
 
             // ── IP admissions ─────────────────────────────────────────────────
-            $ipImportCount       = 0;
-            $admissionDerived    = false;
-            $dischargeDerived    = false;
+            $ipImportCount = 0;
             if ($ipFile) {
                 try {
                     $ipImport = new IpAdmissionImport($branch, $date);
                     Excel::import($ipImport, $ipFile);
-                    $ipImportCount    = $ipImport->rowCount;
-                    $admissionDerived = true;
-                    $dischargeDerived = true;
+                    $ipImportCount = $ipImport->rowCount;
                 } catch (\Throwable $e) {
                     throw new \RuntimeException('IP admission import failed: ' . $e->getMessage(), 0, $e);
                 }
@@ -116,25 +107,6 @@ class CsvProcessingService
                 }
             }
 
-            // ── Derive volume indicators from freshly imported data ───────────
-            $derivedAdmission = $admissionDerived
-                ? IpAdmission::where('branch', $branch->value)
-                    ->whereDate('admission_date', $date)
-                    ->count()
-                : null;
-
-            $derivedDischarge = $dischargeDerived
-                ? IpAdmission::where('branch', $branch->value)
-                    ->whereDate('discharge_date', $date)
-                    ->count()
-                : null;
-
-            $derivedErCount = $erCountDerived
-                ? ErAdmission::where('branch', $branch->value)
-                    ->whereDate('admission_date', $date)
-                    ->count()
-                : null;
-
             return [
                 // Row import counts
                 'bill_items'           => $billImport->rowCount,
@@ -144,16 +116,15 @@ class CsvProcessingService
                 'ip_admissions'        => $ipImportCount,
                 'surgeries'            => $surgeryCount,
 
-                // Derived volume indicators (null = not available, must use manual value)
-                'derived' => [
-                    'admission'  => $derivedAdmission,
-                    'discharge'  => $derivedDischarge,
-                    'er_count'   => $derivedErCount,
-                    'sources'    => [
-                        'admission' => $admissionDerived ? 'ip_file'  : 'manual',
-                        'discharge' => $dischargeDerived ? 'ip_file'  : 'manual',
-                        'er_count'  => $erCountDerived   ? 'er_file'  : 'manual',
-                    ],
+                // Which optional reports were part of this upload — persisted on the
+                // mis_reports row so DashboardKpiService can gate KPI availability later.
+                'sources' => [
+                    'bill'    => true,
+                    'cashier' => true,
+                    'package' => $branch === Branch::CHROMEPET && $packageFile !== null,
+                    'er'      => $erFile !== null,
+                    'ip'      => $ipFile !== null,
+                    'surgery' => $surgeryFile !== null,
                 ],
             ];
         });

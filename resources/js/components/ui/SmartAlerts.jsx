@@ -36,11 +36,11 @@ const useAutoAlerts = (mis, kpi, importInfo) => {
         });
     }
 
-    if (mis?.revenue?.ftd) {
-        const ftd    = mis.revenue.ftd;
-        const parts  = (Number(ftd.op) || 0) + (Number(ftd.ip) || 0) + (Number(ftd.er) || 0) +
-                       (Number(ftd.pharmacy) || 0) + (Number(ftd.packages) || 0) + (Number(ftd.mri) || 0);
-        const stated = Number(ftd.total) || 0;
+    if (mis?.sales?.ftd) {
+        const ftd   = mis.sales.ftd;
+        const parts = (Number(ftd.op) || 0) + (Number(ftd.ip) || 0) +
+                      (Number(ftd.er) || 0) + (Number(ftd.ph) || 0);
+        const stated = Number(mis.totals?.sales_ftd) || 0;
         if (stated > 0 && Math.abs(stated - parts) > 100) {
             auto.push({
                 id: 'rev-mismatch',

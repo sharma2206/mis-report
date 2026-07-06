@@ -80,7 +80,7 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
                 'net_amount'               => $netAmount,
                 'quantity'                 => (int) ($row['quantity'] ?? 1),
                 'payment_mode'             => trim($this->getValue($row, ['settlement_payment_modes', 'payment_mode', 'payment_method'], '')) ?: null,
-                'status'                   => trim($row['status'] ?? 'Active') ?: 'Active',
+                'status'                   => $this->normalizeStatus($row['status'] ?? null),
                 'created_at'               => now(),
                 'updated_at'               => now(),
             ];
@@ -142,6 +142,17 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
                 return null;
             }
         }
+    }
+
+    private function normalizeStatus(?string $status): string
+    {
+        $s = strtolower(trim($status ?? ''));
+        return match (true) {
+            in_array($s, ['refund', 'refunded'], true)                        => 'Refund',
+            in_array($s, ['cancelled', 'canceled', 'cancel'], true)           => 'Cancelled',
+            in_array($s, ['active', 'sale', 'billed', 'approved', ''], true)  => 'Sale',
+            default                                                            => 'Sale',
+        };
     }
 
     private function normalizePatientType(?string $type): ?string

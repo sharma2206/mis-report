@@ -21,7 +21,7 @@ class MisRepository implements MisRepositoryInterface
             SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as ip_total,
             SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as er_total
         ";
-        $base = BillItem::where('branch', $branch->value)->whereIn('status', ['Sale', 'Refund']);
+        $base = BillItem::where('branch', $branch->value)->whereIn('status', ['Sale', 'Active', 'Refund']);
         $ftd  = $this->period(clone $base, $date, 'ftd')->selectRaw($sql)->first();
         $mtd  = $this->period(clone $base, $date, 'mtd')->selectRaw($sql)->first();
 
@@ -61,7 +61,7 @@ class MisRepository implements MisRepositoryInterface
             SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' AND net_amount = 0 THEN COALESCE(NULLIF(amount, 0), 0) ELSE 0 END) as full_ip,
             SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' AND net_amount = 0 THEN COALESCE(NULLIF(amount, 0), 0) ELSE 0 END) as full_er
         ";
-        $base = BillItem::where('branch', $branch->value)->whereIn('status', ['Sale', 'Refund']);
+        $base = BillItem::where('branch', $branch->value)->whereIn('status', ['Sale', 'Active', 'Refund']);
         $ftd  = $this->period(clone $base, $date, 'ftd')->selectRaw($sql)->first();
         $mtd  = $this->period(clone $base, $date, 'mtd')->selectRaw($sql)->first();
 
@@ -141,10 +141,16 @@ class MisRepository implements MisRepositoryInterface
 
     public function getVolumeData(Branch $branch, string $date): array
     {
-        $opBase  = BillItem::where('branch', $branch->value)->where('patient_type', 'OP')->where('service_type', 'OP Consultation');
+        // Count distinct UHID (patient visits) from OP bill rows — avoids dependency on
+        // the exact service_type label KareXpert exports for consultations.
+        $opBase = BillItem::where('branch', $branch->value)
+            ->where('patient_type', 'OP')
+            ->whereIn('status', ['Sale', 'Active'])
+            ->whereNotNull('uhid');
+
         return [
-            'ftd_op' => (int) $this->period(clone $opBase, $date, 'ftd')->sum('quantity'),
-            'mtd_op' => (int) $this->period(clone $opBase, $date, 'mtd')->sum('quantity'),
+            'ftd_op' => (int) $this->period(clone $opBase, $date, 'ftd')->distinct('uhid')->count('uhid'),
+            'mtd_op' => (int) $this->period(clone $opBase, $date, 'mtd')->distinct('uhid')->count('uhid'),
         ];
     }
 

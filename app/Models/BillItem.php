@@ -74,8 +74,17 @@ class BillItem extends Model
     public function scopeForMonth(Builder $query, string $date): Builder
     {
         $carbonDate = Carbon::parse($date);
-        
+
         return $query->whereYear('bill_date', $carbonDate->year)
                      ->whereMonth('bill_date', $carbonDate->month);
+    }
+
+    /**
+     * Scope: normal-sale rows only (KareXpert may export 'Active' instead of 'Sale').
+     * Always use this instead of where('status', 'Sale') so both old and new imports match.
+     */
+    public function scopeSaleStatus(Builder $query): Builder
+    {
+        return $query->whereIn('status', ['Sale', 'Active']);
     }
 }

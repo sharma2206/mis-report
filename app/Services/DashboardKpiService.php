@@ -37,7 +37,7 @@ class DashboardKpiService
     {
         if (!$this->sourceAvailable($branch, $from, $to, 'bill')) return null;
 
-        return round((float) $this->billBase($branch, $from, $to)->where('status', 'Sale')->sum('net_amount'), 2);
+        return round((float) $this->billBase($branch, $from, $to)->saleStatus()->sum('net_amount'), 2);
     }
 
     public function calculatePharmacyRevenue(Branch $branch, string $from, ?string $to = null): ?float
@@ -45,8 +45,8 @@ class DashboardKpiService
         if (!$this->sourceAvailable($branch, $from, $to, 'bill')) return null;
 
         return round((float) $this->billBase($branch, $from, $to)
-            ->whereNull('patient_type')
-            ->where('status', 'Sale')
+            ->where('service_type', 'Pharmacy')
+            ->saleStatus()
             ->sum('net_amount'), 2);
     }
 
@@ -78,7 +78,7 @@ class DashboardKpiService
 
         return $this->billBase($branch, $from, $to)
             ->where('patient_type', 'OP')
-            ->where('status', 'Sale')
+            ->saleStatus()
             ->whereNotNull('uhid')
             ->distinct('uhid')
             ->count('uhid');

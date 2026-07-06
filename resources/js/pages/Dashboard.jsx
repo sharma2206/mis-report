@@ -75,22 +75,33 @@ const Section = ({ title, icon: Icon, children, action, compact }) => (
 
 // ── Revenue table ─────────────────────────────────────────────────────────────
 const REV_ROWS = [
-    { key: 'op',       label: 'OP Revenue'   },
-    { key: 'ip',       label: 'IP Revenue'   },
-    { key: 'er',       label: 'ER Revenue'   },
-    { key: 'pharmacy', label: 'Pharmacy'     },
-    { key: 'packages', label: 'Packages'     },
-    { key: 'mri',      label: 'MRI / Scan'   },
+    { key: 'op',      label: 'OP Revenue'  },
+    { key: 'ip',      label: 'IP Revenue'  },
+    { key: 'er',      label: 'ER Revenue'  },
+    { key: 'ph',      label: 'Pharmacy'    },
+    { key: 'pkg',     label: 'Packages'    },
+    { key: 'mri_rev', label: 'MRI / Scan'  },
 ];
 
 const RevenueTable = ({ mis, isLoading }) => {
     if (isLoading) return <TableSkeleton rows={7} cols={4} />;
     if (!mis) return <EmptyState title="No revenue data" description="Load a report to see revenue breakdown." />;
-    const ftd = mis.revenue?.ftd || {};
-    const mtd = mis.revenue?.mtd || {};
+    // API returns sales (not revenue) — enrich with pkg_adjustment and mri revenue
+    const salesFtd = mis.sales?.ftd || {};
+    const salesMtd = mis.sales?.mtd || {};
+    const ftd = {
+        ...salesFtd,
+        pkg:     mis.pkg_adjustment?.ftd != null ? mis.pkg_adjustment.ftd : undefined,
+        mri_rev: mis.mri ? (mis.mri.ftd?.op?.revenue ?? 0) + (mis.mri.ftd?.ip?.revenue ?? 0) : undefined,
+    };
+    const mtd = {
+        ...salesMtd,
+        pkg:     mis.pkg_adjustment?.mtd != null ? mis.pkg_adjustment.mtd : undefined,
+        mri_rev: mis.mri ? (mis.mri.mtd?.op?.revenue ?? 0) + (mis.mri.mtd?.ip?.revenue ?? 0) : undefined,
+    };
     const rows = REV_ROWS.filter(r => ftd[r.key] !== undefined || mtd[r.key] !== undefined);
-    const totalFtd = rows.reduce((a, r) => a + (Number(ftd[r.key]) || 0), 0);
-    const totalMtd = rows.reduce((a, r) => a + (Number(mtd[r.key]) || 0), 0);
+    const totalFtd = rows.reduce((a, r) => a + (Number(ftd[r.key] ?? 0) || 0), 0);
+    const totalMtd = rows.reduce((a, r) => a + (Number(mtd[r.key] ?? 0) || 0), 0);
     return (
         <div className="overflow-x-auto">
             <table className="w-full text-[13px]">
@@ -125,24 +136,35 @@ const RevenueTable = ({ mis, isLoading }) => {
 
 // ── Volume grid ───────────────────────────────────────────────────────────────
 const VOLUME_ROWS = [
-    { key: 'op_count',       label: 'OP Patients'   },
-    { key: 'ip_count',       label: 'IP Patients'   },
-    { key: 'er_count',       label: 'ER Patients'   },
-    { key: 'admission',      label: 'Admissions'    },
-    { key: 'discharge',      label: 'Discharges'    },
-    { key: 'pharmacy_bills', label: 'Pharmacy Bills'},
-    { key: 'package_count',  label: 'Packages'      },
-    { key: 'mri_count',      label: 'MRI / Scans'   },
-    { key: 'surgery_count',  label: 'Surgeries'     },
-    { key: 'occupancy',      label: 'Beds Occupied' },
-    { key: 'occupancy_pct',  label: 'Occupancy %'   },
+    { key: 'total_op',      label: 'OP Visits'     },
+    { key: 'ip_count',      label: 'IP Patients'   },
+    { key: 'er_count',      label: 'ER Patients'   },
+    { key: 'admission',     label: 'Admissions'    },
+    { key: 'discharge',     label: 'Discharges'    },
+    { key: 'surgery_count', label: 'Surgeries'     },
+    { key: 'mri_count',     label: 'MRI / Scans'   },
+    { key: 'occupancy',     label: 'Beds Occupied' },
+    { key: 'occupancy_pct', label: 'Occupancy %'   },
 ];
 
-const VolumeGrid = ({ mis, isLoading }) => {
+const VolumeGrid = ({ mis, kpi, isLoading }) => {
     if (isLoading) return <TableSkeleton rows={6} cols={3} />;
     if (!mis) return <EmptyState title="No volume data" />;
-    const ftd = mis.volume?.ftd || {};
-    const mtd = mis.volume?.mtd || {};
+    const volFtd = mis.volume?.ftd || {};
+    const volMtd = mis.volume?.mtd || {};
+    const mriF   = mis.mri?.ftd;
+    const mriM   = mis.mri?.mtd;
+    // Enrich volume with data from kpi (FTD-only) and MRI sub-object
+    const ftd = {
+        ...volFtd,
+        ip_count:      kpi?.ip_count      != null ? kpi.ip_count      : undefined,
+        surgery_count: kpi?.surgery_count  != null ? kpi.surgery_count  : undefined,
+        mri_count:     mriF               != null ? (mriF.op?.count ?? 0) + (mriF.ip?.count ?? 0) : undefined,
+    };
+    const mtd = {
+        ...volMtd,
+        mri_count: mriM != null ? (mriM.op?.count ?? 0) + (mriM.ip?.count ?? 0) : undefined,
+    };
     const fmt = (key, v) => {
         if (v === null) return <span className="text-slate-400 italic text-[11px]">N/A</span>;
         if (key === 'occupancy_pct') return <span>{fmtPct(v)}</span>;
@@ -443,17 +465,17 @@ const ServiceMixTab = ({ data, isLoading }) => {
                                 <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
                                 <YAxis type="category" dataKey="service_type" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={90} />
                                 <Tooltip formatter={v => [fmt(v), 'Revenue']} contentStyle={TOOLTIP} cursor={{ fill: 'rgba(148,163,184,0.07)' }} />
-                                <Bar dataKey="total_revenue" radius={[0, 4, 4, 0]}>{byType.map((_, i) => <Cell key={i} fill={SERVICE_COLORS[i % SERVICE_COLORS.length]} />)}</Bar>
+                                <Bar dataKey="revenue" radius={[0, 4, 4, 0]}>{byType.map((_, i) => <Cell key={i} fill={SERVICE_COLORS[i % SERVICE_COLORS.length]} />)}</Bar>
                             </BarChart>
                         </ResponsiveContainer>
                     ) : <EmptyState title="No service type data" />}
                 </Section>
                 <Section title="Revenue by Patient Type" icon={Users}>
-                    {byPtype.length ? <RankedList items={byPtype} nameKey="patient_type" valueKey="total_revenue" barColor="#7c3aed" valueFormat={fmt} /> : <EmptyState title="No patient type data" />}
+                    {byPtype.length ? <RankedList items={byPtype} nameKey="patient_type" valueKey="revenue" barColor="#7c3aed" valueFormat={fmt} /> : <EmptyState title="No patient type data" />}
                     {byDept.length > 0 && (
                         <div className="mt-4">
                             <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">Top Departments</p>
-                            <RankedList items={byDept.slice(0, 6)} nameKey="department" valueKey="total_revenue" barColor="#059669" valueFormat={fmt} />
+                            <RankedList items={byDept.slice(0, 6)} nameKey="department" valueKey="revenue" barColor="#059669" valueFormat={fmt} />
                         </div>
                     )}
                 </Section>
@@ -501,7 +523,7 @@ const DoctorPerfTab = ({ data, isLoading }) => {
         <div className="space-y-4">
             {bySpeciality.length > 0 && (
                 <Section title="Revenue by Speciality" icon={Stethoscope}>
-                    <RankedList items={bySpeciality.slice(0, 8)} nameKey="speciality" valueKey="total_revenue" barColor="#1d4ed8" valueFormat={fmt} />
+                    <RankedList items={bySpeciality.slice(0, 8)} nameKey="speciality" valueKey="revenue" barColor="#1d4ed8" valueFormat={fmt} />
                 </Section>
             )}
             <Section title="Doctor Performance" icon={Users} action={
@@ -677,7 +699,7 @@ export default function Dashboard() {
         switch (tab) {
             case 'overview':   return <OverviewTab mis={mis} kpi={kpi} trend={trend} payer={payer} mix={mix} collection={collection} serviceRev={serviceRev} admissions={admissions} isLoading={isLoading} />;
             case 'revenue':    return <div className="space-y-4"><Section title="Revenue Breakdown" icon={CreditCard}><RevenueTable mis={mis} isLoading={isLoading} /></Section><Section title="Daily Revenue Trend" icon={TrendingUp}><RevenueTrendChart data={trend} isLoading={isLoading} /></Section></div>;
-            case 'volume':     return <div className="space-y-4"><Section title="Volume & MRI Metrics" icon={BarChart3}><VolumeGrid mis={mis} isLoading={isLoading} /></Section><Section title="Patient Volume Trend" icon={Users}><PatientMixChart data={mix} isLoading={isLoading} /></Section></div>;
+            case 'volume':     return <div className="space-y-4"><Section title="Volume & MRI Metrics" icon={BarChart3}><VolumeGrid mis={mis} kpi={kpi} isLoading={isLoading} /></Section><Section title="Patient Volume Trend" icon={Users}><PatientMixChart data={mix} isLoading={isLoading} /></Section></div>;
             case 'analytics':  return <AnalyticsTab payer={payer} mix={mix} isLoading={isLoading} />;
             case 'ip':         return <Section title="IP Admissions & Demographics" icon={BedDouble}><IPDemographics data={ipDemo} isLoading={isLoading} /></Section>;
             case 'surgery':    return <Section title="Surgery Analytics" icon={Scissors}><SurgeryDetail data={surgery} isLoading={isLoading} /></Section>;

@@ -39,7 +39,7 @@ class AnalyticsController extends Controller
 
             $totalPatients = BillItem::forBranch($branch)
                 ->forDate($date)
-                ->where('status', 'Sale')
+                ->saleStatus()
                 ->whereNotNull('uhid')
                 ->distinct('uhid')
                 ->count('uhid');
@@ -50,7 +50,7 @@ class AnalyticsController extends Controller
 
             $discountAmount = (float) BillItem::forBranch($branch)
                 ->forDate($date)
-                ->where('status', 'Sale')
+                ->saleStatus()
                 ->sum('discount_amount');
 
             $netCollection      = $this->kpi->calculateCashCollection($branchEnum, $date);
@@ -115,7 +115,7 @@ class AnalyticsController extends Controller
                 )
                 ->where('branch', $branch)
                 ->whereDate('bill_date', '>=', $from)->whereDate('bill_date', '<=', $to)
-                ->where('status', 'Sale')
+                ->saleStatus()
                 ->groupBy('day')
                 ->orderBy('day')
                 ->get();
@@ -143,7 +143,7 @@ class AnalyticsController extends Controller
                 )
                 ->where('branch', $branch)
                 ->whereYear('bill_date', $year)
-                ->where('status', 'Sale')
+                ->saleStatus()
                 ->groupBy('month')
                 ->orderBy('month')
                 ->get()
@@ -184,7 +184,7 @@ class AnalyticsController extends Controller
                 )
                 ->where('branch', $branch)
                 ->whereDate('bill_date', '>=', $from)->whereDate('bill_date', '<=', $to)
-                ->where('status', 'Sale')
+                ->saleStatus()
                 ->whereNotNull('treating_department')
                 ->where('treating_department', '!=', '')
                 ->groupBy('treating_department')
@@ -246,7 +246,7 @@ class AnalyticsController extends Controller
                 )
                 ->where('branch', $branch)
                 ->whereDate('bill_date', '>=', $from)->whereDate('bill_date', '<=', $to)
-                ->where('status', 'Sale')
+                ->saleStatus()
                 ->groupBy('day')
                 ->orderBy('day')
                 ->get();
@@ -273,14 +273,14 @@ class AnalyticsController extends Controller
                     'label'      => $branch->label(),
                     'revenue'    => (float) BillItem::where('branch', $branch->value)
                                     ->whereDate('bill_date', '>=', $from)->whereDate('bill_date', '<=', $to)
-                                    ->where('status', 'Sale')
+                                    ->saleStatus()
                                     ->sum('net_amount'),
                     'collection' => (float) CashierCollection::where('branch', $branch->value)
                                     ->whereDate('collection_date', '>=', $from)->whereDate('collection_date', '<=', $to)
                                     ->sum('paid_amount'),
                     'patients'   => BillItem::where('branch', $branch->value)
                                     ->whereDate('bill_date', '>=', $from)->whereDate('bill_date', '<=', $to)
-                                    ->where('status', 'Sale')
+                                    ->saleStatus()
                                     ->distinct('uhid')
                                     ->count('uhid'),
                     'surgeries'  => Surgery::where('branch', $branch->value)
@@ -314,7 +314,7 @@ class AnalyticsController extends Controller
                 )
                 ->where('branch', $branch)
                 ->whereDate('bill_date', '>=', $from)->whereDate('bill_date', '<=', $to)
-                ->where('status', 'Sale')
+                ->saleStatus()
                 ->whereNotNull('treating_doctor')
                 ->where('treating_doctor', '!=', '')
                 ->groupBy('treating_doctor', 'treating_doctor_speciality')
@@ -707,7 +707,7 @@ class AnalyticsController extends Controller
             $base = BillItem::where('branch', $branch)
                 ->whereDate('bill_date', '>=', $from)
                 ->whereDate('bill_date', '<=', $to)
-                ->where('status', 'Sale');
+                ->saleStatus();
 
             // Revenue by service type
             $byServiceType = (clone $base)->select(
@@ -810,7 +810,7 @@ class AnalyticsController extends Controller
                 ->where('branch', $branch)
                 ->whereDate('bill_date', '>=', $from)
                 ->whereDate('bill_date', '<=', $to)
-                ->where('status', 'Sale')
+                ->saleStatus()
                 ->whereNotNull('treating_doctor')
                 ->where('treating_doctor', '!=', '')
                 ->groupBy('treating_doctor', 'treating_doctor_speciality')
@@ -895,7 +895,7 @@ class AnalyticsController extends Controller
                 ->where('branch', $branch)
                 ->whereDate('bill_date', '>=', $from)
                 ->whereDate('bill_date', '<=', $to)
-                ->where('status', 'Sale')
+                ->saleStatus()
                 ->whereNotNull('treating_doctor_speciality')
                 ->where('treating_doctor_speciality', '!=', '')
                 ->groupBy('speciality')
@@ -930,7 +930,7 @@ class AnalyticsController extends Controller
             $base = BillItem::where('branch', $branch)
                 ->whereDate('bill_date', '>=', $from)
                 ->whereDate('bill_date', '<=', $to)
-                ->where('status', 'Sale')
+                ->saleStatus()
                 ->where('patient_type', 'OP');
 
             $totalVisits   = (clone $base)->distinct('visit_id')->count('visit_id');

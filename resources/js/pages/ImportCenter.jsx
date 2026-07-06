@@ -798,58 +798,76 @@ export default function ImportCenter() {
 
     // ── Topbar ──────────────────────────────────────────────────────────────
     const topbar = (
-        <div className="bg-white border-b border-slate-200 px-5 py-3 flex flex-wrap items-center gap-4">
-            <div>
-                <h1 className="text-[16px] font-700 text-slate-800">Import Center</h1>
-                <p className="text-[11px] text-slate-400">Upload KareXpert CSVs — all files in one batch</p>
-            </div>
-            <div className="ml-auto flex flex-wrap items-center gap-3">
-                {/* Branch pills */}
-                <div className="flex gap-1.5">
-                    {Object.entries(BRANCHES).map(([key, { label }]) => (
-                        <button key={key} onClick={() => dispatch(setBranch(key))}
-                            className={cn(
-                                'px-3 py-1.5 rounded-full text-[12px] font-600 border transition-all cursor-pointer',
-                                branch === key
-                                    ? 'bg-blue-700 border-blue-700 text-white shadow-sm shadow-blue-200'
-                                    : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-700',
-                            )}>
-                            {label}
-                        </button>
-                    ))}
+        <div className="bg-white border-b border-slate-200">
+            {/* Title row */}
+            <div className="px-5 pt-3 pb-1 flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <Upload className="w-3.5 h-3.5 text-blue-600" />
                 </div>
-
-                {/* Period summary chip */}
-                {periodReady && (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
-                        <Calendar className="w-3.5 h-3.5 text-blue-600" />
-                        <span className="text-[11px] font-600 text-blue-700">
-                            {period.status === 'single'
-                                ? fmtDMY(period.min)
-                                : period.status === 'range' || period.status === 'inconsistent'
-                                    ? `${fmtDMY(period.min)} → ${fmtDMY(period.max)}`
-                                    : periodMode === 'manual' && manualTo
-                                        ? manualFrom && manualFrom !== manualTo ? `${fmtDMY(parseKareDate(manualFrom))} → ${fmtDMY(parseKareDate(manualTo))}` : fmtDMY(parseKareDate(manualTo))
-                                        : ''
-                            }
-                        </span>
+                <div className="min-w-0">
+                    <h1 className="text-[15px] font-700 text-slate-800 leading-tight">Import Center</h1>
+                    <p className="text-[10px] text-slate-400">Upload KareXpert CSVs — all files in one batch</p>
+                </div>
+            </div>
+            {/* Controls row — horizontal scroll on mobile */}
+            <div className="overflow-x-auto scrollbar-none">
+                <div className="flex items-center gap-3 px-5 pb-3 min-w-max">
+                    {/* Branch pills */}
+                    <div className="flex gap-1.5">
+                        {Object.entries(BRANCHES).map(([key, { label }]) => (
+                            <button key={key} onClick={() => dispatch(setBranch(key))}
+                                className={cn(
+                                    'px-3 py-1.5 rounded-full text-[12px] font-600 border transition-all cursor-pointer whitespace-nowrap',
+                                    branch === key
+                                        ? 'bg-blue-700 border-blue-700 text-white shadow-sm shadow-blue-200'
+                                        : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-700',
+                                )}>
+                                {label}
+                            </button>
+                        ))}
                     </div>
-                )}
 
-                {/* Import button */}
-                <button onClick={handleImport} disabled={!canImport}
-                    className={cn(
-                        'inline-flex items-center gap-2 px-5 py-2 rounded-lg text-[13px] font-700 transition-all border-0',
-                        canImport
-                            ? 'bg-gradient-to-r from-blue-600 to-violet-600 text-white cursor-pointer hover:opacity-90 shadow-md shadow-blue-200'
-                            : 'bg-slate-100 text-slate-400 cursor-not-allowed',
-                    )}>
-                    {isImporting
-                        ? <><RefreshCw className="w-4 h-4 animate-spin" /> Importing…</>
-                        : <><Upload className="w-4 h-4" />
-                          {items.length > 0 ? `Import ${items.length} file${items.length > 1 ? 's' : ''}` : 'Import'}</>
-                    }
-                </button>
+                    <div className="w-px h-5 bg-slate-200 flex-shrink-0" />
+
+                    {/* Period summary chip */}
+                    {periodReady ? (
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg flex-shrink-0">
+                            <Calendar className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                            <span className="text-[11px] font-600 text-blue-700 whitespace-nowrap">
+                                {period.status === 'single'
+                                    ? fmtDMY(period.min)
+                                    : period.status === 'range' || period.status === 'inconsistent'
+                                        ? `${fmtDMY(period.min)} → ${fmtDMY(period.max)}`
+                                        : periodMode === 'manual' && manualTo
+                                            ? manualFrom && manualFrom !== manualTo
+                                                ? `${fmtDMY(parseKareDate(manualFrom))} → ${fmtDMY(parseKareDate(manualTo))}`
+                                                : fmtDMY(parseKareDate(manualTo))
+                                            : ''
+                                }
+                            </span>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg flex-shrink-0">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                            <span className="text-[11px] text-slate-400 whitespace-nowrap">Period: Auto-detect</span>
+                        </div>
+                    )}
+
+                    {/* Import button */}
+                    <button onClick={handleImport} disabled={!canImport}
+                        className={cn(
+                            'inline-flex items-center gap-2 px-5 py-2 rounded-lg text-[13px] font-700 transition-all border-0 whitespace-nowrap flex-shrink-0',
+                            canImport
+                                ? 'bg-gradient-to-r from-blue-600 to-violet-600 text-white cursor-pointer hover:opacity-90 shadow-md shadow-blue-200'
+                                : 'bg-slate-100 text-slate-400 cursor-not-allowed',
+                        )}>
+                        {isImporting
+                            ? <><RefreshCw className="w-4 h-4 animate-spin" /> Importing…</>
+                            : <><Upload className="w-4 h-4" />
+                              <span>{items.length > 0 ? `Import ${items.length} file${items.length > 1 ? 's' : ''}` : 'Import'}</span></>
+                        }
+                    </button>
+                </div>
             </div>
         </div>
     );

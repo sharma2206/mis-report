@@ -8,6 +8,7 @@ const reportSlice = createSlice({
         date:          sessionStorage.getItem('mis_last_date')   || today(),
         activeTab:     'overview',
         sidebarOpen:   true,
+        mobileMenuOpen: false,
 
         // Report Period Selector
         periodMode:    'auto',           // 'auto' | 'preset' | 'custom'
@@ -35,6 +36,12 @@ const reportSlice = createSlice({
         },
         toggleSidebar(state) {
             state.sidebarOpen = !state.sidebarOpen;
+        },
+        setSidebarOpen(state, { payload }) {
+            state.sidebarOpen = payload;
+        },
+        setMobileMenuOpen(state, { payload }) {
+            state.mobileMenuOpen = payload;
         },
 
         // Period Selector
@@ -77,7 +84,7 @@ const reportSlice = createSlice({
 });
 
 export const {
-    setBranch, setDate, setActiveTab, toggleSidebar,
+    setBranch, setDate, setActiveTab, toggleSidebar, setSidebarOpen, setMobileMenuOpen,
     setPeriodMode, setPeriodPreset, setPeriodRange,
     setLastImportInfo,
     addAlert, dismissAlert, clearAlerts, setAlerts,
@@ -87,6 +94,7 @@ export const selectBranch        = (s) => s.report.branch;
 export const selectDate          = (s) => s.report.date;
 export const selectActiveTab     = (s) => s.report.activeTab;
 export const selectSidebarOpen   = (s) => s.report.sidebarOpen;
+export const selectMobileMenuOpen = (s) => s.report.mobileMenuOpen;
 export const selectPeriodMode    = (s) => s.report.periodMode;
 export const selectPeriodPreset  = (s) => s.report.periodPreset;
 export const selectPeriodFrom    = (s) => s.report.periodFrom;

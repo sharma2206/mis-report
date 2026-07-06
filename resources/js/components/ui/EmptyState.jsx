@@ -1,18 +1,24 @@
 import { motion } from 'framer-motion';
+import { FileSearch } from 'lucide-react';
 
-export const EmptyState = ({ icon: Icon, title, description, action }) => (
+export const EmptyState = ({ icon: Icon = FileSearch, title, description, action }) => (
     <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col items-center justify-center py-16 px-8 text-center"
+        transition={{ duration: 0.2 }}
+        className="flex flex-col items-center justify-center py-12 px-8 text-center"
     >
-        {Icon && (
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
-                <Icon className="w-8 h-8 text-blue-600" />
+        <div className="relative mb-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 border border-slate-200 flex items-center justify-center shadow-sm">
+                <Icon className="w-6 h-6 text-slate-400" />
             </div>
+            {/* Decorative ring */}
+            <div className="absolute -inset-2 rounded-3xl border border-dashed border-slate-200 opacity-50" />
+        </div>
+        <h3 className="text-[14px] font-700 text-slate-700 mb-1.5">{title}</h3>
+        {description && (
+            <p className="text-[12px] text-slate-400 max-w-[240px] leading-relaxed">{description}</p>
         )}
-        <h3 className="text-base font-700 text-slate-800 mb-1">{title}</h3>
-        {description && <p className="text-sm text-slate-500 max-w-xs">{description}</p>}
         {action && <div className="mt-4">{action}</div>}
     </motion.div>
 );

@@ -38,12 +38,11 @@ export const Topbar = ({ onLoad, isLoading, onPrint }) => {
     const todayStr    = today();
     const dropRef     = useRef(null);
 
-    const [exporting, setExporting]       = useState(null);
-    const [brmFrom,   setBrmFrom]         = useState('');
-    const [brmTo,     setBrmTo]           = useState('');
+    const [exporting, setExporting]         = useState(null);
+    const [brmFrom,   setBrmFrom]           = useState('');
+    const [brmTo,     setBrmTo]             = useState('');
     const [showBrmPicker, setShowBrmPicker] = useState(false);
 
-    // Resolve effective from/to for queries
     const effectiveFrom = periodMode === 'custom' ? periodFrom : null;
     const effectiveTo   = periodMode === 'custom' ? periodTo   : null;
 
@@ -95,123 +94,130 @@ export const Topbar = ({ onLoad, isLoading, onPrint }) => {
     const toggleDrop = () => dropRef.current?.classList.toggle('hidden');
 
     return (
-        <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm flex-shrink-0">
-            {/* Main row */}
-            <div className="flex items-center gap-2.5 px-4 h-[54px]">
-                {/* Branch pills */}
-                <div className="flex gap-1.5 flex-shrink-0">
-                    {Object.entries(BRANCHES).map(([key, { label }]) => (
-                        <button
-                            key={key}
-                            onClick={() => handleBranch(key)}
-                            className={cn(
-                                'px-3 py-1.5 rounded-full text-[12px] font-600 border-[1.5px] transition-all duration-150 cursor-pointer whitespace-nowrap',
-                                branch === key
-                                    ? 'bg-blue-700 border-blue-700 text-white shadow-md shadow-blue-200'
-                                    : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-700',
-                            )}
-                        >
-                            {label}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="w-px h-5 bg-slate-200 flex-shrink-0" />
-
-                {/* Period Selector */}
-                <ReportPeriodSelector onLoad={handlePeriodLoad} />
-
-                <div className="flex gap-2 ml-auto items-center">
-                    {/* Load / Refresh */}
-                    <button
-                        onClick={() => onLoad(effectiveFrom, effectiveTo)}
-                        disabled={isLoading}
-                        className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-blue-700 to-violet-600 text-white text-[13px] font-600 rounded-lg shadow-md hover:opacity-90 transition-all cursor-pointer disabled:opacity-60"
-                    >
-                        <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin')} />
-                        {isLoading ? 'Loading…' : 'Load Report'}
-                    </button>
-
-                    {/* Export dropdown */}
-                    <div
-                        className="relative"
-                        onBlur={() => setTimeout(() => { dropRef.current?.classList.add('hidden'); setShowBrmPicker(false); }, 200)}
-                    >
-                        <button
-                            onClick={toggleDrop}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 border-[1.5px] border-slate-200 bg-white text-[13px] font-600 text-slate-700 rounded-lg hover:border-blue-400 hover:text-blue-700 transition-all cursor-pointer"
-                        >
-                            <Download className="w-3.5 h-3.5" />
-                            Export
-                        </button>
-                        <div ref={dropRef} className="hidden absolute right-0 top-[calc(100%+6px)] bg-white border border-slate-200 rounded-xl shadow-lg min-w-[200px] z-50 overflow-hidden">
-                            {[
-                                { type: 'excel', icon: <FileSpreadsheet className="w-4 h-4 text-emerald-600" />, label: 'Excel (.xlsx)', ext: 'xlsx', fn: () => misApi.exportExcel(branch, date) },
-                                { type: 'pdf',   icon: <FileText        className="w-4 h-4 text-red-600"     />, label: 'PDF Report',   ext: 'pdf',  fn: () => misApi.exportPdf(branch, date) },
-                                { type: 'csv',   icon: <Table2          className="w-4 h-4 text-amber-600"   />, label: 'CSV (Flat)',   ext: 'csv',  fn: () => misApi.exportCsv(branch, date) },
-                            ].map(({ type, icon, label, ext, fn }) => (
-                                <button key={type}
-                                    onClick={() => handleExport(type, fn, ext)}
-                                    disabled={!!exporting}
-                                    className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-500 text-slate-700 hover:bg-slate-50 w-full border-0 bg-transparent cursor-pointer text-left disabled:opacity-60"
-                                >
-                                    {exporting === type ? <RefreshCw className="w-4 h-4 animate-spin text-slate-400" /> : icon}
-                                    {exporting === type ? 'Downloading…' : label}
-                                </button>
-                            ))}
-
-                            {/* BRM section */}
-                            <div className="border-t border-slate-100 mt-1 pt-1 px-4 pb-1">
-                                <p className="text-[10px] font-700 uppercase tracking-wider text-slate-400 mb-1">BRM Report</p>
-                            </div>
-                            {!showBrmPicker ? (
-                                <>
-                                    <button onClick={() => openBrmPicker('week')} disabled={!!exporting}
-                                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-500 text-slate-700 hover:bg-sky-50 w-full border-0 bg-transparent cursor-pointer text-left disabled:opacity-60">
-                                        <BarChart3 className="w-4 h-4 text-sky-600" /> This Week
-                                    </button>
-                                    <button onClick={() => openBrmPicker('month')} disabled={!!exporting}
-                                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-500 text-slate-700 hover:bg-sky-50 w-full border-0 bg-transparent cursor-pointer text-left disabled:opacity-60">
-                                        <BarChart3 className="w-4 h-4 text-sky-600" /> This Month
-                                    </button>
-                                    <button onClick={() => { setBrmFrom(date); setBrmTo(date); setShowBrmPicker(true); }} disabled={!!exporting}
-                                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-500 text-slate-700 hover:bg-sky-50 w-full border-0 bg-transparent cursor-pointer text-left disabled:opacity-60">
-                                        <BarChart3 className="w-4 h-4 text-slate-400" /> Custom Range
-                                    </button>
-                                </>
-                            ) : (
-                                <div className="px-4 pb-3 space-y-2">
-                                    {[
-                                        { label: 'From', val: brmFrom, set: setBrmFrom, min: undefined, max: todayStr },
-                                        { label: 'To',   val: brmTo,   set: setBrmTo,   min: brmFrom,   max: todayStr },
-                                    ].map(({ label, val, set, min, max }) => (
-                                        <div key={label} className="flex flex-col gap-1">
-                                            <label className="text-[10px] font-700 text-slate-500 uppercase tracking-wide">{label}</label>
-                                            <input type="date" value={val} min={min} max={max}
-                                                onChange={e => set(e.target.value)}
-                                                className="border border-slate-200 rounded-md px-2 py-1 text-[12px] text-slate-800 outline-none focus:border-sky-500" />
-                                        </div>
-                                    ))}
-                                    <div className="flex gap-2 pt-1">
-                                        <button onClick={() => setShowBrmPicker(false)}
-                                            className="flex-1 py-1.5 text-[12px] font-600 text-slate-500 border border-slate-200 rounded-md hover:bg-slate-50 cursor-pointer bg-white">
-                                            Back
-                                        </button>
-                                        <button onClick={() => handleBrmDownload(brmFrom, brmTo)}
-                                            disabled={!brmFrom || !brmTo || !!exporting}
-                                            className="flex-1 py-1.5 text-[12px] font-700 text-white bg-sky-600 hover:bg-sky-700 rounded-md disabled:opacity-60 cursor-pointer border-0 flex items-center justify-center gap-1">
-                                            {exporting === 'brm' ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
-                                            {exporting === 'brm' ? 'Downloading…' : 'Download'}
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="border-t border-slate-100" />
-                            <button onClick={onPrint}
-                                className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-500 text-slate-700 hover:bg-slate-50 w-full border-0 bg-transparent cursor-pointer text-left">
-                                <Printer className="w-4 h-4 text-violet-600" /> Print Preview
+        <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm flex-shrink-0 no-print">
+            {/* Scrollable row so nothing overflows on small screens */}
+            <div className="overflow-x-auto scrollbar-none">
+                <div className="flex items-center gap-2.5 px-4 h-[54px] min-w-max">
+                    {/* Branch selector pills */}
+                    <div className="flex gap-1.5 flex-shrink-0">
+                        {Object.entries(BRANCHES).map(([key, { label }]) => (
+                            <button
+                                key={key}
+                                onClick={() => handleBranch(key)}
+                                className={cn(
+                                    'px-3 py-1.5 rounded-full text-[12px] font-600 border-[1.5px] transition-all duration-150 cursor-pointer whitespace-nowrap',
+                                    branch === key
+                                        ? 'bg-blue-700 border-blue-700 text-white shadow-sm shadow-blue-200'
+                                        : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-700',
+                                )}
+                            >
+                                {label}
                             </button>
+                        ))}
+                    </div>
+
+                    <div className="w-px h-5 bg-slate-200 flex-shrink-0" />
+
+                    {/* Period Selector */}
+                    <ReportPeriodSelector onLoad={handlePeriodLoad} />
+
+                    <div className="flex gap-2 ml-auto items-center flex-shrink-0">
+                        {/* Load / Refresh */}
+                        <button
+                            onClick={() => onLoad(effectiveFrom, effectiveTo)}
+                            disabled={isLoading}
+                            className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-blue-700 to-violet-600 text-white text-[13px] font-600 rounded-lg shadow-sm hover:opacity-90 transition-all cursor-pointer disabled:opacity-60 whitespace-nowrap"
+                        >
+                            <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin')} />
+                            {isLoading ? 'Loading…' : 'Load Report'}
+                        </button>
+
+                        {/* Export dropdown */}
+                        <div
+                            className="relative"
+                            onBlur={() => setTimeout(() => { dropRef.current?.classList.add('hidden'); setShowBrmPicker(false); }, 200)}
+                        >
+                            <button
+                                onClick={toggleDrop}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 border-[1.5px] border-slate-200 bg-white text-[13px] font-600 text-slate-700 rounded-lg hover:border-slate-300 hover:bg-slate-50 transition-all cursor-pointer whitespace-nowrap"
+                            >
+                                <Download className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Export</span>
+                            </button>
+                            <div
+                                ref={dropRef}
+                                className="hidden absolute right-0 top-[calc(100%+6px)] bg-white border border-slate-200 rounded-xl shadow-lg min-w-[200px] z-50 overflow-hidden"
+                                style={{ boxShadow: 'var(--shadow-dropdown)' }}
+                            >
+                                {[
+                                    { type: 'excel', icon: <FileSpreadsheet className="w-4 h-4 text-emerald-600" />, label: 'Excel (.xlsx)', ext: 'xlsx', fn: () => misApi.exportExcel(branch, date) },
+                                    { type: 'pdf',   icon: <FileText        className="w-4 h-4 text-red-600"     />, label: 'PDF Report',   ext: 'pdf',  fn: () => misApi.exportPdf(branch, date)   },
+                                    { type: 'csv',   icon: <Table2          className="w-4 h-4 text-amber-600"   />, label: 'CSV (Flat)',   ext: 'csv',  fn: () => misApi.exportCsv(branch, date)   },
+                                ].map(({ type, icon, label, ext, fn }) => (
+                                    <button
+                                        key={type}
+                                        onClick={() => handleExport(type, fn, ext)}
+                                        disabled={!!exporting}
+                                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-500 text-slate-700 hover:bg-slate-50 w-full border-0 bg-transparent cursor-pointer text-left disabled:opacity-60 transition-colors"
+                                    >
+                                        {exporting === type ? <RefreshCw className="w-4 h-4 animate-spin text-slate-400" /> : icon}
+                                        {exporting === type ? 'Downloading…' : label}
+                                    </button>
+                                ))}
+
+                                <div className="border-t border-slate-100 mt-1 pt-1 px-4 pb-1">
+                                    <p className="text-[10px] font-700 uppercase tracking-wider text-slate-400 mb-1">BRM Report</p>
+                                </div>
+
+                                {!showBrmPicker ? (
+                                    <>
+                                        <button onClick={() => openBrmPicker('week')} disabled={!!exporting}
+                                            className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-500 text-slate-700 hover:bg-sky-50 w-full border-0 bg-transparent cursor-pointer text-left disabled:opacity-60">
+                                            <BarChart3 className="w-4 h-4 text-sky-600" /> This Week
+                                        </button>
+                                        <button onClick={() => openBrmPicker('month')} disabled={!!exporting}
+                                            className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-500 text-slate-700 hover:bg-sky-50 w-full border-0 bg-transparent cursor-pointer text-left disabled:opacity-60">
+                                            <BarChart3 className="w-4 h-4 text-sky-600" /> This Month
+                                        </button>
+                                        <button onClick={() => { setBrmFrom(date); setBrmTo(date); setShowBrmPicker(true); }} disabled={!!exporting}
+                                            className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-500 text-slate-700 hover:bg-sky-50 w-full border-0 bg-transparent cursor-pointer text-left disabled:opacity-60">
+                                            <BarChart3 className="w-4 h-4 text-slate-400" /> Custom Range
+                                        </button>
+                                    </>
+                                ) : (
+                                    <div className="px-4 pb-3 space-y-2">
+                                        {[
+                                            { label: 'From', val: brmFrom, set: setBrmFrom, min: undefined, max: todayStr },
+                                            { label: 'To',   val: brmTo,   set: setBrmTo,   min: brmFrom,   max: todayStr },
+                                        ].map(({ label, val, set, min, max }) => (
+                                            <div key={label} className="flex flex-col gap-1">
+                                                <label className="text-[10px] font-700 text-slate-500 uppercase tracking-wide">{label}</label>
+                                                <input type="date" value={val} min={min} max={max}
+                                                    onChange={e => set(e.target.value)}
+                                                    className="border border-slate-200 rounded-md px-2 py-1 text-[12px] text-slate-800 outline-none focus:border-sky-500" />
+                                            </div>
+                                        ))}
+                                        <div className="flex gap-2 pt-1">
+                                            <button onClick={() => setShowBrmPicker(false)}
+                                                className="flex-1 py-1.5 text-[12px] font-600 text-slate-500 border border-slate-200 rounded-md hover:bg-slate-50 cursor-pointer bg-white">
+                                                Back
+                                            </button>
+                                            <button onClick={() => handleBrmDownload(brmFrom, brmTo)}
+                                                disabled={!brmFrom || !brmTo || !!exporting}
+                                                className="flex-1 py-1.5 text-[12px] font-700 text-white bg-sky-600 hover:bg-sky-700 rounded-md disabled:opacity-60 cursor-pointer border-0 flex items-center justify-center gap-1">
+                                                {exporting === 'brm' ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
+                                                {exporting === 'brm' ? 'Downloading…' : 'Download'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="border-t border-slate-100" />
+                                <button onClick={onPrint}
+                                    className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-500 text-slate-700 hover:bg-slate-50 w-full border-0 bg-transparent cursor-pointer text-left transition-colors">
+                                    <Printer className="w-4 h-4 text-violet-600" /> Print Preview
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

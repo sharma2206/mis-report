@@ -1,11 +1,12 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Upload, CheckCircle2, XCircle, AlertTriangle, Clock,
     FileText, ChevronDown, ChevronUp, Info, Calendar,
     Building2, Trash2, RefreshCw, Package, Hospital,
-    Stethoscope, CreditCard, BarChart3, Send, CheckCheck,
+    Stethoscope, CreditCard, BarChart3, CheckCheck,
+    ScanLine, ToggleLeft, ToggleRight, ArrowRight,
 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { selectToken } from '../store/authSlice';
@@ -16,7 +17,7 @@ import { today } from '../utils/dateHelpers';
 import { BRANCHES } from '../constants';
 import { cn } from '../utils/cn';
 
-// ─── Field name mapping: detected type key → Laravel FormData field name ──────
+// ─── Field mappings ───────────────────────────────────────────────────────────
 const FILE_FIELD_MAP = {
     bill_items: 'bill_file',
     cashier:    'cashier_file',
@@ -26,13 +27,109 @@ const FILE_FIELD_MAP = {
     package:    'package_file',
 };
 
-// Which fields are required per branch (must be uploaded before import)
 const REQUIRED_FIELDS = {
     chromepet: ['bill_file', 'cashier_file', 'package_file'],
     oragadam:  ['bill_file', 'cashier_file'],
 };
 
-// ─── File type auto-detector ──────────────────────────────────────────────────
+// ─── Date column patterns to scan in CSV headers ──────────────────────────────
+const DATE_COL_PATTERNS = [
+    /^bill\s*date/i,
+    /^bill\s*date\s*time/i,
+    /^admission\s*date/i,
+    /^discharge\s*date/i,
+    /^visit\s*date/i,
+    /^surgery\s*date/i,
+    /^collection\s*date/i,
+    /^procedure\s*date/i,
+    /^transaction\s*date/i,
+    /^created\s*at/i,
+    /\bdate\b/i,      // fallback: any column containing "date"
+];
+
+// KareXpert CSV date format: "05/07/2026, 11:48 pm" or "05/07/2026"
+function parseKareDate(raw) {
+    if (!raw) return null;
+    const s = raw.trim().replace(/"/g, '');
+    // "dd/mm/yyyy, hh:mm am/pm"
+    const m1 = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (m1) {
+        const [, d, mo, y] = m1;
+        const ts = Date.UTC(+y, +mo - 1, +d);
+        return isNaN(ts) ? null : ts;
+    }
+    // "yyyy-mm-dd"
+    const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m2) {
+        const [, y, mo, d] = m2;
+        const ts = Date.UTC(+y, +mo - 1, +d);
+        return isNaN(ts) ? null : ts;
+    }
+    return null;
+}
+
+function fmtDMY(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+}
+
+function tsToYMD(ts) {
+    const d = new Date(ts);
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+// Read first N rows of a File object as text, parse headers + dates
+function scanCsvFile(file, maxRows = 200) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const text  = e.target.result;
+                const lines = text.split(/\r?\n/).filter(l => l.trim());
+                if (lines.length < 2) return resolve({ min: null, max: null, col: null });
+
+                const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+                // Find first matching date column index
+                let colIdx = -1;
+                let colName = null;
+                for (const pat of DATE_COL_PATTERNS) {
+                    colIdx = headers.findIndex(h => pat.test(h));
+                    if (colIdx !== -1) { colName = headers[colIdx]; break; }
+                }
+                if (colIdx === -1) return resolve({ min: null, max: null, col: null });
+
+                let minTs = Infinity, maxTs = -Infinity;
+                const limit = Math.min(lines.length, maxRows + 1);
+                for (let i = 1; i < limit; i++) {
+                    // Simple CSV split (handles quoted commas imperfectly but fine for date columns)
+                    const cells = lines[i].split(',');
+                    const raw   = cells[colIdx];
+                    const ts    = parseKareDate(raw);
+                    if (ts !== null) {
+                        if (ts < minTs) minTs = ts;
+                        if (ts > maxTs) maxTs = ts;
+                    }
+                }
+                resolve({
+                    min: minTs === Infinity  ? null : minTs,
+                    max: maxTs === -Infinity ? null : maxTs,
+                    col: colName,
+                });
+            } catch {
+                resolve({ min: null, max: null, col: null });
+            }
+        };
+        reader.onerror = () => resolve({ min: null, max: null, col: null });
+        // Only read first ~100 KB to keep scanning fast
+        reader.readAsText(file.slice(0, 1024 * 100));
+    });
+}
+
+// ─── File type detector ───────────────────────────────────────────────────────
 const DETECT_RULES = [
     { pattern: /bill_item|bill_wise/i,         typeKey: 'bill_items', label: 'Bill Items',          icon: BarChart3,   color: 'blue'   },
     { pattern: /cashier|collection_detail/i,   typeKey: 'cashier',    label: 'Cashier Collection',  icon: CreditCard,  color: 'green'  },
@@ -53,9 +150,7 @@ const COLOR_CLASSES = {
 };
 
 function detectFile(filename) {
-    for (const rule of DETECT_RULES) {
-        if (rule.pattern.test(filename)) return rule;
-    }
+    for (const r of DETECT_RULES) { if (r.pattern.test(filename)) return r; }
     return { typeKey: 'unknown', label: 'Unknown CSV', icon: FileText, color: 'slate' };
 }
 
@@ -88,37 +183,33 @@ const StatusChip = ({ status }) => {
 // ─── File card ────────────────────────────────────────────────────────────────
 const FileCard = ({ item, onRemove }) => {
     const [open, setOpen] = useState(false);
-    const info   = detectFile(item.name);
-    const c      = COLOR_CLASSES[info.color];
-    const Icon   = info.icon;
+    const info = detectFile(item.name);
+    const c    = COLOR_CLASSES[info.color];
+    const Icon = info.icon;
     const hasIssues = item.issues?.length > 0;
 
     return (
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
             className={`border rounded-xl bg-white overflow-hidden ${item.status === 'error' ? 'border-red-200' : item.status === 'done' ? 'border-green-200' : c.border}`}>
             <div className="flex items-center gap-3 px-4 py-3">
-                {/* Icon */}
                 <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${c.iconBg}`}>
                     <Icon className={`w-4.5 h-4.5 ${c.text}`} />
                 </div>
-
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                     <div className="text-[12px] font-600 text-slate-800 truncate">{item.name}</div>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className={`text-[10px] font-600 ${c.text}`}>{info.label}</span>
                         <span className="text-[10px] text-slate-300">·</span>
                         <span className="text-[10px] text-slate-400">{fmtSize(item.size)}</span>
+                        {item.detectedCol && (
+                            <><span className="text-[10px] text-slate-300">·</span>
+                            <span className="text-[10px] text-slate-400">📅 {item.detectedCol}</span></>
+                        )}
                         {item.rowCount != null && (
                             <><span className="text-[10px] text-slate-300">·</span>
                             <span className="text-[10px] text-green-600 font-600">{item.rowCount.toLocaleString()} rows</span></>
                         )}
-                        {item.fieldName && (
-                            <><span className="text-[10px] text-slate-300">·</span>
-                            <span className="text-[10px] text-slate-400 font-mono">{item.fieldName}</span></>
-                        )}
                     </div>
-                    {/* Progress bar */}
                     {item.progress != null && (
                         <div className="mt-1.5 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                             <motion.div
@@ -130,8 +221,6 @@ const FileCard = ({ item, onRemove }) => {
                         </div>
                     )}
                 </div>
-
-                {/* Actions */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                     <StatusChip status={item.status} />
                     {hasIssues && (
@@ -148,8 +237,6 @@ const FileCard = ({ item, onRemove }) => {
                     )}
                 </div>
             </div>
-
-            {/* Issue list */}
             <AnimatePresence>
                 {open && hasIssues && (
                     <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
@@ -173,14 +260,10 @@ const FileCard = ({ item, onRemove }) => {
 // ─── Drop zone ────────────────────────────────────────────────────────────────
 const DropZone = ({ onFiles, isDragging, setIsDragging }) => {
     const ref = useRef(null);
-
     const handle = (rawFiles) => {
-        const csvs = Array.from(rawFiles).filter(f =>
-            f.name.toLowerCase().endsWith('.csv') || f.type === 'text/csv'
-        );
+        const csvs = Array.from(rawFiles).filter(f => f.name.toLowerCase().endsWith('.csv') || f.type === 'text/csv');
         if (csvs.length) onFiles(csvs);
     };
-
     return (
         <div
             onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
@@ -211,15 +294,200 @@ const DropZone = ({ onFiles, isDragging, setIsDragging }) => {
     );
 };
 
+// ─── Intelligent Report Period Selector ───────────────────────────────────────
+const ReportPeriodSelector = ({ period, mode, onModeChange, manualFrom, manualTo, onManualFrom, onManualTo, onForceManual }) => {
+    const isAuto   = mode === 'auto';
+    const scanning = period.status === 'scanning';
+
+    return (
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            {/* Header */}
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <ScanLine className="w-4 h-4 text-slate-400" />
+                    <span className="text-[12px] font-700 text-slate-700">Report Period</span>
+                </div>
+                {/* Toggle */}
+                <button
+                    onClick={() => onModeChange(isAuto ? 'manual' : 'auto')}
+                    className="flex items-center gap-1.5 text-[11px] font-600 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
+                >
+                    {isAuto
+                        ? <><ToggleLeft className="w-4 h-4" /> Auto Detect</>
+                        : <><ToggleRight className="w-4 h-4 text-blue-600" /> Manual Range</>
+                    }
+                </button>
+            </div>
+
+            <div className="p-4">
+                {/* ── Auto mode ── */}
+                <AnimatePresence mode="wait">
+                {isAuto && (
+                    <motion.div key="auto" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                        {/* Idle — no files yet */}
+                        {period.status === 'idle' && (
+                            <div className="flex items-center gap-3 py-1">
+                                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                                    <Calendar className="w-4 h-4 text-slate-400" />
+                                </div>
+                                <div>
+                                    <div className="text-[12px] font-600 text-slate-500">Auto Detect</div>
+                                    <div className="text-[11px] text-slate-400">Upload CSV files to detect the report period</div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Scanning */}
+                        {period.status === 'scanning' && (
+                            <div className="flex items-center gap-3 py-1">
+                                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                    <RefreshCw className="w-4 h-4 text-blue-600 animate-spin" />
+                                </div>
+                                <div>
+                                    <div className="text-[12px] font-600 text-blue-700">Scanning date columns…</div>
+                                    <div className="text-[11px] text-slate-400">Reading {period.scanCount || 0} file{period.scanCount !== 1 ? 's' : ''}</div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Single date detected */}
+                        {period.status === 'single' && (
+                            <div className="flex items-center gap-3 py-1">
+                                <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                                    <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="text-[10px] font-700 uppercase tracking-wider text-slate-400 mb-0.5">Detected Report Date</div>
+                                    <div className="text-[14px] font-700 text-slate-800">{fmtDMY(period.min)}</div>
+                                    <div className="text-[10px] text-slate-400 mt-0.5">From {period.sources?.join(', ')}</div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Range detected */}
+                        {period.status === 'range' && (
+                            <div>
+                                <div className="flex items-center gap-3 py-1">
+                                    <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                        <Calendar className="w-4 h-4 text-blue-600" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="text-[10px] font-700 uppercase tracking-wider text-slate-400 mb-0.5">Detected Report Period</div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[13px] font-700 text-slate-800">{fmtDMY(period.min)}</span>
+                                            <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                                            <span className="text-[13px] font-700 text-slate-800">{fmtDMY(period.max)}</span>
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">Across {period.sources?.length} file{period.sources?.length !== 1 ? 's' : ''}</div>
+                                    </div>
+                                </div>
+                                {/* Multi-day warning */}
+                                <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 flex items-start gap-2">
+                                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 mt-0.5 flex-shrink-0" />
+                                    <div className="flex-1">
+                                        <div className="text-[11px] font-700 text-amber-800">Files span multiple days</div>
+                                        <div className="text-[10px] text-amber-700 mt-0.5">Verify this is expected, or switch to Manual Range to set a specific period.</div>
+                                    </div>
+                                    <button onClick={onForceManual}
+                                        className="text-[10px] font-700 text-amber-700 hover:text-amber-900 whitespace-nowrap cursor-pointer">
+                                        Set Manually
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Inconsistent */}
+                        {period.status === 'inconsistent' && (
+                            <div>
+                                <div className="flex items-center gap-3 py-1">
+                                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                        <AlertTriangle className="w-4 h-4 text-amber-600" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="text-[12px] font-700 text-amber-800">Inconsistent date ranges across files</div>
+                                        <div className="text-[11px] text-slate-500 mt-0.5">
+                                            Overall: {fmtDMY(period.min)} → {fmtDMY(period.max)}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="mt-3 grid grid-cols-2 gap-1.5">
+                                    <button
+                                        className="px-3 py-1.5 rounded-lg border border-slate-200 text-[11px] font-600 text-slate-600 hover:border-slate-300 bg-white cursor-pointer"
+                                        onClick={() => {/* continue with detected range */}}>
+                                        Continue Anyway
+                                    </button>
+                                    <button
+                                        className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-[11px] font-700 hover:bg-amber-700 cursor-pointer"
+                                        onClick={onForceManual}>
+                                        Set Manually
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* No date columns found */}
+                        {period.status === 'no_dates' && (
+                            <div className="flex items-center gap-3 py-1">
+                                <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0">
+                                    <XCircle className="w-4 h-4 text-red-600" />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="text-[12px] font-700 text-red-700">No date columns found</div>
+                                    <div className="text-[11px] text-slate-500 mt-0.5">Please select the report period manually.</div>
+                                </div>
+                            </div>
+                        )}
+                    </motion.div>
+                )}
+
+                {/* ── Manual mode ── */}
+                {!isAuto && (
+                    <motion.div key="manual" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="space-y-3">
+                        <div>
+                            <label className="block text-[10px] font-700 uppercase tracking-wider text-slate-500 mb-1.5">From Date</label>
+                            <div className="relative">
+                                <input type="date" value={manualFrom} max={manualTo || today()}
+                                    onChange={e => onManualFrom(e.target.value)}
+                                    className="w-full pl-3 pr-9 py-2 text-[12px] border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 appearance-none bg-white" />
+                                <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-700 uppercase tracking-wider text-slate-500 mb-1.5">To Date</label>
+                            <div className="relative">
+                                <input type="date" value={manualTo} min={manualFrom} max={today()}
+                                    onChange={e => onManualTo(e.target.value)}
+                                    className="w-full pl-3 pr-9 py-2 text-[12px] border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 appearance-none bg-white" />
+                                <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            </div>
+                        </div>
+                        {manualFrom && manualTo && (
+                            <div className="flex items-center gap-2 text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                                <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                                {manualFrom === manualTo
+                                    ? `Report Date: ${fmtDMY(new Date(manualTo).getTime() + 86400000 * 0)}`
+                                    : `Period: ${fmtDMY(parseKareDate(manualFrom))} → ${fmtDMY(parseKareDate(manualTo))}`
+                                }
+                            </div>
+                        )}
+                    </motion.div>
+                )}
+                </AnimatePresence>
+            </div>
+        </div>
+    );
+};
+
 // ─── Validation panel ─────────────────────────────────────────────────────────
 const ValidationPanel = ({ items, branch }) => {
-    const required      = REQUIRED_FIELDS[branch] || [];
-    const mappedFields  = items.map(f => FILE_FIELD_MAP[detectFile(f.name).typeKey]).filter(Boolean);
-    const missing       = required.filter(r => !mappedFields.includes(r));
-    const allErrors     = items.flatMap(f => (f.issues || []).map(i => ({ ...i, file: f.name })));
-    const errors        = allErrors.filter(i => i.type === 'error');
-    const warnings      = allErrors.filter(i => i.type === 'warning');
-    const readyCount    = items.filter(f => ['ready', 'done'].includes(f.status)).length;
+    const required     = REQUIRED_FIELDS[branch] || [];
+    const mappedFields = items.map(f => FILE_FIELD_MAP[detectFile(f.name).typeKey]).filter(Boolean);
+    const missing      = required.filter(r => !mappedFields.includes(r));
+    const allErrors    = items.flatMap(f => (f.issues || []).map(i => ({ ...i, file: f.name })));
+    const errors       = allErrors.filter(i => i.type === 'error');
+    const warnings     = allErrors.filter(i => i.type === 'warning');
+    const readyCount   = items.filter(f => ['ready', 'done'].includes(f.status)).length;
 
     const FIELD_LABELS = {
         bill_file:    'Bill Item Report',
@@ -234,13 +502,12 @@ const ValidationPanel = ({ items, branch }) => {
                 <span className="text-[12px] font-700 text-slate-700">Validation</span>
             </div>
             <div className="p-4 space-y-3">
-                {/* Stats grid */}
                 <div className="grid grid-cols-2 gap-2">
                     {[
                         { label: 'Files Queued', value: items.length,  color: 'text-slate-700' },
                         { label: 'Ready',        value: readyCount,    color: 'text-green-700' },
                         { label: 'Errors',       value: errors.length, color: 'text-red-600'   },
-                        { label: 'Warnings',     value: warnings.length,color: 'text-amber-600'},
+                        { label: 'Warnings',     value: warnings.length,color:'text-amber-600' },
                     ].map(({ label, value, color }) => (
                         <div key={label} className="bg-slate-50 rounded-lg p-2.5 text-center">
                             <div className="text-[9px] font-700 text-slate-400 uppercase tracking-wider">{label}</div>
@@ -249,7 +516,6 @@ const ValidationPanel = ({ items, branch }) => {
                     ))}
                 </div>
 
-                {/* Missing required files */}
                 {missing.length > 0 && (
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1.5">
                         <div className="text-[10px] font-700 text-amber-700 uppercase tracking-wider mb-1">Required files missing</div>
@@ -262,7 +528,6 @@ const ValidationPanel = ({ items, branch }) => {
                     </div>
                 )}
 
-                {/* All good */}
                 {missing.length === 0 && items.length > 0 && errors.length === 0 && (
                     <div className="flex items-center gap-2 text-[11px] text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                         <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
@@ -270,7 +535,6 @@ const ValidationPanel = ({ items, branch }) => {
                     </div>
                 )}
 
-                {/* Errors */}
                 {errors.length > 0 && (
                     <div className="space-y-1.5">
                         {errors.slice(0, 5).map((e, i) => (
@@ -280,7 +544,7 @@ const ValidationPanel = ({ items, branch }) => {
                             </div>
                         ))}
                         {errors.length > 5 && (
-                            <div className="text-[10px] text-red-500 text-center">{errors.length - 5} more errors — click a file card to expand</div>
+                            <div className="text-[10px] text-red-500 text-center">{errors.length - 5} more errors</div>
                         )}
                     </div>
                 )}
@@ -289,7 +553,7 @@ const ValidationPanel = ({ items, branch }) => {
     );
 };
 
-// ─── Import history (static mock — replace with real API call) ─────────────────
+// ─── Import history ───────────────────────────────────────────────────────────
 const HISTORY = [
     { name: 'formatted_bill_item_wise_detail.csv',  date: 'Today 09:30',  branch: 'Chromepet', rows: 12847, errors: 0 },
     { name: 'formatted_er_admission_report.csv',    date: 'Today 09:30',  branch: 'Chromepet', rows: 432,   errors: 0 },
@@ -319,7 +583,7 @@ const HistoryRow = ({ item }) => {
     );
 };
 
-// ─── Volume fields (optional, default 0) ─────────────────────────────────────
+// ─── Volume fields ────────────────────────────────────────────────────────────
 const VolumeFields = ({ values, onChange }) => (
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
@@ -349,6 +613,14 @@ const VolumeFields = ({ values, onChange }) => (
 // ─── Main page ────────────────────────────────────────────────────────────────
 let _id = 0;
 
+// Derive the single API date from period state
+function getApiDate(mode, period, manualTo) {
+    if (mode === 'manual') return manualTo || today();
+    if (period.max) return tsToYMD(period.max);
+    if (period.min) return tsToYMD(period.min);
+    return today();
+}
+
 export default function ImportCenter() {
     const token  = useSelector(selectToken);
     const branch = useSelector(selBranch);
@@ -356,169 +628,182 @@ export default function ImportCenter() {
 
     const [items,       setItems]       = useState([]);
     const [isDragging,  setIsDragging]  = useState(false);
-    const [importDate,  setImportDate]  = useState(today());
     const [isImporting, setIsImporting] = useState(false);
-    const [result,      setResult]      = useState(null);   // { imported, errors, message, breakdown }
-    const [volume, setVolume] = useState({ occupancy: '', admission: '', discharge: '', er_count: '' });
+    const [result,      setResult]      = useState(null);
+    const [volume,      setVolume]      = useState({ occupancy: '', admission: '', discharge: '', er_count: '' });
+
+    // Period detection state
+    const [periodMode,  setPeriodMode]  = useState('auto');   // 'auto' | 'manual'
+    const [period,      setPeriod]      = useState({ status: 'idle', min: null, max: null, sources: [], scanCount: 0 });
+    const [manualFrom,  setManualFrom]  = useState('');
+    const [manualTo,    setManualTo]    = useState(today());
 
     if (!token) return <Navigate to="/login" replace />;
 
-    // ── Derive validation state ─────────────────────────────────────────────
     const required     = REQUIRED_FIELDS[branch] || [];
     const mappedFields = items.map(f => FILE_FIELD_MAP[detectFile(f.name).typeKey]).filter(Boolean);
     const missing      = required.filter(r => !mappedFields.includes(r));
     const hasErrors    = items.some(f => f.status === 'error');
-    const canImport    = items.length > 0 && !isImporting && missing.length === 0 && !hasErrors;
+    const periodReady  = periodMode === 'manual' ? !!(manualTo) : ['single', 'range', 'inconsistent'].includes(period.status);
+    const canImport    = items.length > 0 && !isImporting && missing.length === 0 && !hasErrors && periodReady;
 
-    // ── Add files ──────────────────────────────────────────────────────────
+    // ── Scan uploaded files for date columns ────────────────────────────────
+    const scanFiles = async (files) => {
+        setPeriod({ status: 'scanning', min: null, max: null, sources: [], scanCount: files.length });
+
+        const results = await Promise.all(files.map(item => scanCsvFile(item.file)));
+
+        // Collect per-file results, update cards with detected column name
+        let globalMin = Infinity, globalMax = -Infinity;
+        const sources = [];
+        let filesWithDates = 0;
+        const perFile = {};
+
+        results.forEach((res, i) => {
+            const item = files[i];
+            const info = detectFile(item.name);
+            if (res.min !== null) {
+                filesWithDates++;
+                if (res.min < globalMin) globalMin = res.min;
+                if (res.max > globalMax) globalMax = res.max;
+                sources.push(info.label);
+                perFile[item.id] = res.col;
+            }
+        });
+
+        // Update file cards with detected column
+        setItems(prev => prev.map(item => {
+            const col = perFile[item.id];
+            return col ? { ...item, detectedCol: col } : item;
+        }));
+
+        if (filesWithDates === 0) {
+            setPeriod({ status: 'no_dates', min: null, max: null, sources: [] });
+            setPeriodMode('manual');
+            return;
+        }
+
+        const isSingle = tsToYMD(globalMin) === tsToYMD(globalMax);
+        // Check inconsistency: per-file ranges differ significantly
+        const fileMins = results.filter(r => r.min).map(r => tsToYMD(r.min));
+        const fileMaxs = results.filter(r => r.max).map(r => tsToYMD(r.max));
+        const uniqueMins = new Set(fileMins).size;
+        const uniqueMaxs = new Set(fileMaxs).size;
+        const isInconsistent = (uniqueMins > 1 || uniqueMaxs > 1) && !isSingle;
+
+        setPeriod({
+            status:  isInconsistent ? 'inconsistent' : isSingle ? 'single' : 'range',
+            min:     globalMin === Infinity  ? null : globalMin,
+            max:     globalMax === -Infinity ? null : globalMax,
+            sources,
+        });
+
+        // Pre-fill manual fields in case user switches
+        if (globalMin !== Infinity)  setManualFrom(tsToYMD(globalMin));
+        if (globalMax !== -Infinity) setManualTo(tsToYMD(globalMax));
+    };
+
+    // ── Add files ───────────────────────────────────────────────────────────
     const addFiles = (rawFiles) => {
         const next = rawFiles.map(f => {
             const info      = detectFile(f.name);
             const fieldName = FILE_FIELD_MAP[info.typeKey];
-            // Deduplicate: replace existing card with same field name
             return { id: ++_id, file: f, name: f.name, size: f.size, status: 'ready', progress: null, issues: [], fieldName: fieldName || null };
         });
 
         setItems(prev => {
-            // Replace any existing card for the same field name
             const updatedIds = new Set(next.map(n => n.fieldName).filter(Boolean));
             const filtered   = prev.filter(p => !updatedIds.has(p.fieldName));
-            return [...filtered, ...next];
+            const merged     = [...filtered, ...next];
+            // Trigger scan on ALL current files including new ones
+            scanFiles(merged.filter(f => f.file));
+            return merged;
         });
         setResult(null);
     };
 
-    const removeItem = (id) => setItems(prev => prev.filter(f => f.id !== id));
+    const removeItem = (id) => {
+        setItems(prev => {
+            const next = prev.filter(f => f.id !== id);
+            if (next.length > 0) scanFiles(next.filter(f => f.file));
+            else setPeriod({ status: 'idle', min: null, max: null, sources: [] });
+            return next;
+        });
+    };
 
-    // ── Import handler ─────────────────────────────────────────────────────
+    // ── Import handler ──────────────────────────────────────────────────────
     const handleImport = async () => {
         if (!canImport) return;
         setIsImporting(true);
         setResult(null);
 
-        // Mark all as importing
+        const importDate = getApiDate(periodMode, period, manualTo);
         setItems(prev => prev.map(f => ({ ...f, status: 'importing', progress: 30 })));
 
         try {
-            // ── Build ONE FormData with correct named fields ────────────────
             const fd = new FormData();
-            fd.append('date', importDate);
+            fd.append('date',      importDate);
+            fd.append('occupancy', volume.occupancy  || '0');
+            fd.append('admission', volume.admission  || '0');
+            fd.append('discharge', volume.discharge  || '0');
+            fd.append('er_count',  volume.er_count   || '0');
 
-            // Volume fields (default 0 if blank)
-            fd.append('occupancy',  volume.occupancy  || '0');
-            fd.append('admission',  volume.admission  || '0');
-            fd.append('discharge',  volume.discharge  || '0');
-            fd.append('er_count',   volume.er_count   || '0');
-
-            // Attach each file under its correct Laravel field name
             for (const item of items) {
-                const info      = detectFile(item.name);
-                const fieldName = FILE_FIELD_MAP[info.typeKey];
-                if (fieldName) {
-                    fd.append(fieldName, item.file);
-                }
+                const fieldName = FILE_FIELD_MAP[detectFile(item.name).typeKey];
+                if (fieldName) fd.append(fieldName, item.file);
             }
 
-            // Update progress to 60%
             setItems(prev => prev.map(f => ({ ...f, progress: 60 })));
-
             const { data } = await misApi.upload(branch, fd);
 
-            if (!data.success) {
-                throw new Error(data.message || 'Import failed');
-            }
+            if (!data.success) throw new Error(data.message || 'Import failed');
 
-            // ── Parse per-file row counts from response ─────────────────────
-            // data.imported looks like: { bill_items: { count: 1234 }, cashier: { count: 567 }, ... }
             const imported    = data.imported || {};
-            let totalImported = 0;
-            let totalSkipped  = 0;
-            let totalErrors   = 0;
-
-            // Build a fieldName → result map
+            let totalImported = 0, totalSkipped = 0, totalErrors = 0;
+            const KEY_TO_FIELD = { bill_items: 'bill_file', cashier: 'cashier_file', er: 'er_file', ip: 'ip_file', surgery: 'surgery_file', package: 'package_file' };
             const fieldResults = {};
-            const KEY_TO_FIELD = {
-                bill_items:  'bill_file',
-                cashier:     'cashier_file',
-                er:          'er_file',
-                ip:          'ip_file',
-                surgery:     'surgery_file',
-                package:     'package_file',
-            };
             Object.entries(imported).forEach(([key, val]) => {
                 const count   = typeof val === 'object' ? (val.count ?? val.imported ?? 0) : (Number(val) || 0);
                 const skipped = typeof val === 'object' ? (val.skipped ?? 0) : 0;
                 const errs    = typeof val === 'object' ? (val.errors ?? 0) : 0;
-                totalImported += count;
-                totalSkipped  += skipped;
-                totalErrors   += errs;
-                const field = KEY_TO_FIELD[key] || key;
-                fieldResults[field] = { count, skipped, errs };
+                totalImported += count; totalSkipped += skipped; totalErrors += errs;
+                fieldResults[KEY_TO_FIELD[key] || key] = { count, skipped, errs };
             });
 
-            // Update each card to done + show row count
             setItems(prev => prev.map(item => {
-                const info      = detectFile(item.name);
-                const fieldName = FILE_FIELD_MAP[info.typeKey];
+                const fieldName = FILE_FIELD_MAP[detectFile(item.name).typeKey];
                 const res       = fieldResults[fieldName];
-                return {
-                    ...item,
-                    status:   'done',
-                    progress: 100,
-                    rowCount: res?.count ?? null,
-                    issues:   [],
-                };
+                return { ...item, status: 'done', progress: 100, rowCount: res?.count ?? null, issues: [] };
             }));
 
-            setResult({
-                success:  true,
-                imported: totalImported,
-                skipped:  totalSkipped,
-                errors:   totalErrors,
-                message:  data.message || 'Import complete',
-            });
+            setResult({ success: true, imported: totalImported, skipped: totalSkipped, errors: totalErrors, message: data.message || 'Import complete' });
 
         } catch (err) {
-            // ── Parse Laravel validation errors ────────────────────────────
-            const apiErrors = err.response?.data?.errors || {};
-            const topMsg    = err.response?.data?.message || err.message || 'Upload failed';
-
-            // Flatten all validation messages for display
-            const allMessages = Object.entries(apiErrors).flatMap(([field, msgs]) =>
-                msgs.map(m => ({ field, message: m }))
-            );
+            const apiErrors  = err.response?.data?.errors || {};
+            const topMsg     = err.response?.data?.message || err.message || 'Upload failed';
+            const allMessages = Object.entries(apiErrors).flatMap(([field, msgs]) => msgs.map(m => ({ field, message: m })));
 
             setItems(prev => prev.map(item => {
-                const info      = detectFile(item.name);
-                const fieldName = FILE_FIELD_MAP[info.typeKey];
-
-                // Field-specific messages first, then global
+                const fieldName = FILE_FIELD_MAP[detectFile(item.name).typeKey];
                 const fieldMsgs = apiErrors[fieldName] || [];
-                const issue     = fieldMsgs[0]
-                    || (allMessages.length > 0 ? allMessages[0].message : topMsg);
-
-                return {
-                    ...item,
-                    status:   'error',
-                    progress: 100,
-                    issues:   [{ type: 'error', message: issue }],
-                };
+                const issue     = fieldMsgs[0] || (allMessages.length > 0 ? allMessages[0].message : topMsg);
+                return { ...item, status: 'error', progress: 100, issues: [{ type: 'error', message: issue }] };
             }));
 
             setResult({
                 success: false,
                 errors:  items.length,
                 message: topMsg,
-                detail:  allMessages.length > 0
-                    ? allMessages.map(m => `${m.field}: ${m.message}`).join(' · ')
-                    : null,
+                detail:  allMessages.length > 0 ? allMessages.map(m => `${m.field}: ${m.message}`).join(' · ') : null,
             });
         } finally {
             setIsImporting(false);
         }
     };
 
-    // ── Topbar ─────────────────────────────────────────────────────────────
+    const importDateLabel = getApiDate(periodMode, period, manualTo);
+
+    // ── Topbar ──────────────────────────────────────────────────────────────
     const topbar = (
         <div className="bg-white border-b border-slate-200 px-5 py-3 flex flex-wrap items-center gap-4">
             <div>
@@ -526,7 +811,7 @@ export default function ImportCenter() {
                 <p className="text-[11px] text-slate-400">Upload KareXpert CSVs — all files in one batch</p>
             </div>
             <div className="ml-auto flex flex-wrap items-center gap-3">
-                {/* Branch */}
+                {/* Branch pills */}
                 <div className="flex gap-1.5">
                     {Object.entries(BRANCHES).map(([key, { label }]) => (
                         <button key={key} onClick={() => dispatch(setBranch(key))}
@@ -541,14 +826,22 @@ export default function ImportCenter() {
                     ))}
                 </div>
 
-                {/* Date */}
-                <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-slate-400" />
-                    <span className="text-[11px] font-600 text-slate-500">To Date</span>
-                    <input type="date" value={importDate} max={today()}
-                        onChange={e => setImportDate(e.target.value)}
-                        className="text-[12px] border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 focus:outline-none focus:border-blue-400" />
-                </div>
+                {/* Period summary chip */}
+                {periodReady && (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
+                        <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                        <span className="text-[11px] font-600 text-blue-700">
+                            {period.status === 'single'
+                                ? fmtDMY(period.min)
+                                : period.status === 'range' || period.status === 'inconsistent'
+                                    ? `${fmtDMY(period.min)} → ${fmtDMY(period.max)}`
+                                    : periodMode === 'manual' && manualTo
+                                        ? manualFrom && manualFrom !== manualTo ? `${fmtDMY(parseKareDate(manualFrom))} → ${fmtDMY(parseKareDate(manualTo))}` : fmtDMY(parseKareDate(manualTo))
+                                        : ''
+                            }
+                        </span>
+                    </div>
+                )}
 
                 {/* Import button */}
                 <button onClick={handleImport} disabled={!canImport}
@@ -572,17 +865,16 @@ export default function ImportCenter() {
         <AppLayout topbar={topbar}>
             <main className="flex-1 p-5 grid grid-cols-1 xl:grid-cols-3 gap-5 min-w-0">
 
-                {/* ── Left: Drop zone + File cards ────────────────────────── */}
+                {/* ── Left: Drop zone + File cards ─────────────────────────── */}
                 <div className="xl:col-span-2 space-y-4">
                     <DropZone onFiles={addFiles} isDragging={isDragging} setIsDragging={setIsDragging} />
 
-                    {/* Detection legend (shown when empty) */}
                     {items.length === 0 && (
                         <div className="bg-white border border-slate-200 rounded-xl p-4">
                             <div className="text-[10px] font-700 uppercase tracking-wider text-slate-400 mb-3">Auto-detected file types</div>
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                 {DETECT_RULES.map(({ typeKey, label, icon: Icon, color }) => {
-                                    const c = COLOR_CLASSES[color];
+                                    const c    = COLOR_CLASSES[color];
                                     const isReq = REQUIRED_FIELDS[branch]?.includes(FILE_FIELD_MAP[typeKey]);
                                     return (
                                         <div key={typeKey} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border ${c.bg} ${c.border}`}>
@@ -600,7 +892,6 @@ export default function ImportCenter() {
                         </div>
                     )}
 
-                    {/* File cards */}
                     {items.length > 0 && (
                         <div>
                             <div className="flex items-center justify-between mb-3">
@@ -612,16 +903,14 @@ export default function ImportCenter() {
                                         </span>
                                     )}
                                 </span>
-                                <button onClick={() => { setItems([]); setResult(null); }}
+                                <button onClick={() => { setItems([]); setResult(null); setPeriod({ status: 'idle', min: null, max: null, sources: [] }); }}
                                     className="text-[11px] text-slate-400 hover:text-red-500 transition-colors flex items-center gap-1 cursor-pointer">
                                     <Trash2 className="w-3.5 h-3.5" /> Clear all
                                 </button>
                             </div>
                             <div className="space-y-2">
                                 <AnimatePresence>
-                                    {items.map(item => (
-                                        <FileCard key={item.id} item={item} onRemove={removeItem} />
-                                    ))}
+                                    {items.map(item => <FileCard key={item.id} item={item} onRemove={removeItem} />)}
                                 </AnimatePresence>
                             </div>
                         </div>
@@ -642,7 +931,7 @@ export default function ImportCenter() {
                                     <div className={`text-[12px] mt-0.5 ${result.success ? 'text-green-700' : 'text-red-700'}`}>
                                         {result.message}
                                         {result.success && result.imported > 0 && ` · ${result.imported.toLocaleString()} rows imported`}
-                                        {result.success && result.skipped  > 0 && ` · ${result.skipped} skipped (duplicates)`}
+                                        {result.success && result.skipped  > 0 && ` · ${result.skipped} skipped`}
                                         {result.success && result.errors   > 0 && ` · ${result.errors} errors`}
                                     </div>
                                     {result.detail && (
@@ -658,13 +947,27 @@ export default function ImportCenter() {
                     </AnimatePresence>
                 </div>
 
-                {/* ── Right: Validation + Volume + History ─────────────────── */}
+                {/* ── Right sidebar ─────────────────────────────────────────── */}
                 <div className="space-y-4">
+                    {/* 1. Intelligent Period Selector */}
+                    <ReportPeriodSelector
+                        period={period}
+                        mode={periodMode}
+                        onModeChange={setPeriodMode}
+                        manualFrom={manualFrom}
+                        manualTo={manualTo}
+                        onManualFrom={setManualFrom}
+                        onManualTo={setManualTo}
+                        onForceManual={() => setPeriodMode('manual')}
+                    />
+
+                    {/* 2. Validation */}
                     <ValidationPanel items={items} branch={branch} />
 
+                    {/* 3. Volume Data */}
                     <VolumeFields values={volume} onChange={(k, v) => setVolume(p => ({ ...p, [k]: v }))} />
 
-                    {/* Import History */}
+                    {/* 4. Import History */}
                     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
                         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                             <div className="flex items-center gap-2">
@@ -678,16 +981,16 @@ export default function ImportCenter() {
                         </div>
                     </div>
 
-                    {/* Tips */}
+                    {/* 5. Tips */}
                     <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
                         <div className="flex items-center gap-2 text-[12px] font-700 text-blue-800 mb-2">
                             <Info className="w-4 h-4" /> Import Tips
                         </div>
                         <ul className="text-[11px] text-blue-700 space-y-1.5">
                             <li>• <strong>Bill Items + Cashier</strong> are always required. Package is required for Chromepet.</li>
-                            <li>• All 6 files are uploaded in <strong>one batch</strong> — do not upload one at a time.</li>
+                            <li>• All files are uploaded in <strong>one batch</strong> — the period is auto-detected from CSV date columns.</li>
                             <li>• Duplicate bill numbers are automatically skipped, not rejected.</li>
-                            <li>• Date format in CSVs: <code className="bg-blue-100 px-1 rounded text-[10px]">dd/mm/yyyy, hh:mm am</code></li>
+                            <li>• Switch to <strong>Manual Range</strong> to override the detected period.</li>
                         </ul>
                     </div>
                 </div>

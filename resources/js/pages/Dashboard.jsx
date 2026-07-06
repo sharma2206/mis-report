@@ -7,7 +7,10 @@ import {
     XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { selectToken } from '../store/authSlice';
-import { selectBranch as selBranch, selectDate as selDate, selectActiveTab } from '../store/reportSlice';
+import {
+    selectBranch as selBranch, selectDate as selDate, selectActiveTab,
+    selectPeriodMode, selectPeriodFrom, selectPeriodTo,
+} from '../store/reportSlice';
 import { useDashboard } from '../hooks/useDashboard';
 import { AppLayout } from '../components/layout/AppLayout';
 import { Topbar } from '../components/layout/Topbar';
@@ -15,6 +18,10 @@ import { KPISkeleton, TableSkeleton, ChartSkeleton } from '../components/ui/Skel
 import { EmptyState } from '../components/ui/EmptyState';
 import { Badge } from '../components/ui/Badge';
 import { RankedList, PayerChips } from '../components/ui/RankedList';
+import { KPIStrip } from '../components/ui/KPIStrip';
+import { QuickActions } from '../components/ui/QuickActions';
+import { SmartAlerts } from '../components/ui/SmartAlerts';
+import { AdmissionsChart, DeptRevenueChart, PharmacyTrendChart, BedOccupancyChart } from '../components/ui/DashboardCharts';
 import { fmtL, fmtRupee, fmtPct, toLakhs, cfClass } from '../utils/formatters';
 import { CHART_PALETTE } from '../constants';
 import { misApi } from '../services/api';
@@ -390,45 +397,56 @@ import {
     Package, ShoppingBag, Scan, Activity,
 } from 'lucide-react';
 
-const OverviewTab = ({ mis, kpi, trend, payer, mix, isLoading }) => {
-    const ftdRev = mis?.revenue?.ftd || {};
-    const mtdRev = mis?.revenue?.mtd || {};
-    const ftdVol = mis?.volume?.ftd   || {};
-    const mtdVol = mis?.volume?.mtd   || {};
-
-    const kpis = [
-        { label: 'Total Revenue',   ftd: ftdRev.total   || ftdRev.op + ftdRev.ip + ftdRev.er + ftdRev.pharmacy + ftdRev.packages + ftdRev.mri,
-          mtd: mtdRev.total, icon: TrendingUp, color: 'blue' },
-        { label: 'OP Revenue',      ftd: ftdRev.op,      mtd: mtdRev.op,      icon: CreditCard,   color: 'green' },
-        { label: 'IP Revenue',      ftd: ftdRev.ip,      mtd: mtdRev.ip,      icon: BedDouble,    color: 'violet' },
-        { label: 'Pharmacy',        ftd: ftdRev.pharmacy, mtd: mtdRev.pharmacy, icon: ShoppingBag, color: 'amber' },
-        { label: 'Patients (FTD)',  ftd: ftdVol.op_count, mtd: mtdVol.op_count, icon: Users,       color: 'cyan', format: 'count' },
-        { label: 'Admissions',      ftd: ftdVol.admission, mtd: mtdVol.admission, icon: Activity,  color: 'red',  format: 'count' },
-    ];
+const OverviewTab = ({ mis, kpi, trend, payer, mix, collection, serviceRev, admissions, isLoading }) => {
+    const ftdVol = mis?.volume?.ftd || {};
 
     return (
         <div className="space-y-4">
-            {isLoading ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3"><KPISkeleton /><KPISkeleton /><KPISkeleton /><KPISkeleton /><KPISkeleton /><KPISkeleton /></div>
-            ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
-                    {kpis.map(k => <KPICard key={k.label} {...k} />)}
-                </div>
-            )}
+            {/* 15-card KPI Strip */}
+            <KPIStrip mis={mis} kpi={kpi} collection={collection} isLoading={isLoading} />
+
+            {/* Row 1: Revenue Trend + Payer Mix */}
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                 <div className="xl:col-span-2">
-                    <Section title="Daily Revenue Trend (MTD)">
+                    <Section title="Revenue Trend">
                         <TrendChart data={trend} isLoading={isLoading} />
                     </Section>
                 </div>
                 <div>
-                    <Section title="Payer Mix (MTD)">
+                    <Section title="Payer Mix">
                         <PayerChart data={payer} isLoading={isLoading} />
                     </Section>
                 </div>
             </div>
-            <Section title="Patient Volume Trend">
-                <PatientMixChart data={mix} isLoading={isLoading} />
+
+            {/* Row 2: Patient Trend + Admissions vs Discharges */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <Section title="Patient Trend">
+                    <PatientMixChart data={mix} isLoading={isLoading} />
+                </Section>
+                <Section title="Admissions vs Discharges">
+                    <AdmissionsChart data={admissions?.admissions || admissions?.list || admissions || []} isLoading={isLoading} />
+                </Section>
+            </div>
+
+            {/* Row 3: Dept Revenue + Quick Actions */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                <div className="xl:col-span-2">
+                    <Section title="Department Revenue">
+                        <DeptRevenueChart data={serviceRev} isLoading={isLoading} />
+                    </Section>
+                </div>
+                <div className="space-y-4">
+                    <QuickActions />
+                    <Section title="Bed Occupancy">
+                        <BedOccupancyChart data={[]} occupancyPct={ftdVol.occupancy_pct} isLoading={isLoading} />
+                    </Section>
+                </div>
+            </div>
+
+            {/* Row 4: Pharmacy Trend */}
+            <Section title="Pharmacy Revenue Trend">
+                <PharmacyTrendChart data={trend} isLoading={isLoading} />
             </Section>
         </div>
     );
@@ -720,18 +738,29 @@ const DoctorPerfTab = ({ data, isLoading }) => {
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function Dashboard() {
-    const token  = useSelector(selectToken);
-    const branch = useSelector(selBranch);
-    const date   = useSelector(selDate);
-    const tab    = useSelector(selectActiveTab);
+    const token      = useSelector(selectToken);
+    const branch     = useSelector(selBranch);
+    const date       = useSelector(selDate);
+    const tab        = useSelector(selectActiveTab);
+    const periodMode = useSelector(selectPeriodMode);
+    const periodFrom = useSelector(selectPeriodFrom);
+    const periodTo   = useSelector(selectPeriodTo);
 
     const [enabled, setEnabled] = useState(false);
-    const { mis, kpi, trend, payer, mix, ipDemo, surgery, op, collection, serviceRev, doctorPerf, isLoading, isError, refetch } =
-        useDashboard(enabled ? branch : null, enabled ? date : null);
+    const [rangeFrom, setRangeFrom] = useState(null);
+
+    const effectiveFrom = periodMode === 'custom' ? periodFrom : rangeFrom;
+
+    const { mis, kpi, trend, payer, mix, ipDemo, surgery, op, collection, serviceRev, doctorPerf, admissions, isLoading, isError, refetch } =
+        useDashboard(enabled ? branch : null, enabled ? date : null, enabled ? effectiveFrom : null);
 
     if (!token) return <Navigate to="/login" replace />;
 
-    const handleLoad = useCallback(() => { setEnabled(true); refetch(); }, [refetch]);
+    const handleLoad = useCallback((from, to) => {
+        if (from) setRangeFrom(from);
+        setEnabled(true);
+        refetch();
+    }, [refetch]);
 
     const handlePrint = () => {
         window.open(misApi.printPreview(branch, date), '_blank');
@@ -740,7 +769,8 @@ export default function Dashboard() {
     const tabContent = () => {
         switch (tab) {
             case 'overview':
-                return <OverviewTab mis={mis} kpi={kpi} trend={trend} payer={payer} mix={mix} isLoading={isLoading} />;
+                return <OverviewTab mis={mis} kpi={kpi} trend={trend} payer={payer} mix={mix}
+                    collection={collection} serviceRev={serviceRev} admissions={admissions} isLoading={isLoading} />;
             case 'revenue':
                 return (
                     <div className="space-y-4">
@@ -799,6 +829,7 @@ export default function Dashboard() {
             <Topbar onLoad={handleLoad} isLoading={isLoading} onPrint={handlePrint} />
         }>
             <main className="flex-1 overflow-y-auto p-4">
+                {enabled && !isLoading && <SmartAlerts mis={mis} kpi={kpi} />}
                 <AnimatePresence mode="wait">
                     {!enabled ? (
                         <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -808,7 +839,7 @@ export default function Dashboard() {
                                 title="Select a branch and date"
                                 description="Choose your branch and date above, then click Load Report to view the MIS dashboard."
                                 action={
-                                    <button onClick={handleLoad}
+                                    <button onClick={() => handleLoad()}
                                         className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-700 to-violet-600 text-white text-[14px] font-700 rounded-lg shadow-md hover:opacity-90 transition-all cursor-pointer border-0">
                                         Load Report
                                     </button>
@@ -822,7 +853,7 @@ export default function Dashboard() {
                                 title="Failed to load report"
                                 description="No data found for the selected branch and date. Try uploading data first."
                                 action={
-                                    <button onClick={handleLoad}
+                                    <button onClick={() => handleLoad()}
                                         className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 text-[13px] font-600 rounded-lg hover:bg-slate-200 transition-all cursor-pointer border border-slate-200">
                                         Retry
                                     </button>

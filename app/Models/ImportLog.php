@@ -3,13 +3,16 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ImportLog extends Model
 {
+    use SoftDeletes;
     protected $fillable = [
         'branch',
         'report_date',
         'uploaded_by',
+        'user_id',
         'files_uploaded',
         'rows_imported',
         'rows_skipped',
@@ -25,4 +28,9 @@ class ImportLog extends Model
         'report_date'    => 'date',
         'rolled_back_at' => 'datetime',
     ];
+
+    public function user(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class)->withDefault();
+    }
 }

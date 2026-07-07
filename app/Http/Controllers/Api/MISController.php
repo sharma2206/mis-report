@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\MISRequest;
+use App\Http\Resources\ImportLogResource;
 use App\Http\Requests\MISUploadRequest;
 use App\Services\CsvProcessingService;
 use App\Services\MISService;
@@ -37,8 +38,6 @@ class MISController extends Controller
      */
     public function upload(MISUploadRequest $request, string $branch): JsonResponse
     {
-        $this->assertBranchAccess($request, $branch);
-
         try {
             $branchEnum = $request->branch();
             $date       = $request->reportDate();
@@ -80,6 +79,7 @@ class MISController extends Controller
                 'branch'         => $branch,
                 'report_date'    => $date,
                 'uploaded_by'    => $request->user()?->name ?? 'system',
+                'user_id'        => $request->user()?->id,
                 'files_uploaded' => $filesUploaded,
                 'rows_imported'  => $totalImported,
                 'rows_skipped'   => $totalSkipped,
@@ -110,12 +110,20 @@ class MISController extends Controller
         $branch = $request->input('branch');
         $limit  = min((int) $request->input('limit', 20), 100);
 
-        $query = \App\Models\ImportLog::orderByDesc('created_at')->limit($limit);
+        $query = \App\Models\ImportLog::orderByDesc('created_at');
         if ($branch) $query->where('branch', $branch);
+
+        $logs = $query->paginate($limit);
 
         return response()->json([
             'success' => true,
-            'data'    => $query->get(),
+            'data'    => ImportLogResource::collection($logs->items()),
+            'meta'    => [
+                'total'        => $logs->total(),
+                'per_page'     => $logs->perPage(),
+                'current_page' => $logs->currentPage(),
+                'last_page'    => $logs->lastPage(),
+            ],
         ]);
     }
 
@@ -132,24 +140,24 @@ class MISController extends Controller
             return response()->json(['success' => false, 'message' => 'This import has already been rolled back.'], 422);
         }
 
-        $this->assertBranchAccess($request, $log->branch);
+        // Rollback URL has no {branch} segment — middleware cannot cover it; check explicitly
+        if (! $request->user()->canAccessBranch($log->branch)) {
+            return response()->json(['success' => false, 'message' => 'Access denied for this branch.'], 403);
+        }
 
         try {
             $branchEnum = \App\Enums\Branch::from($log->branch);
             $date       = $log->report_date->toDateString();
 
-            // Delete all imported rows for this branch+date
-            \App\Models\BillItem::where('branch', $log->branch)->whereDate('bill_date', $date)->delete();
-            \App\Models\CashierCollection::where('branch', $log->branch)->whereDate('collection_date', $date)->delete();
-            \App\Models\ErAdmission::where('branch', $log->branch)->whereDate('admission_date', $date)->delete();
-            \App\Models\IpAdmission::where('branch', $log->branch)->whereDate('admission_date', $date)->delete();
-            \App\Models\Surgery::where('branch', $log->branch)->whereDate('surgery_date', $date)->delete();
+            // Delete via the single canonical method — do NOT duplicate this logic here
+            $this->csvService->deleteForBranchDate($branchEnum, $date);
 
-            if ($branchEnum === \App\Enums\Branch::CHROMEPET) {
-                \App\Models\PackageConsumption::where('branch', $log->branch)->whereDate('consumption_date', $date)->delete();
-            }
+            // Remove the materialized MIS snapshot so the dashboard does not
+            // serve aggregated figures from data that no longer exists
+            \App\Models\MisReport::where('branch', $log->branch)
+                ->whereDate('report_date', $date)
+                ->delete();
 
-            // Bust caches
             \App\Repositories\CachedMisRepository::bustFor($log->branch, $date);
 
             // Mark log
@@ -184,8 +192,6 @@ class MISController extends Controller
      */
     public function show(MISRequest $request, string $branch, string $date): JsonResponse
     {
-        $this->assertBranchAccess($request, $branch);
-
         try {
             $request->merge(['branch' => $branch, 'date' => $date]);
 
@@ -215,8 +221,6 @@ class MISController extends Controller
      */
     public function export(MISRequest $request, string $branch, string $date)
     {
-        $this->assertBranchAccess($request, $branch);
-
         try {
             $request->merge(['branch' => $branch, 'date' => $date]);
 
@@ -248,8 +252,6 @@ class MISController extends Controller
      */
     public function exportPdf(MISRequest $request, string $branch, string $date)
     {
-        $this->assertBranchAccess($request, $branch);
-
         try {
             $request->merge(['branch' => $branch, 'date' => $date]);
 
@@ -276,8 +278,6 @@ class MISController extends Controller
      */
     public function exportCsv(MISRequest $request, string $branch, string $date)
     {
-        $this->assertBranchAccess($request, $branch);
-
         try {
             $request->merge(['branch' => $branch, 'date' => $date]);
             $data     = $this->misService->generateMIS($request->branch(), $request->reportDate());
@@ -295,8 +295,6 @@ class MISController extends Controller
      */
     public function emailReport(MISRequest $request, string $branch, string $date): JsonResponse
     {
-        $this->assertBranchAccess($request, $branch);
-
         try {
             $request->validate(['to' => 'required|email']);
             $request->merge(['branch' => $branch, 'date' => $date]);
@@ -356,8 +354,6 @@ class MISController extends Controller
      */
     public function exportBrm(Request $request, string $branch)
     {
-        $this->assertBranchAccess($request, $branch);
-
         try {
             $branchEnum = \App\Enums\Branch::from($branch);
             $from = $request->query('from') ?: Carbon::today()->toDateString();
@@ -379,21 +375,6 @@ class MISController extends Controller
             );
         } catch (Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
-        }
-    }
-
-    /**
-     * Format report filename like: "Sales VS Collection 3rd June 2026(Chromepet)"
-     *
-     * @param \App\Enums\Branch $branchEnum
-     * @param string $date (Y-m-d)
-     * @param string $prefix
-     * @return string
-     */
-    private function assertBranchAccess(Request $request, string $branch): void
-    {
-        if (!$request->user()->canAccessBranch($branch)) {
-            abort(403, 'You are not authorised to access the ' . $branch . ' branch.');
         }
     }
 

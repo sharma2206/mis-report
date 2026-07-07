@@ -15,6 +15,7 @@ use App\Models\ErAdmission;
 use App\Models\IpAdmission;
 use App\Models\PackageConsumption;
 use App\Models\Surgery;
+use App\Services\CachedAnalyticsService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
@@ -41,8 +42,9 @@ class CsvProcessingService
     ): array {
         return DB::transaction(function () use ($branch, $date, $billFile, $cashierFile, $packageFile, $erFile, $ipFile, $surgeryFile) {
 
-            $this->deleteExisting($branch, $date);
+            $this->deleteForBranchDate($branch, $date);
             \App\Repositories\CachedMisRepository::bustFor($branch->value, $date);
+            CachedAnalyticsService::bustForBranch($branch->value);
 
             // ── Core files ────────────────────────────────────────────────────
             try {
@@ -130,7 +132,12 @@ class CsvProcessingService
         });
     }
 
-    private function deleteExisting(Branch $branch, string $date): void
+    /**
+     * Delete all imported rows for a given branch and date.
+     * Called by both the import pipeline (before re-import) and the rollback endpoint.
+     * Single source of truth — add new tables here only.
+     */
+    public function deleteForBranchDate(Branch $branch, string $date): void
     {
         BillItem::where('branch', $branch->value)->whereDate('bill_date', $date)->delete();
         CashierCollection::where('branch', $branch->value)->whereDate('collection_date', $date)->delete();

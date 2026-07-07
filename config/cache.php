@@ -114,4 +114,12 @@ return [
 
     'prefix' => env('CACHE_PREFIX', Str::slug((string) env('APP_NAME', 'laravel')).'-cache-'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | MIS Application Cache TTLs (seconds)
+    |--------------------------------------------------------------------------
+    */
+    'mis_ttl'       => (int) env('MIS_CACHE_TTL', 900),       // 15 min — MIS report data
+    'analytics_ttl' => (int) env('ANALYTICS_CACHE_TTL', 900), // 15 min — analytics queries
+
 ];

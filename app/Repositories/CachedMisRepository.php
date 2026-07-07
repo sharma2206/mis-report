@@ -12,7 +12,10 @@ use Illuminate\Support\Facades\Cache;
  */
 class CachedMisRepository implements MisRepositoryInterface
 {
-    private const TTL = 900; // 15 minutes
+    private static function ttl(): int
+    {
+        return (int) config('cache.mis_ttl', 900);
+    }
 
     public function __construct(private MisRepository $inner) {}
 
@@ -66,6 +69,6 @@ class CachedMisRepository implements MisRepositoryInterface
 
     private function remember(string $key, callable $cb): mixed
     {
-        return Cache::remember("mis:{$key}", self::TTL, $cb);
+        return Cache::remember("mis:{$key}", self::ttl(), $cb);
     }
 }

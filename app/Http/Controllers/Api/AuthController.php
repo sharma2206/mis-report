@@ -74,10 +74,14 @@ class AuthController extends Controller
     }
 
     /**
-     * POST /api/auth/register  (admin only — seeder or first-run)
+     * POST /api/auth/register  (admin only)
      */
     public function register(Request $request): JsonResponse
     {
+        if (! $request->user()?->isAdmin()) {
+            return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
+        }
+
         $request->validate([
             'name'     => 'required|string|max:100',
             'email'    => 'required|email|unique:users',

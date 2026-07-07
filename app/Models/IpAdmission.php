@@ -5,9 +5,11 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class IpAdmission extends Model
 {
+    use SoftDeletes;
     protected $fillable = [
         'branch', 'admission_date', 'admission_no', 'uhid', 'patient_name',
         'age', 'gender', 'admission_type', 'admission_source', 'status',

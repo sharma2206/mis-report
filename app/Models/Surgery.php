@@ -5,9 +5,11 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Surgery extends Model
 {
+    use SoftDeletes;
     protected $fillable = [
         'branch', 'surgery_date', 'admission_no', 'uhid', 'patient_name',
         'age', 'gender', 'patient_type', 'surgery_name', 'surgery_code',

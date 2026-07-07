@@ -6,6 +6,9 @@ import Dashboard     from '../pages/Dashboard';
 import ImportCenter  from '../pages/ImportCenter';
 import ReportCenter  from '../pages/ReportCenter';
 import MISReport     from '../pages/MISReport';
+import BRMReport     from '../pages/BRMReport';
+import Financial     from '../pages/Financial';
+import Doctors       from '../pages/Doctors';
 import { PlaceholderPage } from '../pages/Placeholder';
 
 const ProtectedRoute = ({ children }) => {
@@ -26,12 +29,12 @@ export const AppRoutes = () => (
 
         {/* Reports */}
         <Route path="/mis"         element={<ProtectedRoute><MISReport /></ProtectedRoute>} />
-        <Route path="/brm"         element={<P title="BRM Reports"        description="Doctor-wise revenue in multi-sheet Excel. Use the BRM export from Dashboard." icon="🏦" />} />
-        <Route path="/financial"   element={<P title="Financial Reports"  description="Revenue summary, collection report, payer analysis, corporate & TPA reports." icon="💰" />} />
+        <Route path="/brm"         element={<ProtectedRoute><BRMReport /></ProtectedRoute>} />
+        <Route path="/financial"   element={<ProtectedRoute><Financial /></ProtectedRoute>} />
         <Route path="/operational" element={<P title="Operational Reports" description="Bed occupancy, admission/discharge, OT utilization, patient census reports."  icon="⚙️" />} />
 
         {/* Analytics */}
-        <Route path="/doctors"     element={<P title="Doctor Analytics"     description="Revenue, patients, surgeries, LOS per doctor with speciality and trend analysis." icon="👨‍⚕️" />} />
+        <Route path="/doctors"     element={<ProtectedRoute><Doctors /></ProtectedRoute>} />
         <Route path="/departments" element={<P title="Department Analytics" description="Revenue and volume breakdown by department with month-over-month comparison."    icon="🏢" />} />
         <Route path="/surgery"     element={<P title="Surgery Analytics"    description="OT utilization, surgeon ranking, major/minor split, TAT and implant analysis."  icon="🔪" />} />
         <Route path="/pharmacy"    element={<P title="Pharmacy Analytics"   description="Pharmacy revenue, top drugs, generic vs brand, department-wise breakdown."     icon="💊" />} />

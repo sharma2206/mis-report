@@ -440,9 +440,14 @@ class AnalyticsController extends Controller
             $from   = $request->input('from', $request->input('date', Carbon::now()->format('Y-m-d')));
             $to     = $request->input('to', $from);
 
+            // Census query: patients present during the period
+            // (admitted on or before $to, and not yet discharged or discharged on/after $from)
             $base = IpAdmission::where('branch', $branch)
-                ->whereDate('admission_date', '>=', $from)
-                ->whereDate('admission_date', '<=', $to);
+                ->whereDate('admission_date', '<=', $to)
+                ->where(function ($q) use ($from) {
+                    $q->whereNull('discharge_date')
+                      ->orWhereDate('discharge_date', '>=', $from);
+                });
 
             $total        = (clone $base)->count();
             $ageBelow18   = (clone $base)->where(DB::raw('CAST(age AS UNSIGNED)'), '<', 18)->count();

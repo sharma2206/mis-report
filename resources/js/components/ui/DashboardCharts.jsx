@@ -1,194 +1,204 @@
-import {
-    AreaChart, Area, BarChart, Bar, LineChart, Line,
-    XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cell, ReferenceLine,
-} from 'recharts';
+import EChart, { tooltipRupee, tooltipCount, axisLabel, gridDefault } from './EChart';
 import { ChartSkeleton } from './Skeleton';
 import { EmptyState } from './EmptyState';
-import { toLakhs, fmtRupee } from '../../utils/formatters';
+import { toLakhs } from '../../utils/formatters';
 import { CHART_PALETTE } from '../../constants';
-import { TrendingDown, Activity } from 'lucide-react';
+import { Activity } from 'lucide-react';
 
-const TOOLTIP_STYLE = {
-    borderRadius: 10,
-    border: '1px solid #e2e8f0',
-    boxShadow: '0 8px 24px -4px rgba(0,0,0,0.12)',
-    fontSize: 12,
-    padding: '8px 12px',
-};
+const AXIS = { axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: '#f1f5f9' } } };
 
-const AXIS_TICK_STYLE = { fontSize: 10, fill: '#94a3b8' };
-
-// ─── Admissions vs Discharges ──────────────────────────────────────
+// ─── Admissions vs Discharges ──────────────────────────────────────────────────
 export const AdmissionsChart = ({ data, isLoading }) => {
     if (isLoading) return <ChartSkeleton height={220} />;
     if (!data?.length) return <EmptyState icon={Activity} title="No admissions data" description="IP admission data will appear here once imported." />;
-    const chartData = data.map(d => ({
-        date:       d.date?.slice(5) || d.date,
-        Admissions: d.admissions || d.admission_count || 0,
-        Discharges: d.discharges || d.discharge_count || 0,
-    }));
+
+    const dates = data.map(d => d.date?.slice(5) || d.date);
+    const adm   = data.map(d => d.admissions || d.admission_count || 0);
+    const dis   = data.map(d => d.discharges  || d.discharge_count  || 0);
+
     return (
-        <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barGap={2}>
-                <defs>
-                    <linearGradient id="admGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#1d4ed8" />
-                        <stop offset="100%" stopColor="#3b82f6" />
-                    </linearGradient>
-                    <linearGradient id="disGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#059669" />
-                        <stop offset="100%" stopColor="#10b981" />
-                    </linearGradient>
-                </defs>
-                <XAxis dataKey="date" tick={AXIS_TICK_STYLE} axisLine={false} tickLine={false} />
-                <YAxis tick={AXIS_TICK_STYLE} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
-                <Legend iconSize={9} wrapperStyle={{ fontSize: 11, color: '#64748b' }} />
-                <Bar dataKey="Admissions" fill="url(#admGrad)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Discharges" fill="url(#disGrad)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-        </ResponsiveContainer>
+        <EChart height={220} option={{
+            grid: gridDefault({ left: 36 }),
+            tooltip: tooltipCount(),
+            legend: { bottom: 0, icon: 'circle', itemWidth: 8, textStyle: { fontSize: 11, color: '#64748b' } },
+            xAxis: { type: 'category', data: dates, axisLabel: axisLabel(), ...AXIS },
+            yAxis: { type: 'value', axisLabel: axisLabel(), ...AXIS },
+            series: [
+                { name: 'Admissions', type: 'bar', data: adm, barMaxWidth: 20,
+                  itemStyle: { borderRadius: [4, 4, 0, 0], color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#1d4ed8' }, { offset: 1, color: '#3b82f6' }] } } },
+                { name: 'Discharges', type: 'bar', data: dis, barMaxWidth: 20,
+                  itemStyle: { borderRadius: [4, 4, 0, 0], color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#059669' }, { offset: 1, color: '#10b981' }] } } },
+            ],
+        }} />
     );
 };
 
-// ─── Department Revenue ────────────────────────────────────────────
+// ─── Department Revenue ────────────────────────────────────────────────────────
 export const DeptRevenueChart = ({ data, isLoading }) => {
     if (isLoading) return <ChartSkeleton height={220} />;
     const depts = data?.by_department || data?.by_dept || [];
     if (!depts.length) return <EmptyState title="No department revenue data" description="Bill items data will populate this chart." />;
-    const chartData = depts.slice(0, 8).map(d => ({
-        dept:    (d.department || d.dept_name || '').substring(0, 16),
-        revenue: toLakhs(d.total_revenue || d.revenue),
-    }));
+
+    const rows = depts.slice(0, 8);
+    const names = rows.map(d => (d.department || d.dept_name || '').substring(0, 18));
+    const values = rows.map(d => toLakhs(d.total_revenue || d.revenue));
+
     return (
-        <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 48, left: 0, bottom: 0 }}>
-                <XAxis
-                    type="number" tick={AXIS_TICK_STYLE} axisLine={false} tickLine={false}
-                    tickFormatter={v => `₹${v}L`}
-                />
-                <YAxis
-                    type="category" dataKey="dept" tick={{ fontSize: 10, fill: '#64748b' }}
-                    axisLine={false} tickLine={false} width={100}
-                />
-                <Tooltip
-                    formatter={v => [`₹${v}L`, 'Revenue']}
-                    contentStyle={TOOLTIP_STYLE}
-                    cursor={{ fill: 'rgba(148,163,184,0.08)' }}
-                />
-                <Bar dataKey="revenue" radius={[0, 4, 4, 0]}>
-                    {chartData.map((_, i) => (
-                        <Cell key={i} fill={CHART_PALETTE[i % CHART_PALETTE.length]} />
-                    ))}
-                </Bar>
-            </BarChart>
-        </ResponsiveContainer>
+        <EChart height={220} option={{
+            grid: gridDefault({ left: 110, right: 50, top: 8, bottom: 8 }),
+            tooltip: { ...tooltipRupee(), trigger: 'axis', valueFormatter: v => `₹${Number(v).toFixed(2)}L` },
+            xAxis: { type: 'value', axisLabel: { ...axisLabel(), formatter: v => `₹${v}L` }, ...AXIS },
+            yAxis: { type: 'category', data: names, axisLabel: axisLabel({ fontSize: 9 }), ...AXIS },
+            series: [{
+                type: 'bar', data: values, barMaxWidth: 16,
+                itemStyle: { borderRadius: [0, 4, 4, 0] },
+                colorBy: 'data',
+                color: CHART_PALETTE,
+                label: { show: true, position: 'right', formatter: p => `₹${Number(p.value).toFixed(1)}L`, fontSize: 9, color: '#64748b' },
+            }],
+        }} />
     );
 };
 
-// ─── Pharmacy Revenue Trend ────────────────────────────────────────
+// ─── Pharmacy Revenue Trend ────────────────────────────────────────────────────
 export const PharmacyTrendChart = ({ data, isLoading }) => {
     if (isLoading) return <ChartSkeleton height={180} />;
     if (!data?.length) return <EmptyState title="No pharmacy trend data" />;
-    const chartData = data.map(d => ({
-        date:     (d.day || d.date)?.slice(5) || d.day || d.date,
-        pharmacy: toLakhs(d.ph_revenue || d.pharmacy_revenue || d.pharmacy || 0),
-    }));
-    const max = Math.max(...chartData.map(d => d.pharmacy));
+
+    const dates  = data.map(d => (d.day || d.date)?.slice(5) || d.day || d.date);
+    const values = data.map(d => toLakhs(d.ph_revenue || d.pharmacy_revenue || d.pharmacy || 0));
+    const max    = Math.max(...values);
+
     return (
-        <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                <defs>
-                    <linearGradient id="pharmGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%"   stopColor="#d97706" stopOpacity={0.25} />
-                        <stop offset="100%" stopColor="#d97706" stopOpacity={0}    />
-                    </linearGradient>
-                </defs>
-                <XAxis dataKey="date" tick={AXIS_TICK_STYLE} axisLine={false} tickLine={false} />
-                <YAxis tick={AXIS_TICK_STYLE} axisLine={false} tickLine={false} tickFormatter={v => `₹${v}L`} />
-                {max > 0 && <ReferenceLine y={max * 0.8} stroke="#d97706" strokeDasharray="4 3" strokeOpacity={0.3} />}
-                <Tooltip formatter={v => [`₹${v}L`, 'Pharmacy']} contentStyle={TOOLTIP_STYLE} />
-                <Area
-                    type="monotone" dataKey="pharmacy"
-                    stroke="#d97706" strokeWidth={2}
-                    fill="url(#pharmGrad)"
-                    dot={false} activeDot={{ r: 4, fill: '#d97706', stroke: '#fff', strokeWidth: 2 }}
-                />
-            </AreaChart>
-        </ResponsiveContainer>
+        <EChart height={180} option={{
+            grid: gridDefault({ left: 48, top: 8 }),
+            tooltip: { trigger: 'axis', valueFormatter: v => `₹${Number(v).toFixed(2)}L`, backgroundColor: '#fff', borderColor: '#e2e8f0', borderWidth: 1, textStyle: { fontSize: 11 }, extraCssText: 'border-radius:10px;box-shadow:0 8px 24px -4px rgba(0,0,0,.12)' },
+            xAxis: { type: 'category', data: dates, axisLabel: axisLabel(), ...AXIS },
+            yAxis: { type: 'value', axisLabel: { ...axisLabel(), formatter: v => `₹${v}L` }, ...AXIS },
+            markLine: max > 0 ? { data: [{ yAxis: max * 0.8, lineStyle: { color: '#d97706', type: 'dashed', opacity: 0.35 } }], silent: true } : undefined,
+            series: [{
+                type: 'line', data: values, smooth: 0.3,
+                symbol: 'none', lineStyle: { color: '#d97706', width: 2 },
+                areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(217,119,6,0.22)' }, { offset: 1, color: 'rgba(217,119,6,0)' }] } },
+            }],
+        }} />
     );
 };
 
-// ─── Bed Occupancy Chart ───────────────────────────────────────────
+// ─── Bed Occupancy Chart ───────────────────────────────────────────────────────
 export const BedOccupancyChart = ({ data, occupancyPct, isLoading }) => {
     if (isLoading) return <ChartSkeleton height={180} />;
     if (!data?.length && !occupancyPct) return <EmptyState title="No occupancy data" description="IP admission report required." />;
+
     const chartData = data?.length
-        ? data.map(d => ({ date: (d.day || d.date)?.slice(5) || d.day || d.date, occupancy: +Number(d.occupancy_pct || 0).toFixed(1) }))
-        : [{ date: 'FTD', occupancy: +Number(occupancyPct || 0).toFixed(1) }];
+        ? data.map(d => ({ date: (d.day || d.date)?.slice(5) || d.day || d.date, occ: +Number(d.occupancy_pct || 0).toFixed(1) }))
+        : [{ date: 'FTD', occ: +Number(occupancyPct || 0).toFixed(1) }];
 
     const pct = Number(occupancyPct || 0);
     const lineColor = pct >= 80 ? '#dc2626' : pct >= 60 ? '#d97706' : '#0891b2';
 
     return (
-        <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                <defs>
-                    <linearGradient id="occGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%"   stopColor={lineColor} stopOpacity={0.12} />
-                        <stop offset="100%" stopColor={lineColor} stopOpacity={0}    />
-                    </linearGradient>
-                </defs>
-                <XAxis dataKey="date" tick={AXIS_TICK_STYLE} axisLine={false} tickLine={false} />
-                <YAxis tick={AXIS_TICK_STYLE} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} domain={[0, 100]} />
-                <ReferenceLine y={80} stroke="#dc2626" strokeDasharray="4 3" strokeOpacity={0.35} label={{ value: '80%', position: 'insideTopRight', fontSize: 9, fill: '#dc2626' }} />
-                <Tooltip formatter={v => [`${v}%`, 'Occupancy']} contentStyle={TOOLTIP_STYLE} />
-                <Line
-                    type="monotone" dataKey="occupancy"
-                    stroke={lineColor} strokeWidth={2.5}
-                    dot={{ r: 3, fill: lineColor, stroke: '#fff', strokeWidth: 2 }}
-                    activeDot={{ r: 5, fill: lineColor, stroke: '#fff', strokeWidth: 2 }}
-                />
-            </LineChart>
-        </ResponsiveContainer>
+        <EChart height={180} option={{
+            grid: gridDefault({ left: 40, top: 8 }),
+            tooltip: { trigger: 'axis', valueFormatter: v => `${v}%`, backgroundColor: '#fff', borderColor: '#e2e8f0', borderWidth: 1, textStyle: { fontSize: 11 }, extraCssText: 'border-radius:10px;box-shadow:0 8px 24px -4px rgba(0,0,0,.12)' },
+            xAxis: { type: 'category', data: chartData.map(d => d.date), axisLabel: axisLabel(), ...AXIS },
+            yAxis: { type: 'value', min: 0, max: 100, axisLabel: { ...axisLabel(), formatter: v => `${v}%` }, ...AXIS },
+            markLine: {
+                data: [{ yAxis: 80, lineStyle: { color: '#dc2626', type: 'dashed', opacity: 0.4 }, label: { formatter: '80%', fontSize: 9, color: '#dc2626' } }],
+                silent: true, symbol: 'none',
+            },
+            series: [{
+                type: 'line', data: chartData.map(d => d.occ), smooth: 0.2,
+                symbol: 'circle', symbolSize: 6,
+                lineStyle: { color: lineColor, width: 2.5 },
+                itemStyle: { color: lineColor, borderColor: '#fff', borderWidth: 2 },
+            }],
+        }} />
     );
 };
 
-// ─── Revenue Trend (exported for use in Dashboard) ─────────────────
+// ─── Revenue Trend ────────────────────────────────────────────────────────────
 export const RevenueTrendChart = ({ data, isLoading, height = 240 }) => {
     if (isLoading) return <ChartSkeleton height={height} />;
     if (!data?.length) return <EmptyState title="No trend data" description="Upload bill items to see revenue trends." />;
-    const chartData = data.map(d => ({
-        date: (d.day || d.date)?.slice(5) || d.day || d.date,
-        ftd:  toLakhs(d.revenue || d.total_revenue || d.ftd_revenue),
-        op:   toLakhs(d.op_revenue),
-        ip:   toLakhs(d.ip_revenue),
-    }));
+
+    const dates = data.map(d => (d.day || d.date)?.slice(5) || d.day || d.date);
+    const total = data.map(d => toLakhs(d.revenue || d.total_revenue || d.ftd_revenue));
+    const op    = data.map(d => toLakhs(d.op_revenue));
+    const ip    = data.map(d => toLakhs(d.ip_revenue));
+
     return (
-        <ResponsiveContainer width="100%" height={height}>
-            <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                <defs>
-                    <linearGradient id="gradTotal2" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%"   stopColor="#1d4ed8" stopOpacity={0.18} />
-                        <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0}    />
-                    </linearGradient>
-                    <linearGradient id="gradOp2" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%"   stopColor="#059669" stopOpacity={0.1} />
-                        <stop offset="100%" stopColor="#059669" stopOpacity={0}   />
-                    </linearGradient>
-                </defs>
-                <XAxis dataKey="date" tick={AXIS_TICK_STYLE} axisLine={false} tickLine={false} />
-                <YAxis tick={AXIS_TICK_STYLE} axisLine={false} tickLine={false} tickFormatter={v => `₹${v}L`} />
-                <Tooltip
-                    formatter={(v, n) => [`₹${v}L`, n.toUpperCase()]}
-                    contentStyle={TOOLTIP_STYLE}
-                    cursor={{ stroke: 'rgba(148,163,184,0.15)', strokeWidth: 1 }}
-                />
-                <Legend iconSize={9} wrapperStyle={{ fontSize: 11, color: '#64748b' }} />
-                <Area type="monotone" dataKey="ftd"  name="Total" stroke="#1d4ed8" fill="url(#gradTotal2)" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#1d4ed8', stroke: '#fff', strokeWidth: 2 }} />
-                <Area type="monotone" dataKey="op"   name="OP"    stroke="#059669" fill="url(#gradOp2)"   strokeWidth={1.5} strokeDasharray="5 3" dot={false} />
-                <Area type="monotone" dataKey="ip"   name="IP"    stroke="#7c3aed" fill="none"            strokeWidth={1.5} strokeDasharray="5 3" dot={false} />
-            </AreaChart>
-        </ResponsiveContainer>
+        <EChart height={height} option={{
+            grid: gridDefault({ left: 48 }),
+            tooltip: { trigger: 'axis', valueFormatter: v => `₹${Number(v).toFixed(2)}L`, backgroundColor: '#fff', borderColor: '#e2e8f0', borderWidth: 1, textStyle: { fontSize: 11 }, extraCssText: 'border-radius:10px;box-shadow:0 8px 24px -4px rgba(0,0,0,.12)' },
+            legend: { bottom: 0, icon: 'circle', itemWidth: 8, textStyle: { fontSize: 11, color: '#64748b' } },
+            xAxis: { type: 'category', data: dates, axisLabel: axisLabel(), ...AXIS },
+            yAxis: { type: 'value', axisLabel: { ...axisLabel(), formatter: v => `₹${v}L` }, ...AXIS },
+            series: [
+                { name: 'Total',  type: 'line', data: total, smooth: 0.3, symbol: 'none', lineStyle: { color: '#1d4ed8', width: 2.5 }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(29,78,216,0.16)' }, { offset: 1, color: 'rgba(29,78,216,0)' }] } } },
+                { name: 'OP',     type: 'line', data: op,    smooth: 0.3, symbol: 'none', lineStyle: { color: '#059669', width: 1.5, type: 'dashed' } },
+                { name: 'IP',     type: 'line', data: ip,    smooth: 0.3, symbol: 'none', lineStyle: { color: '#7c3aed', width: 1.5, type: 'dashed' } },
+            ],
+        }} />
+    );
+};
+
+// ─── Patient Mix Bar Chart ─────────────────────────────────────────────────────
+export const PatientMixChartE = ({ data, isLoading }) => {
+    if (isLoading) return <ChartSkeleton height={200} />;
+    if (!data?.length) return <EmptyState title="No patient mix data" />;
+
+    const dates = data.map(d => (d.day || d.date)?.slice(5) || d.day || d.date);
+    const op    = data.map(d => d.op ?? d.op_count ?? 0);
+    const ip    = data.map(d => d.ip ?? d.ip_count ?? 0);
+    const er    = data.map(d => d.er ?? d.er_count ?? 0);
+
+    return (
+        <EChart height={200} option={{
+            grid: gridDefault({ left: 36 }),
+            tooltip: tooltipCount(),
+            legend: { bottom: 0, icon: 'circle', itemWidth: 8, textStyle: { fontSize: 11, color: '#64748b' } },
+            xAxis: { type: 'category', data: dates, axisLabel: axisLabel(), ...AXIS },
+            yAxis: { type: 'value', axisLabel: axisLabel(), ...AXIS },
+            series: [
+                { name: 'OP', type: 'bar', data: op, barMaxWidth: 18, stack: 'vol', itemStyle: { color: '#1d4ed8' } },
+                { name: 'IP', type: 'bar', data: ip, barMaxWidth: 18, stack: 'vol', itemStyle: { color: '#7c3aed' } },
+                { name: 'ER', type: 'bar', data: er, barMaxWidth: 18, stack: 'vol', itemStyle: { color: '#d97706', borderRadius: [4, 4, 0, 0] } },
+            ],
+        }} />
+    );
+};
+
+// ─── Payer Donut Chart ─────────────────────────────────────────────────────────
+export const PayerChartE = ({ data, isLoading }) => {
+    if (isLoading) return <ChartSkeleton height={180} />;
+    if (!data?.length) return <EmptyState title="No payer data" />;
+
+    const rows = data.slice(0, 8).map((d, i) => ({
+        name:  d.payer_type || d.payer_name || d.payer || 'Unknown',
+        value: toLakhs(d.amount || d.total_amount),
+        itemStyle: { color: CHART_PALETTE[i % CHART_PALETTE.length] },
+    }));
+
+    return (
+        <div className="flex items-center gap-4">
+            <EChart height={180} style={{ width: '45%', flexShrink: 0 }} option={{
+                tooltip: { trigger: 'item', formatter: p => `${p.name}: ₹${p.value}L (${p.percent}%)`, backgroundColor: '#fff', borderColor: '#e2e8f0', borderWidth: 1, textStyle: { fontSize: 11 }, extraCssText: 'border-radius:10px;box-shadow:0 8px 24px -4px rgba(0,0,0,.12)' },
+                series: [{
+                    type: 'pie', radius: ['44%', '70%'], center: ['50%', '50%'],
+                    data: rows, label: { show: false }, labelLine: { show: false },
+                    itemStyle: { borderWidth: 2, borderColor: '#fff' },
+                }],
+            }} />
+            <div className="flex-1 space-y-1.5 min-w-0">
+                {rows.map((d, i) => (
+                    <div key={d.name} className="flex items-center gap-2 text-[11px]">
+                        <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: CHART_PALETTE[i % CHART_PALETTE.length] }} />
+                        <span className="text-slate-600 flex-1 truncate">{d.name}</span>
+                        <span className="font-700 text-slate-800">₹{d.value}L</span>
+                    </div>
+                ))}
+            </div>
+        </div>
     );
 };

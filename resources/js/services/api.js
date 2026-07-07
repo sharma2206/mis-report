@@ -48,6 +48,8 @@ export const misApi = {
     emailReport:  (branch, date, to) => client.post(`/mis/${branch}/${date}/email`, { to }),
     dashboard:    (date)         => client.get(`/mis/dashboard/${date}`),
     printPreview: (branch, date) => `/print/${branch}/${date}`,
+    importLogs:      (branch, limit = 20) => client.get('/mis/import-logs', { params: { branch, limit } }),
+    rollbackImport:  (id)               => client.delete(`/mis/import-logs/${id}`),
 };
 
 // ─── Analytics ───────────────────────────────────────────────────────────────

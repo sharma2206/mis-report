@@ -2,10 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-    AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
-    ResponsiveContainer, CartesianGrid, Cell, Legend,
-} from 'recharts';
+import EChart from '../components/ui/EChart';
 import {
     RefreshCw, Download, FileSpreadsheet, FileText, Table2,
     Mail, Printer, ChevronLeft, ChevronRight, TrendingUp,
@@ -103,13 +100,10 @@ const KPICard = ({ label, ftd, mtd, Icon, color = 'blue', format = 'currency', s
 
 // ─── Revenue Section ──────────────────────────────────────────────────────────
 const REV_ROWS = [
-    { key: 'op',       label: 'OP Revenue',    color: '#1d4ed8' },
-    { key: 'ip',       label: 'IP Revenue',    color: '#7c3aed' },
-    { key: 'er',       label: 'ER Revenue',    color: '#dc2626' },
-    { key: 'pharmacy', label: 'Pharmacy',       color: '#059669' },
-    { key: 'packages', label: 'Packages',       color: '#d97706' },
-    { key: 'ph',       label: 'PH Revenue',    color: '#0891b2' },
-    { key: 'mri',      label: 'MRI / Scans',   color: '#9333ea' },
+    { key: 'op', label: 'OP Revenue',  color: '#1d4ed8' },
+    { key: 'ip', label: 'IP Revenue',  color: '#7c3aed' },
+    { key: 'er', label: 'ER Revenue',  color: '#dc2626' },
+    { key: 'ph', label: 'PH Revenue',  color: '#059669' },
 ];
 
 const RevenueSection = ({ sales, isLoading }) => {
@@ -121,22 +115,20 @@ const RevenueSection = ({ sales, isLoading }) => {
     const totalFtd = rows.reduce((s, r) => s + (Number(ftd[r.key]) || 0), 0);
     const totalMtd = rows.reduce((s, r) => s + (Number(mtd[r.key]) || 0), 0);
 
-    const barData = rows.map(r => ({ name: r.label, FTD: toLakhs(ftd[r.key]), MTD: toLakhs(mtd[r.key]) }));
-
     return (
         <div className="space-y-4">
-            {/* Bar chart */}
-            <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={barData} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v}L`} />
-                    <Tooltip formatter={(v, n) => [`₹${v}L`, n]} contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }} />
-                    <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
-                    <Bar dataKey="FTD" fill="#1d4ed8" radius={[3, 3, 0, 0]} maxBarSize={32} />
-                    <Bar dataKey="MTD" fill="#e2e8f0" radius={[3, 3, 0, 0]} maxBarSize={32} />
-                </BarChart>
-            </ResponsiveContainer>
+            {/* EChart bar */}
+            <EChart height={180} option={{
+                grid: { top: 12, right: 8, bottom: 24, left: 48, containLabel: true },
+                tooltip: { trigger: 'axis', valueFormatter: v => `₹${Number(v).toFixed(2)}L`, backgroundColor: '#fff', borderColor: '#e2e8f0', borderWidth: 1, textStyle: { fontSize: 11 }, extraCssText: 'border-radius:8px' },
+                legend: { bottom: 0, icon: 'circle', itemWidth: 8, textStyle: { fontSize: 10, color: '#64748b' } },
+                xAxis: { type: 'category', data: rows.map(r => r.label), axisLabel: { fontSize: 9, color: '#94a3b8' }, axisLine: { show: false }, axisTick: { show: false } },
+                yAxis: { type: 'value', axisLabel: { fontSize: 9, color: '#94a3b8', formatter: v => `₹${v}L` }, axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+                series: [
+                    { name: 'FTD', type: 'bar', data: rows.map(r => toLakhs(ftd[r.key])), barMaxWidth: 32, itemStyle: { borderRadius: [3,3,0,0], color: '#1d4ed8' } },
+                    { name: 'MTD', type: 'bar', data: rows.map(r => toLakhs(mtd[r.key])), barMaxWidth: 32, itemStyle: { borderRadius: [3,3,0,0], color: '#e2e8f0' } },
+                ],
+            }} />
 
             {/* Table */}
             <div className="overflow-x-auto">
@@ -182,12 +174,10 @@ const RevenueSection = ({ sales, isLoading }) => {
 
 // ─── Collection Section ───────────────────────────────────────────────────────
 const COLL_ROWS = [
-    { key: 'cash',      label: 'Cash',            color: '#059669' },
-    { key: 'pos',       label: 'POS / Card',       color: '#0891b2' },
-    { key: 'upi',       label: 'UPI / Digital',   color: '#7c3aed' },
-    { key: 'online',    label: 'NEFT / RTGS',     color: '#4f46e5' },
-    { key: 'tpa',       label: 'TPA / Insurance', color: '#d97706' },
-    { key: 'corporate', label: 'Corporate',        color: '#dc2626' },
+    { key: 'op', label: 'OP Collection',       color: '#1d4ed8' },
+    { key: 'ip', label: 'IP Collection',       color: '#7c3aed' },
+    { key: 'er', label: 'ER Collection',       color: '#dc2626' },
+    { key: 'ph', label: 'Pharmacy Collection', color: '#059669' },
 ];
 
 const CollectionSection = ({ collection, isLoading }) => {
@@ -196,8 +186,8 @@ const CollectionSection = ({ collection, isLoading }) => {
     const ftd = collection.ftd || {};
     const mtd = collection.mtd || {};
     const rows = COLL_ROWS.filter(r => (ftd[r.key] || 0) > 0 || (mtd[r.key] || 0) > 0);
-    const totalFtd = ftd.total || rows.reduce((s, r) => s + (Number(ftd[r.key]) || 0), 0);
-    const totalMtd = mtd.total || rows.reduce((s, r) => s + (Number(mtd[r.key]) || 0), 0);
+    const totalFtd = rows.reduce((s, r) => s + (Number(ftd[r.key]) || 0), 0);
+    const totalMtd = rows.reduce((s, r) => s + (Number(mtd[r.key]) || 0), 0);
 
     const pieData = rows.filter(r => (ftd[r.key] || 0) > 0).map(r => ({ name: r.label, value: toLakhs(ftd[r.key]), color: r.color }));
 
@@ -497,7 +487,7 @@ const QuickSummary = ({ mis }) => {
     const ftdRev  = mis.sales?.ftd    || {};
     const ftdColl = mis.collection?.ftd || {};
     const totalRev  = Object.values(ftdRev).reduce((s, v) => s + (Number(v) || 0), 0);
-    const totalColl = ftdColl.total || 0;
+    const totalColl = Object.values(ftdColl).reduce((s, v) => s + (Number(v) || 0), 0);
     const diff      = totalRev - totalColl;
     return (
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
@@ -715,8 +705,8 @@ export default function MISReport() {
                                 { label: 'Total Revenue',   ftd: totalFtdRev,        mtd: totalMtdRev,         Icon: DollarSign,  color: 'blue'   },
                                 { label: 'OP Revenue',      ftd: ftdRev.op,          mtd: mtdRev.op,           Icon: CreditCard,  color: 'green'  },
                                 { label: 'IP Revenue',      ftd: ftdRev.ip,          mtd: mtdRev.ip,           Icon: BedDouble,   color: 'violet' },
-                                { label: 'Pharmacy',        ftd: ftdRev.pharmacy,    mtd: mtdRev.pharmacy,     Icon: Activity,    color: 'amber'  },
-                                { label: 'Collection',      ftd: ftdColl.total,      mtd: mtdColl.total,       Icon: CreditCard,  color: 'cyan'   },
+                                { label: 'Pharmacy',        ftd: ftdRev.ph,          mtd: mtdRev.ph,           Icon: Activity,    color: 'amber'  },
+                                { label: 'Collection',      ftd: Object.values(ftdColl).reduce((s,v)=>s+(Number(v)||0),0), mtd: Object.values(mtdColl).reduce((s,v)=>s+(Number(v)||0),0), Icon: CreditCard, color: 'cyan' },
                                 { label: 'OP Patients',     ftd: ftdVol.total_op,    mtd: mtdVol.total_op,     Icon: Users,       color: 'green', format: 'count' },
                             ].map(k => <KPICard key={k.label} {...k} />)}
                         </div>

@@ -23,6 +23,9 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () use ($b
     Route::post('/mis/{branch}/upload', [MISController::class, 'upload'])
         ->where('branch', $branchConstraint);
 
+    Route::get('/mis/import-logs',       [MISController::class, 'importLogs']);
+    Route::delete('/mis/import-logs/{id}', [MISController::class, 'rollbackImport']);
+
     Route::get('/mis/{branch}/{date}', [MISController::class, 'show'])
         ->where('branch', $branchConstraint)->where('date', $dateConstraint);
 

@@ -1,11 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Navigate } from 'react-router-dom';
-import {
-    AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-    XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
-} from 'recharts';
+// recharts removed — charts now use ECharts via DashboardCharts.jsx
 import {
     LayoutDashboard, TrendingUp, BarChart3, PieChart as PieIcon,
     BedDouble, Scissors, Users, Wallet, Package, Stethoscope,
@@ -30,6 +27,8 @@ import { SmartAlerts } from '../components/ui/SmartAlerts';
 import {
     AdmissionsChart, DeptRevenueChart, PharmacyTrendChart,
     BedOccupancyChart, RevenueTrendChart,
+    PatientMixChartE as PatientMixChart,
+    PayerChartE as PayerChart,
 } from '../components/ui/DashboardCharts';
 import { fmtL, fmtRupee, fmtPct, toLakhs, cfClass } from '../utils/formatters';
 import { CHART_PALETTE } from '../constants';
@@ -194,69 +193,7 @@ const VolumeGrid = ({ mis, kpi, isLoading }) => {
     );
 };
 
-// ── Payer Mix Chart ───────────────────────────────────────────────────────────
-const PAYMENT_COLORS = ['#1d4ed8','#7c3aed','#059669','#d97706','#dc2626','#0891b2'];
-
-const PayerChart = ({ data, isLoading }) => {
-    if (isLoading) return <ChartSkeleton height={200} />;
-    if (!data?.length) return <EmptyState title="No payer data" />;
-    const chartData = data.slice(0, 8).map(d => ({
-        name:  d.payer_type || d.payer_name || d.payer || 'Unknown',
-        value: toLakhs(d.amount || d.total_amount),
-    }));
-    return (
-        <div className="flex items-center gap-4">
-            <ResponsiveContainer width="45%" height={180}>
-                <PieChart>
-                    <Pie data={chartData} cx="50%" cy="50%" innerRadius={48} outerRadius={76}
-                        dataKey="value" strokeWidth={2} stroke="#fff">
-                        {chartData.map((_, i) => <Cell key={i} fill={CHART_PALETTE[i % CHART_PALETTE.length]} />)}
-                    </Pie>
-                    <Tooltip formatter={v => [`₹${v}L`]} contentStyle={{ ...TOOLTIP, fontSize: 11 }} />
-                </PieChart>
-            </ResponsiveContainer>
-            <div className="flex-1 space-y-1.5 min-w-0">
-                {chartData.map((d, i) => (
-                    <div key={d.name} className="flex items-center gap-2 text-[11px]">
-                        <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: CHART_PALETTE[i % CHART_PALETTE.length] }} />
-                        <span className="text-slate-600 flex-1 truncate">{d.name}</span>
-                        <span className="font-700 text-slate-800">₹{d.value}L</span>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-};
-
-// ── Patient Mix Chart ─────────────────────────────────────────────────────────
-const PatientMixChart = ({ data, isLoading }) => {
-    if (isLoading) return <ChartSkeleton height={200} />;
-    if (!data?.length) return <EmptyState title="No patient mix data" />;
-    const chartData = data.map(d => ({
-        date: (d.day || d.date)?.slice(5) || d.day || d.date,
-        OP:   d.op ?? d.op_count ?? 0,
-        IP:   d.ip ?? d.ip_count ?? 0,
-        ER:   d.er ?? d.er_count ?? 0,
-    }));
-    return (
-        <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barGap={2}>
-                <defs>
-                    <linearGradient id="opG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#1d4ed8"/><stop offset="100%" stopColor="#3b82f6"/></linearGradient>
-                    <linearGradient id="ipG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#7c3aed"/><stop offset="100%" stopColor="#8b5cf6"/></linearGradient>
-                    <linearGradient id="erG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#d97706"/><stop offset="100%" stopColor="#f59e0b"/></linearGradient>
-                </defs>
-                <XAxis dataKey="date" tick={AXIS_TICK} axisLine={false} tickLine={false} />
-                <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={TOOLTIP} cursor={{ fill: 'rgba(148,163,184,0.07)' }} />
-                <Legend iconSize={9} wrapperStyle={{ fontSize: 11, color: '#64748b' }} />
-                <Bar dataKey="OP" fill="url(#opG)" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="IP" fill="url(#ipG)" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="ER" fill="url(#erG)" radius={[3, 3, 0, 0]} />
-            </BarChart>
-        </ResponsiveContainer>
-    );
-};
+// PatientMixChart and PayerChart are now imported from DashboardCharts (ECharts)
 
 // ── IP Demographics ───────────────────────────────────────────────────────────
 const StatBox = ({ label, value, color = 'blue' }) => (
@@ -268,7 +205,7 @@ const StatBox = ({ label, value, color = 'blue' }) => (
 
 const IPDemographics = ({ data, isLoading }) => {
     if (isLoading) return <TableSkeleton rows={5} cols={4} />;
-    if (!data) return <EmptyState title="No IP demographics data" />;
+    if (!data || data.total === 0) return <EmptyState title="No IP admission data" description="Upload the IP admission CSV file to see demographics." />;
     const { by_gender = [], by_payer_type = [], by_ward = [], top_doctors = [] } = data;
     return (
         <div className="space-y-4">
@@ -295,7 +232,7 @@ const IPDemographics = ({ data, isLoading }) => {
 // ── Surgery Detail ────────────────────────────────────────────────────────────
 const SurgeryDetail = ({ data, isLoading }) => {
     if (isLoading) return <TableSkeleton rows={6} cols={4} />;
-    if (!data) return <EmptyState title="No surgery data" description="Upload a surgery file to see details." />;
+    if (!data || data.total === 0) return <EmptyState title="No surgery data" description="Upload the surgery CSV file to see details." />;
     const { by_surgeon = [], by_dept = [], by_ot_room = [] } = data;
     return (
         <div className="space-y-4">
@@ -680,18 +617,12 @@ export default function Dashboard() {
     const periodFrom = useSelector(selectPeriodFrom);
     const periodTo   = useSelector(selectPeriodTo);
 
-    const [rangeFrom, setRangeFrom] = useState(null);
-    const effectiveFrom = periodMode === 'custom' ? periodFrom : rangeFrom;
+    const effectiveFrom = periodMode === 'custom' ? periodFrom : null;
 
     const { mis, kpi, trend, payer, mix, ipDemo, surgery, op, collection, serviceRev, doctorPerf, admissions, isLoading, isError, refetch } =
         useDashboard(branch, date, effectiveFrom);
 
     if (!token) return <Navigate to="/login" replace />;
-
-    const handleLoad = useCallback((from, _to) => {
-        if (from) setRangeFrom(from);
-        else refetch();
-    }, [refetch]);
 
     const handlePrint = () => window.open(misApi.printPreview(branch, date), '_blank');
 
@@ -713,7 +644,7 @@ export default function Dashboard() {
 
     return (
         <AppLayout onPrint={handlePrint} topbar={
-            <Topbar onLoad={handleLoad} isLoading={isLoading} onPrint={handlePrint} />
+            <Topbar isLoading={isLoading} onPrint={handlePrint} />
         }>
             {/* Horizontal tab strip — sticky below the topbar */}
             <TabStrip tab={tab} onChange={(key) => dispatch(setActiveTab(key))} />
@@ -729,7 +660,7 @@ export default function Dashboard() {
                                 title="Failed to load report"
                                 description="No data found for the selected branch and date. Try uploading data first."
                                 action={
-                                    <button onClick={() => handleLoad()}
+                                    <button onClick={() => refetch()}
                                         className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 text-[13px] font-600 rounded-lg hover:bg-blue-100 transition-all cursor-pointer border border-blue-200">
                                         <RefreshCw className="w-3.5 h-3.5" /> Retry
                                     </button>

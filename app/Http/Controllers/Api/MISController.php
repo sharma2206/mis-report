@@ -68,6 +68,25 @@ class MISController extends Controller
                 'sources'  => $sources,
             ], $branch, $date, $request);
 
+            // Record import log
+            $filesUploaded = array_keys(array_filter($sources));
+            $totalImported = array_sum(array_map(fn($v) => is_array($v) ? ($v['count'] ?? $v['imported'] ?? 0) : (int)$v,
+                array_diff_key($imported, ['sources' => null])));
+            $totalSkipped  = array_sum(array_map(fn($v) => is_array($v) ? ($v['skipped'] ?? 0) : 0,
+                array_diff_key($imported, ['sources' => null])));
+            $totalErrors   = array_sum(array_map(fn($v) => is_array($v) ? ($v['errors'] ?? 0) : 0,
+                array_diff_key($imported, ['sources' => null])));
+            \App\Models\ImportLog::create([
+                'branch'         => $branch,
+                'report_date'    => $date,
+                'uploaded_by'    => $request->user()?->name ?? 'system',
+                'files_uploaded' => $filesUploaded,
+                'rows_imported'  => $totalImported,
+                'rows_skipped'   => $totalSkipped,
+                'rows_errored'   => $totalErrors,
+                'status'         => $totalErrors > 0 ? 'partial' : 'success',
+            ]);
+
             return response()->json([
                 'success'  => true,
                 'message'  => 'Files processed and MIS report generated successfully.',
@@ -79,6 +98,79 @@ class MISController extends Controller
                 'success' => false,
                 'message' => 'Upload failed: ' . $e->getMessage(),
             ], 422);
+        }
+    }
+
+    /**
+     * List import history logs.
+     * GET /api/mis/import-logs?branch=chromepet&limit=20
+     */
+    public function importLogs(\Illuminate\Http\Request $request): JsonResponse
+    {
+        $branch = $request->input('branch');
+        $limit  = min((int) $request->input('limit', 20), 100);
+
+        $query = \App\Models\ImportLog::orderByDesc('created_at')->limit($limit);
+        if ($branch) $query->where('branch', $branch);
+
+        return response()->json([
+            'success' => true,
+            'data'    => $query->get(),
+        ]);
+    }
+
+    /**
+     * Rollback an import: delete all rows imported in that batch, mark log as rolled back.
+     * DELETE /api/mis/import-logs/{id}
+     */
+    public function rollbackImport(\Illuminate\Http\Request $request, int $id): JsonResponse
+    {
+        $log = \App\Models\ImportLog::findOrFail($id);
+
+        // Prevent double-rollback
+        if ($log->rolled_back_at) {
+            return response()->json(['success' => false, 'message' => 'This import has already been rolled back.'], 422);
+        }
+
+        $this->assertBranchAccess($request, $log->branch);
+
+        try {
+            $branchEnum = \App\Enums\Branch::from($log->branch);
+            $date       = $log->report_date->toDateString();
+
+            // Delete all imported rows for this branch+date
+            \App\Models\BillItem::where('branch', $log->branch)->whereDate('bill_date', $date)->delete();
+            \App\Models\CashierCollection::where('branch', $log->branch)->whereDate('collection_date', $date)->delete();
+            \App\Models\ErAdmission::where('branch', $log->branch)->whereDate('admission_date', $date)->delete();
+            \App\Models\IpAdmission::where('branch', $log->branch)->whereDate('admission_date', $date)->delete();
+            \App\Models\Surgery::where('branch', $log->branch)->whereDate('surgery_date', $date)->delete();
+
+            if ($branchEnum === \App\Enums\Branch::CHROMEPET) {
+                \App\Models\PackageConsumption::where('branch', $log->branch)->whereDate('consumption_date', $date)->delete();
+            }
+
+            // Bust caches
+            \App\Repositories\CachedMisRepository::bustFor($log->branch, $date);
+
+            // Mark log
+            $log->update([
+                'rolled_back_at' => now(),
+                'rolled_back_by' => $request->user()?->name ?? 'system',
+                'status'         => 'rolled_back',
+            ]);
+
+            \App\Models\AuditLog::record('import_rollback', [
+                'import_log_id' => $id,
+                'branch'        => $log->branch,
+                'date'          => $date,
+            ], $log->branch, $date, $request);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Rolled back {$log->rows_imported} rows for {$log->branch} on {$date}.",
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
     }
 

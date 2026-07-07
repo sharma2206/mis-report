@@ -17,7 +17,7 @@ const reportSlice = createSlice({
         periodTo:      null,             // YYYY-MM-DD, used in custom mode
 
         // Last Import Info
-        lastImportInfo: null,            // { branch, date, file, uploadedAt }
+        lastImportInfo: (() => { try { const v = localStorage.getItem('mis_last_import'); return v ? JSON.parse(v) : null; } catch { return null; } })(),
 
         // Smart Alerts
         alerts: [],                      // [{ id, type, title, message, dismissible }]
@@ -61,6 +61,7 @@ const reportSlice = createSlice({
         // Last Import
         setLastImportInfo(state, { payload }) {
             state.lastImportInfo = payload;
+            try { localStorage.setItem('mis_last_import', JSON.stringify(payload)); } catch {}
         },
 
         // Smart Alerts

@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
+import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
 import { useSelector, useDispatch } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -6,7 +7,7 @@ import {
     FileText, ChevronDown, ChevronUp, Info, Calendar,
     Building2, Trash2, RefreshCw, Package, Hospital,
     Stethoscope, CreditCard, BarChart3, CheckCheck,
-    ScanLine, ToggleLeft, ToggleRight, ArrowRight,
+    ScanLine, ToggleLeft, ToggleRight, ArrowRight, RotateCcw,
 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { selectToken } from '../store/authSlice';
@@ -553,31 +554,137 @@ const ValidationPanel = ({ items, branch }) => {
     );
 };
 
-// ─── Import history ───────────────────────────────────────────────────────────
-const HISTORY = [
-    { name: 'formatted_bill_item_wise_detail.csv',  date: 'Today 09:30',  branch: 'Chromepet', rows: 12847, errors: 0 },
-    { name: 'formatted_er_admission_report.csv',    date: 'Today 09:30',  branch: 'Chromepet', rows: 432,   errors: 0 },
-    { name: 'formatted_ip_admission_report.csv',    date: 'Jul 5 08:15',  branch: 'Chromepet', rows: 891,   errors: 2 },
-    { name: 'formatted_surgery_detail_report.csv',  date: 'Jul 5 08:15',  branch: 'Chromepet', rows: 234,   errors: 0 },
-    { name: 'formatted_cashier_collection.csv',     date: 'Jul 4 22:00',  branch: 'Oragadam',  rows: 5201,  errors: 12},
-];
+// ─── Import history (real API) ────────────────────────────────────────────────
+const STATUS_COLOR = {
+    success:     { dot: 'bg-emerald-400', text: 'text-emerald-700' },
+    partial:     { dot: 'bg-amber-400',   text: 'text-amber-700'   },
+    failed:      { dot: 'bg-red-400',     text: 'text-red-700'     },
+    rolled_back: { dot: 'bg-slate-300',   text: 'text-slate-400'   },
+};
 
-const HistoryRow = ({ item }) => {
-    const info = detectFile(item.name);
-    const Icon = info.icon;
-    const c    = COLOR_CLASSES[info.color];
+const HistoryEntry = ({ log, onRollback, isRollingBack }) => {
+    const [confirming, setConfirming] = useState(false);
+    const sc      = STATUS_COLOR[log.status] || STATUS_COLOR.success;
+    const dt      = new Date(log.created_at);
+    const dateStr = dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) +
+                   ' ' + dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    const files   = Array.isArray(log.files_uploaded) ? log.files_uploaded.join(', ') : '';
+    const isRolledBack = log.status === 'rolled_back';
+
     return (
-        <div className="flex items-center gap-3 py-2.5 border-b border-slate-50 last:border-0">
-            <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${c.iconBg}`}>
-                <Icon className={`w-3.5 h-3.5 ${c.text}`} />
+        <div className="py-2.5 border-b border-slate-50 last:border-0">
+            <div className="flex items-center gap-3">
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${sc.dot}`} />
+                <div className="flex-1 min-w-0">
+                    <div className={`text-[11px] font-600 ${isRolledBack ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
+                        {log.branch} · {log.report_date}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                        {dateStr}{files ? ` · ${files}` : ''}
+                        {isRolledBack && log.rolled_back_by && ` · rolled back by ${log.rolled_back_by}`}
+                    </div>
+                </div>
+                <div className="text-right flex-shrink-0 space-y-0.5">
+                    <div className={`text-[11px] font-700 ${isRolledBack ? 'text-slate-400' : 'text-green-700'}`}>
+                        {Number(log.rows_imported).toLocaleString()} rows
+                    </div>
+                    {log.rows_errored > 0 && (
+                        <div className="text-[9px] text-red-600">{log.rows_errored} errors</div>
+                    )}
+                </div>
+                {/* Rollback button */}
+                {!isRolledBack && (
+                    <button
+                        onClick={() => setConfirming(true)}
+                        disabled={isRollingBack}
+                        title="Rollback this import"
+                        className="w-6 h-6 flex items-center justify-center rounded text-slate-300 hover:text-amber-500 hover:bg-amber-50 transition-colors cursor-pointer flex-shrink-0"
+                    >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                )}
             </div>
-            <div className="flex-1 min-w-0">
-                <div className="text-[11px] font-600 text-slate-700 truncate">{item.name.replace(/^formatted_/, '')}</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">{item.date} · {item.branch}</div>
+
+            {/* Inline confirm */}
+            <AnimatePresence>
+                {confirming && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                        className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 overflow-hidden">
+                        <p className="text-[11px] font-600 text-amber-800 mb-2">
+                            Rollback will delete all {Number(log.rows_imported).toLocaleString()} rows imported for {log.branch} on {log.report_date}. This cannot be undone.
+                        </p>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => { setConfirming(false); onRollback(log.id); }}
+                                disabled={isRollingBack}
+                                className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-700 rounded-md transition-colors cursor-pointer disabled:opacity-60">
+                                {isRollingBack ? 'Rolling back…' : 'Yes, Rollback'}
+                            </button>
+                            <button
+                                onClick={() => setConfirming(false)}
+                                className="flex-1 py-1.5 bg-white border border-slate-200 text-slate-600 text-[11px] font-600 rounded-md hover:bg-slate-50 transition-colors cursor-pointer">
+                                Cancel
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
+
+const ImportHistoryPanel = ({ branch }) => {
+    const queryClient = useQueryClient();
+
+    const { data, isLoading, refetch } = useQuery({
+        queryKey: ['importLogs', branch],
+        queryFn:  () => misApi.importLogs(branch, 15).then(r => r.data),
+        staleTime: 0,
+    });
+
+    const { mutate: rollback, variables: rollingId, isPending: isRollingBack } = useMutation({
+        mutationFn: (id) => misApi.rollbackImport(id).then(r => r.data),
+        onSuccess: (data, id) => {
+            refetch();
+            // Invalidate dashboard so deleted data is reflected
+            queryClient.invalidateQueries({ queryKey: ['mis', branch] });
+            queryClient.invalidateQueries({ queryKey: ['kpi', branch] });
+        },
+        onError: (err) => {
+            alert(err.response?.data?.message || 'Rollback failed.');
+        },
+    });
+
+    const logs = data?.success ? data.data : [];
+
+    return (
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-slate-400" />
+                    <span className="text-[12px] font-700 text-slate-700">Import History</span>
+                </div>
+                <button onClick={() => refetch()} className="text-[11px] text-blue-600 hover:text-blue-700 font-600 cursor-pointer flex items-center gap-1">
+                    <RefreshCw className="w-3 h-3" /> Refresh
+                </button>
             </div>
-            <div className="text-right flex-shrink-0">
-                <div className="text-[11px] font-700 text-green-700">{item.rows.toLocaleString()} rows</div>
-                {item.errors > 0 && <div className="text-[9px] text-red-600">{item.errors} errors</div>}
+            <div className="px-4 py-1">
+                {isLoading && (
+                    <div className="py-4 flex items-center justify-center">
+                        <RefreshCw className="w-4 h-4 animate-spin text-slate-300" />
+                    </div>
+                )}
+                {!isLoading && logs.length === 0 && (
+                    <div className="py-4 text-center text-[11px] text-slate-400">No imports recorded yet.</div>
+                )}
+                {logs.map(log => (
+                    <HistoryEntry
+                        key={log.id}
+                        log={log}
+                        onRollback={rollback}
+                        isRollingBack={isRollingBack && rollingId === log.id}
+                    />
+                ))}
             </div>
         </div>
     );
@@ -616,9 +723,10 @@ function getApiDate(mode, period, manualTo) {
 }
 
 export default function ImportCenter() {
-    const token  = useSelector(selectToken);
-    const branch = useSelector(selBranch);
-    const dispatch = useDispatch();
+    const token       = useSelector(selectToken);
+    const branch      = useSelector(selBranch);
+    const dispatch    = useDispatch();
+    const queryClient = useQueryClient();
 
     const [items,       setItems]       = useState([]);
     const [isDragging,  setIsDragging]  = useState(false);
@@ -765,9 +873,21 @@ export default function ImportCenter() {
                 return { ...item, status: 'done', progress: 100, rowCount: res?.count ?? null, issues: [] };
             }));
 
-            // ── Sync Redux date to the imported date so Dashboard auto-loads correct data ──
+            // Sync Redux date + invalidate all dashboard queries so Dashboard auto-refreshes
             dispatch(setDate(importDate));
             dispatch(setLastImportInfo({ branch, date: importDate, uploadedAt: new Date().toISOString() }));
+            queryClient.invalidateQueries({ queryKey: ['mis', branch] });
+            queryClient.invalidateQueries({ queryKey: ['kpi', branch] });
+            queryClient.invalidateQueries({ queryKey: ['dailyTrend', branch] });
+            queryClient.invalidateQueries({ queryKey: ['payerMix', branch] });
+            queryClient.invalidateQueries({ queryKey: ['patientMix', branch] });
+            queryClient.invalidateQueries({ queryKey: ['ipDemo', branch] });
+            queryClient.invalidateQueries({ queryKey: ['surgeryDetail', branch] });
+            queryClient.invalidateQueries({ queryKey: ['opMetrics', branch] });
+            queryClient.invalidateQueries({ queryKey: ['collection', branch] });
+            queryClient.invalidateQueries({ queryKey: ['serviceRevenue', branch] });
+            queryClient.invalidateQueries({ queryKey: ['doctorPerformance', branch] });
+            queryClient.invalidateQueries({ queryKey: ['admissions', branch] });
 
             setResult({ success: true, imported: totalImported, skipped: totalSkipped, errors: totalErrors, message: data.message || 'Import complete' });
 
@@ -784,10 +904,11 @@ export default function ImportCenter() {
             }));
 
             setResult({
-                success: false,
-                errors:  items.length,
-                message: topMsg,
-                detail:  allMessages.length > 0 ? allMessages.map(m => `${m.field}: ${m.message}`).join(' · ') : null,
+                success:    false,
+                errors:     items.length,
+                message:    topMsg,
+                detail:     allMessages.length > 0 ? allMessages.slice(0, 3).map(m => `${m.field}: ${m.message}`).join(' · ') : null,
+                errorLines: allMessages,
             });
         } finally {
             setIsImporting(false);
@@ -945,12 +1066,26 @@ export default function ImportCenter() {
                                         {result.success && result.skipped  > 0 && ` · ${result.skipped} skipped`}
                                         {result.success && result.errors   > 0 && ` · ${result.errors} errors`}
                                     </div>
-                                    {result.detail && (
+                                                    {result.detail && (
                                         <div className="text-[11px] text-red-600 mt-1 leading-relaxed">{result.detail}</div>
+                                    )}
+                                    {!result.success && result.errorLines?.length > 0 && (
+                                        <button
+                                            onClick={() => {
+                                                const csv = ['File,Message', ...result.errorLines.map(l => `"${l.field}","${l.message}"`)].join('\n');
+                                                const a   = document.createElement('a');
+                                                a.href    = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+                                                a.download = 'import-errors.csv';
+                                                a.click();
+                                            }}
+                                            className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-600 text-red-700 underline hover:no-underline cursor-pointer"
+                                        >
+                                            Download error report ({result.errorLines.length} errors)
+                                        </button>
                                     )}
                                 </div>
                                 <button onClick={() => setResult(null)}
-                                    className={`text-[11px] font-600 cursor-pointer ${result.success ? 'text-green-600 hover:text-green-800' : 'text-red-500 hover:text-red-700'}`}>
+                                    className={`text-[11px] font-600 cursor-pointer flex-shrink-0 ${result.success ? 'text-green-600 hover:text-green-800' : 'text-red-500 hover:text-red-700'}`}>
                                     Dismiss
                                 </button>
                             </motion.div>
@@ -979,18 +1114,7 @@ export default function ImportCenter() {
                     <AutoKpiNotice />
 
                     {/* 4. Import History */}
-                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Clock className="w-4 h-4 text-slate-400" />
-                                <span className="text-[12px] font-700 text-slate-700">Import History</span>
-                            </div>
-                            <button className="text-[11px] text-blue-600 hover:text-blue-700 font-600 cursor-pointer">View All</button>
-                        </div>
-                        <div className="px-4 py-1">
-                            {HISTORY.map((item, i) => <HistoryRow key={i} item={item} />)}
-                        </div>
-                    </div>
+                    <ImportHistoryPanel branch={branch} />
 
                     {/* 5. Tips */}
                     <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">

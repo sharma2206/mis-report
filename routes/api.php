@@ -40,6 +40,20 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
 
     // ─── Protected: no branch scope (import logs, dashboard, analytics) ──────
     Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () use ($date) {
+
+        // Branch list filtered by user access
+        Route::get('/branches', function (\Illuminate\Http\Request $request) {
+            $all = [
+                ['key' => 'chromepet', 'name' => 'Chromepet', 'beds' => 150],
+                ['key' => 'oragadam',  'name' => 'Oragadam',  'beds' => 100],
+            ];
+            $userBranch = $request->user()->branch;
+            $data = $userBranch
+                ? array_values(array_filter($all, fn ($b) => $b['key'] === $userBranch))
+                : $all;
+            return response()->json(['success' => true, 'data' => $data]);
+        });
+
         Route::get('/mis/import-logs',         [MISController::class, 'importLogs']);
         Route::delete('/mis/import-logs/{id}', [MISController::class, 'rollbackImport']);
 

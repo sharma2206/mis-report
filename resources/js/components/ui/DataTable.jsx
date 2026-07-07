@@ -77,7 +77,13 @@ export default function DataTable({
                                 {hg.headers.map(header => (
                                     <th
                                         key={header.id}
+                                        scope="col"
                                         onClick={header.column.getToggleSortingHandler()}
+                                        aria-sort={
+                                            header.column.getIsSorted() === 'asc'  ? 'ascending'  :
+                                            header.column.getIsSorted() === 'desc' ? 'descending' :
+                                            header.column.getCanSort()             ? 'none'       : undefined
+                                        }
                                         className={cn(
                                             'py-2 px-3 text-left text-[10px] font-700 uppercase tracking-wider text-slate-400 whitespace-nowrap',
                                             header.column.getCanSort() && 'cursor-pointer hover:text-slate-600 select-none',

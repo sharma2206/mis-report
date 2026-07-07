@@ -31,7 +31,7 @@ export default function Login() {
         resolver: zodResolver(schema),
     });
 
-    if (token) return <Navigate to="/upload" replace />;
+    if (token) return <Navigate to="/dashboard" replace />;
 
     const onSubmit = async (values) => {
         setApiError('');
@@ -122,40 +122,47 @@ export default function Login() {
                     <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
                         {/* Email */}
                         <div>
-                            <label className="block text-[12px] font-600 text-slate-700 mb-1.5">Email address</label>
+                            <label htmlFor="login-email" className="block text-[12px] font-600 text-slate-700 mb-1.5">Email address</label>
                             <div className="relative">
                                 <AtSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 pointer-events-none" />
                                 <input
+                                    id="login-email"
                                     type="email"
                                     placeholder="you@hospital.com"
                                     autoComplete="username"
                                     {...register('email')}
+                                    aria-describedby={errors.email ? 'login-email-error' : undefined}
+                                    aria-invalid={!!errors.email}
                                     className={`w-full pl-10 pr-4 py-3 border-[1.5px] rounded-xl text-[14px] text-slate-900 bg-white outline-none transition-all
                                         ${errors.email ? 'border-red-400 focus:ring-2 focus:ring-red-100' : 'border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100'}`}
                                 />
                             </div>
-                            {errors.email && <p className="text-[11px] text-red-500 mt-1">{errors.email.message}</p>}
+                            {errors.email && <p id="login-email-error" className="text-[11px] text-red-500 mt-1" role="alert">{errors.email.message}</p>}
                         </div>
 
                         {/* Password */}
                         <div>
-                            <label className="block text-[12px] font-600 text-slate-700 mb-1.5">Password</label>
+                            <label htmlFor="login-password" className="block text-[12px] font-600 text-slate-700 mb-1.5">Password</label>
                             <div className="relative">
                                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400 pointer-events-none" />
                                 <input
+                                    id="login-password"
                                     type={showPw ? 'text' : 'password'}
                                     placeholder="••••••••"
                                     autoComplete="current-password"
                                     {...register('password')}
+                                    aria-describedby={errors.password ? 'login-password-error' : undefined}
+                                    aria-invalid={!!errors.password}
                                     className={`w-full pl-10 pr-11 py-3 border-[1.5px] rounded-xl text-[14px] text-slate-900 bg-white outline-none transition-all
                                         ${errors.password ? 'border-red-400 focus:ring-2 focus:ring-red-100' : 'border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100'}`}
                                 />
                                 <button type="button" onClick={() => setShowPw(p => !p)}
+                                    aria-label={showPw ? 'Hide password' : 'Show password'}
                                     className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 border-0 bg-transparent cursor-pointer p-0">
                                     {showPw ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
                                 </button>
                             </div>
-                            {errors.password && <p className="text-[11px] text-red-500 mt-1">{errors.password.message}</p>}
+                            {errors.password && <p id="login-password-error" className="text-[11px] text-red-500 mt-1" role="alert">{errors.password.message}</p>}
                         </div>
 
                         <motion.button

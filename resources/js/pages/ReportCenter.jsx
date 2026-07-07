@@ -214,15 +214,17 @@ const ReportCard = ({ report, colorKey, onNavigate, onExport }) => {
                     <div className="flex items-center gap-1.5">
                         <button
                             onClick={e => { e.stopPropagation(); onExport(report); }}
+                            aria-label={`Download ${report.title}`}
                             className="w-7 h-7 flex items-center justify-center rounded-md bg-slate-50 border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-colors"
                         >
-                            <Download className="w-3.5 h-3.5" />
+                            <Download className="w-3.5 h-3.5" aria-hidden="true" />
                         </button>
                         <button
                             onClick={e => { e.stopPropagation(); onExport(report); }}
+                            aria-label={`Email ${report.title}`}
                             className="w-7 h-7 flex items-center justify-center rounded-md bg-slate-50 border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 transition-colors"
                         >
-                            <Mail className="w-3.5 h-3.5" />
+                            <Mail className="w-3.5 h-3.5" aria-hidden="true" />
                         </button>
                         <button className={`inline-flex items-center gap-1 px-3 py-1 rounded-md text-[11px] font-700 ${c.icon} transition-colors`}>
                             Open <ArrowRight className="w-3 h-3" />
@@ -275,12 +277,13 @@ export default function ReportCenter() {
                 </div>
                 <div className="ml-auto flex items-center gap-3">
                     <div className="relative">
-                        <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
                         <input
-                            type="text"
+                            type="search"
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                             placeholder="Search reports…"
+                            aria-label="Search reports"
                             className="pl-8 pr-4 py-1.5 text-[13px] border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:border-blue-400 focus:bg-white w-48 transition-all"
                         />
                     </div>

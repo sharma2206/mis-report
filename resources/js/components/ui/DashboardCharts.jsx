@@ -8,8 +8,8 @@ import { Activity } from 'lucide-react';
 const AXIS = { axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: '#f1f5f9' } } };
 
 // ─── Admissions vs Discharges ──────────────────────────────────────────────────
-export const AdmissionsChart = ({ data, isLoading }) => {
-    if (isLoading) return <ChartSkeleton height={220} />;
+export const AdmissionsChart = ({ data, isLoading, height = 220 }) => {
+    if (isLoading) return <ChartSkeleton height={height} />;
     if (!data?.length) return <EmptyState icon={Activity} title="No admissions data" description="IP admission data will appear here once imported." />;
 
     const dates = data.map(d => d.date?.slice(5) || d.date);
@@ -17,7 +17,7 @@ export const AdmissionsChart = ({ data, isLoading }) => {
     const dis   = data.map(d => d.discharges  || d.discharge_count  || 0);
 
     return (
-        <EChart height={220} option={{
+        <EChart height={height} option={{
             grid: gridDefault({ left: 36 }),
             tooltip: tooltipCount(),
             legend: { bottom: 0, icon: 'circle', itemWidth: 8, textStyle: { fontSize: 11, color: '#64748b' } },
@@ -34,17 +34,17 @@ export const AdmissionsChart = ({ data, isLoading }) => {
 };
 
 // ─── Department Revenue ────────────────────────────────────────────────────────
-export const DeptRevenueChart = ({ data, isLoading }) => {
-    if (isLoading) return <ChartSkeleton height={220} />;
+export const DeptRevenueChart = ({ data, isLoading, height = 220 }) => {
+    if (isLoading) return <ChartSkeleton height={height} />;
     const depts = data?.by_department || data?.by_dept || [];
     if (!depts.length) return <EmptyState title="No department revenue data" description="Bill items data will populate this chart." />;
 
-    const rows = depts.slice(0, 8);
-    const names = rows.map(d => (d.department || d.dept_name || '').substring(0, 18));
+    const rows   = depts.slice(0, 8);
+    const names  = rows.map(d => (d.department || d.dept_name || '').substring(0, 18));
     const values = rows.map(d => toLakhs(d.total_revenue || d.revenue));
 
     return (
-        <EChart height={220} option={{
+        <EChart height={height} option={{
             grid: gridDefault({ left: 110, right: 50, top: 8, bottom: 8 }),
             tooltip: { ...tooltipRupee(), trigger: 'axis', valueFormatter: v => `₹${Number(v).toFixed(2)}L` },
             xAxis: { type: 'value', axisLabel: { ...axisLabel(), formatter: v => `₹${v}L` }, ...AXIS },
@@ -61,8 +61,8 @@ export const DeptRevenueChart = ({ data, isLoading }) => {
 };
 
 // ─── Pharmacy Revenue Trend ────────────────────────────────────────────────────
-export const PharmacyTrendChart = ({ data, isLoading }) => {
-    if (isLoading) return <ChartSkeleton height={180} />;
+export const PharmacyTrendChart = ({ data, isLoading, height = 180 }) => {
+    if (isLoading) return <ChartSkeleton height={height} />;
     if (!data?.length) return <EmptyState title="No pharmacy trend data" />;
 
     const dates  = data.map(d => (d.day || d.date)?.slice(5) || d.day || d.date);
@@ -70,7 +70,7 @@ export const PharmacyTrendChart = ({ data, isLoading }) => {
     const max    = Math.max(...values);
 
     return (
-        <EChart height={180} option={{
+        <EChart height={height} option={{
             grid: gridDefault({ left: 48, top: 8 }),
             tooltip: { trigger: 'axis', valueFormatter: v => `₹${Number(v).toFixed(2)}L`, backgroundColor: '#fff', borderColor: '#e2e8f0', borderWidth: 1, textStyle: { fontSize: 11 }, extraCssText: 'border-radius:10px;box-shadow:0 8px 24px -4px rgba(0,0,0,.12)' },
             xAxis: { type: 'category', data: dates, axisLabel: axisLabel(), ...AXIS },
@@ -86,19 +86,19 @@ export const PharmacyTrendChart = ({ data, isLoading }) => {
 };
 
 // ─── Bed Occupancy Chart ───────────────────────────────────────────────────────
-export const BedOccupancyChart = ({ data, occupancyPct, isLoading }) => {
-    if (isLoading) return <ChartSkeleton height={180} />;
+export const BedOccupancyChart = ({ data, occupancyPct, isLoading, height = 180 }) => {
+    if (isLoading) return <ChartSkeleton height={height} />;
     if (!data?.length && !occupancyPct) return <EmptyState title="No occupancy data" description="IP admission report required." />;
 
     const chartData = data?.length
         ? data.map(d => ({ date: (d.day || d.date)?.slice(5) || d.day || d.date, occ: +Number(d.occupancy_pct || 0).toFixed(1) }))
         : [{ date: 'FTD', occ: +Number(occupancyPct || 0).toFixed(1) }];
 
-    const pct = Number(occupancyPct || 0);
+    const pct       = Number(occupancyPct || 0);
     const lineColor = pct >= 80 ? '#dc2626' : pct >= 60 ? '#d97706' : '#0891b2';
 
     return (
-        <EChart height={180} option={{
+        <EChart height={height} option={{
             grid: gridDefault({ left: 40, top: 8 }),
             tooltip: { trigger: 'axis', valueFormatter: v => `${v}%`, backgroundColor: '#fff', borderColor: '#e2e8f0', borderWidth: 1, textStyle: { fontSize: 11 }, extraCssText: 'border-radius:10px;box-shadow:0 8px 24px -4px rgba(0,0,0,.12)' },
             xAxis: { type: 'category', data: chartData.map(d => d.date), axisLabel: axisLabel(), ...AXIS },
@@ -117,7 +117,7 @@ export const BedOccupancyChart = ({ data, occupancyPct, isLoading }) => {
     );
 };
 
-// ─── Revenue Trend ────────────────────────────────────────────────────────────
+// ─── Revenue Trend ─────────────────────────────────────────────────────────────
 export const RevenueTrendChart = ({ data, isLoading, height = 240 }) => {
     if (isLoading) return <ChartSkeleton height={height} />;
     if (!data?.length) return <EmptyState title="No trend data" description="Upload bill items to see revenue trends." />;
@@ -135,17 +135,17 @@ export const RevenueTrendChart = ({ data, isLoading, height = 240 }) => {
             xAxis: { type: 'category', data: dates, axisLabel: axisLabel(), ...AXIS },
             yAxis: { type: 'value', axisLabel: { ...axisLabel(), formatter: v => `₹${v}L` }, ...AXIS },
             series: [
-                { name: 'Total',  type: 'line', data: total, smooth: 0.3, symbol: 'none', lineStyle: { color: '#1d4ed8', width: 2.5 }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(29,78,216,0.16)' }, { offset: 1, color: 'rgba(29,78,216,0)' }] } } },
-                { name: 'OP',     type: 'line', data: op,    smooth: 0.3, symbol: 'none', lineStyle: { color: '#059669', width: 1.5, type: 'dashed' } },
-                { name: 'IP',     type: 'line', data: ip,    smooth: 0.3, symbol: 'none', lineStyle: { color: '#7c3aed', width: 1.5, type: 'dashed' } },
+                { name: 'Total', type: 'line', data: total, smooth: 0.3, symbol: 'none', lineStyle: { color: '#1d4ed8', width: 2.5 }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(29,78,216,0.16)' }, { offset: 1, color: 'rgba(29,78,216,0)' }] } } },
+                { name: 'OP',    type: 'line', data: op,    smooth: 0.3, symbol: 'none', lineStyle: { color: '#059669', width: 1.5, type: 'dashed' } },
+                { name: 'IP',    type: 'line', data: ip,    smooth: 0.3, symbol: 'none', lineStyle: { color: '#7c3aed', width: 1.5, type: 'dashed' } },
             ],
         }} />
     );
 };
 
 // ─── Patient Mix Bar Chart ─────────────────────────────────────────────────────
-export const PatientMixChartE = ({ data, isLoading }) => {
-    if (isLoading) return <ChartSkeleton height={200} />;
+export const PatientMixChartE = ({ data, isLoading, height = 200 }) => {
+    if (isLoading) return <ChartSkeleton height={height} />;
     if (!data?.length) return <EmptyState title="No patient mix data" />;
 
     const dates = data.map(d => (d.day || d.date)?.slice(5) || d.day || d.date);
@@ -154,7 +154,7 @@ export const PatientMixChartE = ({ data, isLoading }) => {
     const er    = data.map(d => d.er ?? d.er_count ?? 0);
 
     return (
-        <EChart height={200} option={{
+        <EChart height={height} option={{
             grid: gridDefault({ left: 36 }),
             tooltip: tooltipCount(),
             legend: { bottom: 0, icon: 'circle', itemWidth: 8, textStyle: { fontSize: 11, color: '#64748b' } },
@@ -170,8 +170,8 @@ export const PatientMixChartE = ({ data, isLoading }) => {
 };
 
 // ─── Payer Donut Chart ─────────────────────────────────────────────────────────
-export const PayerChartE = ({ data, isLoading }) => {
-    if (isLoading) return <ChartSkeleton height={180} />;
+export const PayerChartE = ({ data, isLoading, height = 180 }) => {
+    if (isLoading) return <ChartSkeleton height={height} />;
     if (!data?.length) return <EmptyState title="No payer data" />;
 
     const rows = data.slice(0, 8).map((d, i) => ({
@@ -182,7 +182,7 @@ export const PayerChartE = ({ data, isLoading }) => {
 
     return (
         <div className="flex items-center gap-4">
-            <EChart height={180} style={{ width: '45%', flexShrink: 0 }} option={{
+            <EChart height={height} style={{ width: '45%', flexShrink: 0 }} option={{
                 tooltip: { trigger: 'item', formatter: p => `${p.name}: ₹${p.value}L (${p.percent}%)`, backgroundColor: '#fff', borderColor: '#e2e8f0', borderWidth: 1, textStyle: { fontSize: 11 }, extraCssText: 'border-radius:10px;box-shadow:0 8px 24px -4px rgba(0,0,0,.12)' },
                 series: [{
                     type: 'pie', radius: ['44%', '70%'], center: ['50%', '50%'],

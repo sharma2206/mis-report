@@ -13,6 +13,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Enable Sanctum SPA (cookie) authentication for API routes
+        $middleware->statefulApi();
+
         $middleware->alias([
             'branch.access' => CheckBranchAccess::class,
         ]);

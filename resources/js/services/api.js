@@ -3,21 +3,15 @@ import axios from 'axios';
 const client = axios.create({
     baseURL: '/api/v1',
     headers: { Accept: 'application/json' },
+    // Send session cookie + XSRF-TOKEN on every request (Sanctum SPA auth)
+    withCredentials: true,
 });
 
-// Attach Bearer token on every request
-client.interceptors.request.use((config) => {
-    const token = localStorage.getItem('mis_token');
-    if (token) config.headers.Authorization = `Bearer ${token}`;
-    return config;
-});
-
-// Redirect to /login on 401
+// Redirect to /login on 401 (session expired or not authenticated)
 client.interceptors.response.use(
     (res) => res,
     (err) => {
         if (err.response?.status === 401) {
-            localStorage.removeItem('mis_token');
             localStorage.removeItem('mis_user');
             window.location.replace('/login');
         }
@@ -26,6 +20,12 @@ client.interceptors.response.use(
 );
 
 export default client;
+
+// ─── Branches ────────────────────────────────────────────────────────────────
+
+export const branchesApi = {
+    list: () => client.get('/branches'),
+};
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 

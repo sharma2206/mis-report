@@ -11,17 +11,7 @@ import { selectBranch, selectDate } from '../../store/reportSlice';
 import { misApi } from '../../services/api';
 import { cn } from '../../utils/cn';
 import { today } from '../../utils/dateHelpers';
-
-const triggerDownload = async (fetchFn, filename) => {
-    const res  = await fetchFn();
-    const url  = URL.createObjectURL(new Blob([res.data]));
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
-};
+import { triggerDownload } from '../../utils/download';
 
 export const QuickActions = ({ onGenerateMIS, onUpload }) => {
     const navigate  = useNavigate();

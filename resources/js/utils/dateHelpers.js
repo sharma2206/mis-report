@@ -1,6 +1,10 @@
 export const today = () => new Date().toISOString().split('T')[0];
 
-export const monthStart = (date) => date ? date.substring(0, 8) + '01' : null;
+export const monthStart = (date) => {
+    if (!date) return null;
+    const d = new Date(date + 'T00:00:00');
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+};
 
 export const shiftDate = (date, days) => {
     const d = new Date(date);

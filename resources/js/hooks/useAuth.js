@@ -1,26 +1,34 @@
+import axios from 'axios';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
 import { authApi } from '../services/api';
-import { setCredentials, clearCredentials, selectUser, selectToken } from '../store/authSlice';
+import { setCredentials, clearCredentials, selectUser, selectIsAuthenticated } from '../store/authSlice';
 
 export const useAuth = () => {
-    const dispatch  = useDispatch();
-    const navigate  = useNavigate();
-    const user      = useSelector(selectUser);
-    const token     = useSelector(selectToken);
+    const dispatch        = useDispatch();
+    const navigate        = useNavigate();
+    const user            = useSelector(selectUser);
+    const isAuthenticated = useSelector(selectIsAuthenticated);
 
     const login = async ({ email, password }) => {
-        const { data } = await authApi.login({ email, password });
-        if (data.success && data.token) {
-            dispatch(setCredentials({ token: data.token, user: data.user }));
-            sessionStorage.removeItem('mis_last_branch');
-            sessionStorage.removeItem('mis_last_date');
-            navigate('/upload');
-            return { success: true };
+        try {
+            // Obtain CSRF cookie so Sanctum accepts the login POST
+            await axios.get('/sanctum/csrf-cookie', { withCredentials: true });
+
+            const { data } = await authApi.login({ email, password });
+            if (data.success) {
+                dispatch(setCredentials({ user: data.user }));
+                navigate('/dashboard');
+                return { success: true };
+            }
+            return { success: false, message: data.message || 'Login failed.' };
+        } catch (err) {
+            const msg =
+                err.response?.data?.errors?.email?.[0] ||
+                err.response?.data?.message ||
+                'Invalid credentials.';
+            return { success: false, message: msg };
         }
-        const msg = data.errors?.email?.[0] || data.message || 'Invalid credentials.';
-        return { success: false, message: msg };
     };
 
     const logout = async () => {
@@ -29,5 +37,5 @@ export const useAuth = () => {
         navigate('/login');
     };
 
-    return { user, token, isAuthenticated: !!token, login, logout };
+    return { user, isAuthenticated, login, logout };
 };

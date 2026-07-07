@@ -203,17 +203,19 @@ export default function Doctors() {
 
                         {/* Min revenue filter */}
                         <div className="flex items-center gap-3">
-                            <div className="text-[10px] font-700 uppercase tracking-wider text-slate-400 whitespace-nowrap">Min Revenue</div>
+                            <label htmlFor="min-revenue" className="text-[10px] font-700 uppercase tracking-wider text-slate-400 whitespace-nowrap">Min Revenue</label>
                             <div className="flex items-center gap-1.5 border border-slate-200 rounded-lg px-2.5 py-1 focus-within:border-violet-400 bg-white max-w-[140px]">
-                                <span className="text-[11px] text-slate-400">₹</span>
+                                <span className="text-[11px] text-slate-400" aria-hidden="true">₹</span>
                                 <input
+                                    id="min-revenue"
                                     type="number" min="0" step="0.5"
                                     value={minRevenue}
                                     onChange={e => setMinRevenue(e.target.value)}
                                     placeholder="0"
+                                    aria-label="Minimum revenue in lakhs"
                                     className="w-full text-[12px] outline-none bg-transparent text-slate-700"
                                 />
-                                <span className="text-[10px] text-slate-400">L</span>
+                                <span className="text-[10px] text-slate-400" aria-hidden="true">L</span>
                             </div>
                             {hasFilters && (
                                 <span className="text-[11px] text-slate-500">

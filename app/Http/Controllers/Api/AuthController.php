@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
@@ -14,7 +15,7 @@ class AuthController extends Controller
 {
     /**
      * POST /api/auth/login
-     * Returns a Sanctum API token on valid credentials.
+     * Authenticates via session cookie (Sanctum SPA auth). No token returned.
      */
     public function login(Request $request): JsonResponse
     {
@@ -23,27 +24,24 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        $user = User::where('email', $request->email)->first();
-
-        if (! $user || ! Hash::check($request->password, $user->password)) {
+        if (! Auth::attempt($request->only('email', 'password'))) {
             AuditLog::record('login_failed', ['email' => $request->email], null, null, $request);
             throw ValidationException::withMessages(['email' => ['Invalid credentials.']]);
         }
 
+        $user = Auth::user();
+
         if (! $user->is_active) {
+            Auth::logout();
             throw ValidationException::withMessages(['email' => ['Account is disabled.']]);
         }
 
-        // Revoke all previous tokens for this device (optional: keep only 5 recent)
-        $user->tokens()->where('name', 'api')->delete();
-
-        $token = $user->createToken('api', ['*'], now()->addDays(30))->plainTextToken;
+        $request->session()->regenerate();
 
         AuditLog::record('login', ['role' => $user->role], $user->branch, null, $request);
 
         return response()->json([
             'success' => true,
-            'token'   => $token,
             'user'    => [
                 'id'     => $user->id,
                 'name'   => $user->name,
@@ -60,7 +58,9 @@ class AuthController extends Controller
     public function logout(Request $request): JsonResponse
     {
         AuditLog::record('logout', [], null, null, $request);
-        $request->user()->currentAccessToken()->delete();
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return response()->json(['success' => true, 'message' => 'Logged out.']);
     }

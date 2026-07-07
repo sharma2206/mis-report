@@ -1,29 +1,29 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Navigate } from 'react-router-dom';
-// recharts removed — charts now use ECharts via DashboardCharts.jsx
 import {
     LayoutDashboard, TrendingUp, BarChart3, PieChart as PieIcon,
     BedDouble, Scissors, Users, Wallet, Package, Stethoscope,
     CreditCard, HeartPulse, ShoppingBag, Activity, Star,
-    RefreshCw, ChevronRight,
+    RefreshCw,
 } from 'lucide-react';
 import { selectToken } from '../store/authSlice';
 import {
     selectBranch as selBranch, selectDate as selDate, selectActiveTab,
-    selectPeriodMode, selectPeriodFrom, selectPeriodTo, setActiveTab,
+    selectPeriodMode, selectPeriodFrom, setActiveTab,
 } from '../store/reportSlice';
 import { useDashboard } from '../hooks/useDashboard';
 import { AppLayout } from '../components/layout/AppLayout';
 import { Topbar } from '../components/layout/Topbar';
 import { TableSkeleton, ChartSkeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
-import { Badge } from '../components/ui/Badge';
 import { RankedList, PayerChips } from '../components/ui/RankedList';
 import { KPIStrip } from '../components/ui/KPIStrip';
 import { QuickActions } from '../components/ui/QuickActions';
 import { SmartAlerts } from '../components/ui/SmartAlerts';
+import { ErrorBoundary } from '../components/ui/ErrorBoundary';
+import EChart from '../components/ui/EChart';
 import {
     AdmissionsChart, DeptRevenueChart, PharmacyTrendChart,
     BedOccupancyChart, RevenueTrendChart,
@@ -35,28 +35,38 @@ import { CHART_PALETTE } from '../constants';
 import { misApi } from '../services/api';
 import { cn } from '../utils/cn';
 
-// ── Dashboard tab definitions ────────────────────────────────────────────────
+// ── Dashboard tab definitions ─────────────────────────────────────────────────
 const TABS = [
-    { key: 'overview',   label: 'Overview',     icon: LayoutDashboard },
-    { key: 'revenue',    label: 'Revenue',      icon: TrendingUp      },
-    { key: 'volume',     label: 'Volume',       icon: BarChart3       },
-    { key: 'analytics',  label: 'Analytics',    icon: PieIcon         },
-    { key: 'ip',         label: 'IP',           icon: BedDouble       },
-    { key: 'surgery',    label: 'Surgery',      icon: Scissors        },
-    { key: 'op',         label: 'OP',           icon: Users           },
-    { key: 'collection', label: 'Collection',   icon: Wallet          },
-    { key: 'service',    label: 'Service Mix',  icon: Package         },
-    { key: 'doctors',    label: 'Doctors',      icon: Stethoscope     },
+    { key: 'overview',   label: 'Overview',    icon: LayoutDashboard },
+    { key: 'revenue',    label: 'Revenue',     icon: TrendingUp      },
+    { key: 'volume',     label: 'Volume',      icon: BarChart3       },
+    { key: 'analytics',  label: 'Analytics',   icon: PieIcon         },
+    { key: 'ip',         label: 'IP',          icon: BedDouble       },
+    { key: 'surgery',    label: 'Surgery',     icon: Scissors        },
+    { key: 'op',         label: 'OP',          icon: Users           },
+    { key: 'collection', label: 'Collection',  icon: Wallet          },
+    { key: 'service',    label: 'Service Mix', icon: Package         },
+    { key: 'doctors',    label: 'Doctors',     icon: Stethoscope     },
 ];
 
-// ── Shared chart tooltip style ────────────────────────────────────────────────
-const TOOLTIP = {
-    borderRadius: 10, border: '1px solid #e2e8f0',
-    boxShadow: '0 8px 24px -4px rgba(0,0,0,0.12)', fontSize: 12, padding: '8px 12px',
+// ── Static color map (prevents Tailwind JIT from purging dynamic class names) ─
+const STAT_CLS = {
+    blue:   { bg: 'bg-blue-50',   border: 'border-blue-100',   text: 'text-blue-700'   },
+    violet: { bg: 'bg-violet-50', border: 'border-violet-100', text: 'text-violet-700' },
+    slate:  { bg: 'bg-slate-50',  border: 'border-slate-200',  text: 'text-slate-700'  },
+    cyan:   { bg: 'bg-cyan-50',   border: 'border-cyan-100',   text: 'text-cyan-700'   },
+    amber:  { bg: 'bg-amber-50',  border: 'border-amber-100',  text: 'text-amber-700'  },
+    red:    { bg: 'bg-red-50',    border: 'border-red-100',    text: 'text-red-700'    },
+    green:  { bg: 'bg-green-50',  border: 'border-green-100',  text: 'text-green-700'  },
 };
-const AXIS_TICK = { fontSize: 10, fill: '#94a3b8' };
 
-// ── Section card wrapper ──────────────────────────────────────────────────────
+const SERVICE_COLORS = ['#1d4ed8','#7c3aed','#059669','#d97706','#dc2626','#0891b2','#be185d','#0f766e'];
+
+// Shared ECharts axis / tooltip defaults used in this file
+const EAXIS = { axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: '#f1f5f9' } } };
+const TT    = { backgroundColor: '#fff', borderColor: '#e2e8f0', borderWidth: 1, textStyle: { fontSize: 11 }, extraCssText: 'border-radius:10px;box-shadow:0 8px 24px -4px rgba(0,0,0,.12)' };
+
+// ── Section card wrapper ───────────────────────────────────────────────────────
 const Section = ({ title, icon: Icon, children, action, compact }) => (
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/60 to-white">
@@ -72,7 +82,7 @@ const Section = ({ title, icon: Icon, children, action, compact }) => (
     </div>
 );
 
-// ── Revenue table ─────────────────────────────────────────────────────────────
+// ── Revenue table ──────────────────────────────────────────────────────────────
 const REV_ROWS = [
     { key: 'op',      label: 'OP Revenue'  },
     { key: 'ip',      label: 'IP Revenue'  },
@@ -85,7 +95,6 @@ const REV_ROWS = [
 const RevenueTable = ({ mis, isLoading }) => {
     if (isLoading) return <TableSkeleton rows={7} cols={4} />;
     if (!mis) return <EmptyState title="No revenue data" description="Load a report to see revenue breakdown." />;
-    // API returns sales (not revenue) — enrich with pkg_adjustment and mri revenue
     const salesFtd = mis.sales?.ftd || {};
     const salesMtd = mis.sales?.mtd || {};
     const ftd = {
@@ -98,18 +107,18 @@ const RevenueTable = ({ mis, isLoading }) => {
         pkg:     mis.pkg_adjustment?.mtd != null ? mis.pkg_adjustment.mtd : undefined,
         mri_rev: mis.mri ? (mis.mri.mtd?.op?.revenue ?? 0) + (mis.mri.mtd?.ip?.revenue ?? 0) : undefined,
     };
-    const rows = REV_ROWS.filter(r => ftd[r.key] !== undefined || mtd[r.key] !== undefined);
-    const totalFtd = rows.reduce((a, r) => a + (Number(ftd[r.key] ?? 0) || 0), 0);
-    const totalMtd = rows.reduce((a, r) => a + (Number(mtd[r.key] ?? 0) || 0), 0);
+    const rows    = REV_ROWS.filter(r => ftd[r.key] !== undefined || mtd[r.key] !== undefined);
+    const totFtd  = rows.reduce((a, r) => a + (Number(ftd[r.key] ?? 0) || 0), 0);
+    const totMtd  = rows.reduce((a, r) => a + (Number(mtd[r.key] ?? 0) || 0), 0);
     return (
         <div className="overflow-x-auto">
             <table className="w-full text-[13px]">
                 <thead>
                     <tr className="text-left text-[10px] font-700 uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                        <th className="pb-2 pr-4 font-700">Category</th>
-                        <th className="pb-2 pr-4 text-right font-700">FTD (₹)</th>
-                        <th className="pb-2 pr-4 text-right font-700">FTD (L)</th>
-                        <th className="pb-2 text-right font-700">MTD (L)</th>
+                        <th scope="col" className="pb-2 pr-4 font-700">Category</th>
+                        <th scope="col" className="pb-2 pr-4 text-right font-700">FTD (₹)</th>
+                        <th scope="col" className="pb-2 pr-4 text-right font-700">FTD (L)</th>
+                        <th scope="col" className="pb-2 text-right font-700">MTD (L)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -123,9 +132,9 @@ const RevenueTable = ({ mis, isLoading }) => {
                     ))}
                     <tr className="font-700 bg-gradient-to-r from-slate-50 to-white border-t-2 border-slate-200">
                         <td className="py-2.5 pr-4 text-slate-800">Total</td>
-                        <td className={`py-2.5 pr-4 text-right ${cfClass(toLakhs(totalFtd))}`}>{fmtRupee(totalFtd)}</td>
-                        <td className={`py-2.5 pr-4 text-right ${cfClass(toLakhs(totalFtd))}`}>{fmtL(totalFtd)}</td>
-                        <td className="py-2.5 text-right text-slate-600">{fmtL(totalMtd)}</td>
+                        <td className={`py-2.5 pr-4 text-right ${cfClass(toLakhs(totFtd))}`}>{fmtRupee(totFtd)}</td>
+                        <td className={`py-2.5 pr-4 text-right ${cfClass(toLakhs(totFtd))}`}>{fmtL(totFtd)}</td>
+                        <td className="py-2.5 text-right text-slate-600">{fmtL(totMtd)}</td>
                     </tr>
                 </tbody>
             </table>
@@ -133,7 +142,7 @@ const RevenueTable = ({ mis, isLoading }) => {
     );
 };
 
-// ── Volume grid ───────────────────────────────────────────────────────────────
+// ── Volume grid ────────────────────────────────────────────────────────────────
 const VOLUME_ROWS = [
     { key: 'total_op',      label: 'OP Visits'     },
     { key: 'ip_count',      label: 'IP Patients'   },
@@ -153,7 +162,6 @@ const VolumeGrid = ({ mis, kpi, isLoading }) => {
     const volMtd = mis.volume?.mtd || {};
     const mriF   = mis.mri?.ftd;
     const mriM   = mis.mri?.mtd;
-    // Enrich volume with data from kpi (FTD-only) and MRI sub-object
     const ftd = {
         ...volFtd,
         ip_count:      kpi?.ip_count      != null ? kpi.ip_count      : undefined,
@@ -164,7 +172,7 @@ const VolumeGrid = ({ mis, kpi, isLoading }) => {
         ...volMtd,
         mri_count: mriM != null ? (mriM.op?.count ?? 0) + (mriM.ip?.count ?? 0) : undefined,
     };
-    const fmt = (key, v) => {
+    const fmtCell = (key, v) => {
         if (v === null) return <span className="text-slate-400 italic text-[11px]">N/A</span>;
         if (key === 'occupancy_pct') return <span>{fmtPct(v)}</span>;
         return <span>{(v ?? 0).toLocaleString()}</span>;
@@ -174,17 +182,17 @@ const VolumeGrid = ({ mis, kpi, isLoading }) => {
             <table className="w-full text-[13px]">
                 <thead>
                     <tr className="text-left text-[10px] font-700 uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                        <th className="pb-2 pr-4 font-700">Metric</th>
-                        <th className="pb-2 pr-4 text-right font-700">FTD</th>
-                        <th className="pb-2 text-right font-700">MTD</th>
+                        <th scope="col" className="pb-2 pr-4 font-700">Metric</th>
+                        <th scope="col" className="pb-2 pr-4 text-right font-700">FTD</th>
+                        <th scope="col" className="pb-2 text-right font-700">MTD</th>
                     </tr>
                 </thead>
                 <tbody>
                     {VOLUME_ROWS.filter(r => ftd[r.key] !== undefined || mtd[r.key] !== undefined).map(({ key, label }) => (
                         <tr key={key} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                             <td className="py-2 pr-4 font-500 text-slate-700">{label}</td>
-                            <td className="py-2 pr-4 text-right font-700 text-blue-700">{fmt(key, ftd[key])}</td>
-                            <td className="py-2 text-right font-600 text-slate-500">{fmt(key, mtd[key])}</td>
+                            <td className="py-2 pr-4 text-right font-700 text-blue-700">{fmtCell(key, ftd[key])}</td>
+                            <td className="py-2 text-right font-600 text-slate-500">{fmtCell(key, mtd[key])}</td>
                         </tr>
                     ))}
                 </tbody>
@@ -193,16 +201,18 @@ const VolumeGrid = ({ mis, kpi, isLoading }) => {
     );
 };
 
-// PatientMixChart and PayerChart are now imported from DashboardCharts (ECharts)
+// ── Stat box (shared across IP, Surgery, OP tabs) ──────────────────────────────
+const StatBox = ({ label, value, color = 'blue' }) => {
+    const cls = STAT_CLS[color] || STAT_CLS.blue;
+    return (
+        <div className={`${cls.bg} border ${cls.border} rounded-xl p-2.5 text-center`}>
+            <div className="text-[9px] font-700 text-slate-400 uppercase tracking-wider mb-0.5">{label}</div>
+            <div className={`text-[18px] font-800 ${cls.text} tabular-nums`}>{value ?? 0}</div>
+        </div>
+    );
+};
 
-// ── IP Demographics ───────────────────────────────────────────────────────────
-const StatBox = ({ label, value, color = 'blue' }) => (
-    <div className={`bg-${color}-50 border border-${color}-100 rounded-xl p-2.5 text-center`}>
-        <div className="text-[9px] font-700 text-slate-400 uppercase tracking-wider mb-0.5">{label}</div>
-        <div className={`text-[18px] font-800 text-${color}-700 tabular-nums`}>{value ?? 0}</div>
-    </div>
-);
-
+// ── IP Demographics ────────────────────────────────────────────────────────────
 const IPDemographics = ({ data, isLoading }) => {
     if (isLoading) return <TableSkeleton rows={5} cols={4} />;
     if (!data || data.total === 0) return <EmptyState title="No IP admission data" description="Upload the IP admission CSV file to see demographics." />;
@@ -217,11 +227,11 @@ const IPDemographics = ({ data, isLoading }) => {
                 <StatBox label="MLC"        value={data.mlc_count}      color="amber"  />
                 <StatBox label="Deaths"     value={data.death_count}    color="red"    />
             </div>
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {by_gender.length > 0 && <div><p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Gender</p><RankedList items={by_gender} nameKey="gender" valueKey="count" barColor="#1d4ed8" /></div>}
                 {by_payer_type.length > 0 && <div><p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Payer</p><RankedList items={by_payer_type} nameKey="payer_type" valueKey="count" barColor="#7c3aed" /></div>}
             </div>
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {by_ward.length > 0 && <div><p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Ward</p><RankedList items={by_ward.slice(0, 8)} nameKey="ward" valueKey="count" barColor="#059669" /></div>}
                 {top_doctors.length > 0 && <div><p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">Top Doctors</p><RankedList items={top_doctors.slice(0, 8)} nameKey="doctor" valueKey="count" barColor="#d97706" /></div>}
             </div>
@@ -229,7 +239,7 @@ const IPDemographics = ({ data, isLoading }) => {
     );
 };
 
-// ── Surgery Detail ────────────────────────────────────────────────────────────
+// ── Surgery Detail ─────────────────────────────────────────────────────────────
 const SurgeryDetail = ({ data, isLoading }) => {
     if (isLoading) return <TableSkeleton rows={6} cols={4} />;
     if (!data || data.total === 0) return <EmptyState title="No surgery data" description="Upload the surgery CSV file to see details." />;
@@ -246,7 +256,7 @@ const SurgeryDetail = ({ data, isLoading }) => {
                     </div>
                 ))}
             </div>
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {by_surgeon.length > 0 && <div><p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Surgeon</p><RankedList items={by_surgeon.slice(0, 10)} nameKey="surgeon" valueKey="count" barColor="#1d4ed8" /></div>}
                 {by_dept.length > 0 && <div><p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Department</p><RankedList items={by_dept.slice(0, 10)} nameKey="dept" valueKey="count" barColor="#7c3aed" /></div>}
             </div>
@@ -255,7 +265,7 @@ const SurgeryDetail = ({ data, isLoading }) => {
     );
 };
 
-// ── OP Metrics ────────────────────────────────────────────────────────────────
+// ── OP Metrics ─────────────────────────────────────────────────────────────────
 const OPMetrics = ({ data, isLoading }) => {
     if (isLoading) return <TableSkeleton rows={5} cols={3} />;
     if (!data) return <EmptyState title="No OP metrics" />;
@@ -264,27 +274,31 @@ const OPMetrics = ({ data, isLoading }) => {
     const byGender   = data.by_gender   || [];
     const byPayer    = data.by_payer_type || [];
     const fmt = (v) => `₹${Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+    const stats = [
+        ['Total Visits',    data.total_visits    ?? 0,          'blue'],
+        ['Unique Patients', data.unique_patients ?? 0,          'violet'],
+        ['Total Revenue',   fmt(data.total_revenue),            'green'],
+        ['Discount',        fmt(data.total_discount),           'amber'],
+    ];
     return (
         <div className="space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {[
-                    ['Total Visits',    data.total_visits    ?? 0, 'blue'],
-                    ['Unique Patients', data.unique_patients ?? 0, 'violet'],
-                    ['Total Revenue',   fmt(data.total_revenue),   'green'],
-                    ['Discount',        fmt(data.total_discount),  'amber'],
-                ].map(([label, val, color]) => (
-                    <div key={label} className={`bg-${color}-50 border border-${color}-100 rounded-xl p-2.5 text-center`}>
-                        <div className="text-[9px] font-700 text-slate-400 uppercase tracking-wider mb-0.5">{label}</div>
-                        <div className={`text-[16px] font-800 text-${color}-700`}>{typeof val === 'number' ? val.toLocaleString() : val}</div>
-                    </div>
-                ))}
+                {stats.map(([label, val, color]) => {
+                    const cls = STAT_CLS[color] || STAT_CLS.blue;
+                    return (
+                        <div key={label} className={`${cls.bg} border ${cls.border} rounded-xl p-2.5 text-center`}>
+                            <div className="text-[9px] font-700 text-slate-400 uppercase tracking-wider mb-0.5">{label}</div>
+                            <div className={`text-[16px] font-800 ${cls.text}`}>{typeof val === 'number' ? val.toLocaleString() : val}</div>
+                        </div>
+                    );
+                })}
             </div>
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {topDoctors.length > 0 && <div><p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">Top Doctors</p><RankedList items={topDoctors} nameKey="doctor" valueKey="visits" barColor="#059669" /></div>}
                 {byDept.length > 0 && <div><p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Department</p><RankedList items={byDept} nameKey="dept" valueKey="visits" barColor="#7c3aed" /></div>}
             </div>
             {(byGender.length > 0 || byPayer.length > 0) && (
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {byGender.length > 0 && <div><p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Gender</p><RankedList items={byGender} nameKey="gender" valueKey="visits" barColor="#0891b2" /></div>}
                     {byPayer.length > 0 && <div><p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Payer Type</p><RankedList items={byPayer} nameKey="payer_type" valueKey="visits" barColor="#d97706" /></div>}
                 </div>
@@ -293,48 +307,57 @@ const OPMetrics = ({ data, isLoading }) => {
     );
 };
 
-// ── Collection Tab ────────────────────────────────────────────────────────────
+// ── Collection Tab ─────────────────────────────────────────────────────────────
 const CollectionTab = ({ data, isLoading }) => {
     if (isLoading) return <div className="space-y-4"><ChartSkeleton height={220} /><TableSkeleton rows={6} cols={3} /></div>;
     if (!data) return <EmptyState title="No collection data" description="Upload a cashier collection file to see payment analytics." />;
-    const byMode  = data.payment_modes  || data.by_payment_mode || [];
-    const byType  = data.by_patient_type || [];
-    const byTxn   = data.by_category    || data.by_transaction_category || [];
-    const daily   = data.daily_trend    || [];
-    const total   = data.total_collection || 0;
-    const fmt     = (v) => `₹${Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+
+    const byMode = data.payment_modes  || data.by_payment_mode || [];
+    const byType = data.by_patient_type || [];
+    const byTxn  = data.by_category    || data.by_transaction_category || [];
+    const daily  = data.daily_trend    || [];
+    const total  = data.total_collection || 0;
+    const fmt    = (v) => `₹${Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+
+    const summaryStats = [
+        ['blue',   'Total Collection', fmt(total)],
+        ['green',  'Cash',             fmt(byMode.find(m => m.mode === 'Cash')?.amount)],
+        ['violet', 'Digital',          fmt(byMode.find(m => /UPI|Digital/i.test(m.mode))?.amount)],
+        ['amber',  'TPA',              fmt(byMode.find(m => /TPA/i.test(m.mode))?.amount)],
+    ];
+
     return (
         <div className="space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                    ['Total Collection', fmt(total),                                                                    'blue'],
-                    ['Cash',            fmt(byMode.find(m => m.mode === 'Cash')?.amount),                               'green'],
-                    ['Digital',         fmt(byMode.find(m => /UPI|Digital/i.test(m.mode))?.amount),                    'violet'],
-                    ['TPA',             fmt(byMode.find(m => /TPA/i.test(m.mode))?.amount),                            'amber'],
-                ].map(([label, val, color]) => (
-                    <div key={label} className={`bg-${color}-50 border border-${color}-100 rounded-xl p-3`}>
-                        <div className="text-[10px] font-700 uppercase tracking-wider text-slate-500 mb-1">{label}</div>
-                        <div className={`text-[1.05rem] font-800 text-${color}-700`}>{val || '₹0'}</div>
-                    </div>
-                ))}
+                {summaryStats.map(([color, label, val]) => {
+                    const cls = STAT_CLS[color] || STAT_CLS.blue;
+                    return (
+                        <div key={label} className={`${cls.bg} border ${cls.border} rounded-xl p-3`}>
+                            <div className="text-[10px] font-700 uppercase tracking-wider text-slate-500 mb-1">{label}</div>
+                            <div className={`text-[1.05rem] font-800 ${cls.text}`}>{val || '₹0'}</div>
+                        </div>
+                    );
+                })}
             </div>
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Section title="Payment Mode Breakdown" icon={Wallet}>
                     {byMode.length ? (
                         <>
-                            <ResponsiveContainer width="100%" height={180}>
-                                <PieChart>
-                                    <Pie data={byMode} dataKey="amount" nameKey="mode" cx="50%" cy="50%" outerRadius={72} label={({ mode, percent }) => `${mode} ${(percent * 100).toFixed(0)}%`} labelLine={false} fontSize={10}>
-                                        {byMode.map((_, i) => <Cell key={i} fill={PAYMENT_COLORS[i % PAYMENT_COLORS.length]} />)}
-                                    </Pie>
-                                    <Tooltip formatter={v => fmt(v)} contentStyle={{ ...TOOLTIP, fontSize: 11 }} />
-                                </PieChart>
-                            </ResponsiveContainer>
+                            <EChart height={180} option={{
+                                tooltip: { trigger: 'item', formatter: p => `${p.name}: ${fmt(p.value)} (${p.percent}%)`, ...TT },
+                                series: [{
+                                    type: 'pie', radius: ['40%', '68%'], center: ['50%', '50%'],
+                                    data: byMode.map((m, i) => ({ name: m.mode, value: m.amount, itemStyle: { color: CHART_PALETTE[i % CHART_PALETTE.length] } })),
+                                    label: { show: false },
+                                    itemStyle: { borderWidth: 2, borderColor: '#fff' },
+                                }],
+                            }} />
                             <div className="space-y-1.5 mt-2">
                                 {byMode.map((m, i) => (
-                                    <div key={i} className="flex items-center justify-between text-[12px]">
+                                    <div key={m.mode || i} className="flex items-center justify-between text-[12px]">
                                         <div className="flex items-center gap-2">
-                                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: PAYMENT_COLORS[i % PAYMENT_COLORS.length] }} />
+                                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: CHART_PALETTE[i % CHART_PALETTE.length] }} />
                                             <span className="text-slate-600 font-500">{m.mode}</span>
                                         </div>
                                         <span className="font-700 text-slate-700">{fmt(m.amount)}</span>
@@ -344,10 +367,12 @@ const CollectionTab = ({ data, isLoading }) => {
                         </>
                     ) : <EmptyState title="No payment mode data" />}
                 </Section>
+
                 <Section title="By Patient Type" icon={Users}>
-                    {byType.length ? (
-                        <RankedList items={byType} nameKey="patient_type" valueKey="amount" barColor="#1d4ed8" valueFormat={fmt} />
-                    ) : <EmptyState title="No patient type data" />}
+                    {byType.length
+                        ? <RankedList items={byType} nameKey="patient_type" valueKey="amount" barColor="#1d4ed8" valueFormat={fmt} />
+                        : <EmptyState title="No patient type data" />
+                    }
                     {byTxn.length > 0 && (
                         <div className="mt-4">
                             <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Transaction Type</p>
@@ -356,59 +381,67 @@ const CollectionTab = ({ data, isLoading }) => {
                     )}
                 </Section>
             </div>
+
             {daily.length > 0 && (
                 <Section title="Daily Collection Trend" icon={TrendingUp}>
-                    <ResponsiveContainer width="100%" height={200}>
-                        <AreaChart data={daily} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                            <defs>
-                                <linearGradient id="collGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%"  stopColor="#1d4ed8" stopOpacity={0.18} />
-                                    <stop offset="95%" stopColor="#1d4ed8" stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
-                            <XAxis dataKey="day" tick={AXIS_TICK} axisLine={false} tickLine={false} tickFormatter={v => v?.slice(5)} />
-                            <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
-                            <Tooltip formatter={v => [fmt(v), 'Collection']} labelFormatter={l => `Date: ${l}`} contentStyle={TOOLTIP} />
-                            <Area type="monotone" dataKey="amount" stroke="#1d4ed8" strokeWidth={2} fill="url(#collGrad)" dot={false} activeDot={{ r: 4, fill: '#1d4ed8', stroke: '#fff', strokeWidth: 2 }} />
-                        </AreaChart>
-                    </ResponsiveContainer>
+                    <EChart height={200} option={{
+                        grid: { top: 4, right: 8, bottom: 24, left: 56 },
+                        tooltip: { trigger: 'axis', formatter: p => `${p[0].axisValue}<br/>Collection: ${fmt(p[0].value)}`, ...TT },
+                        xAxis: { type: 'category', data: daily.map(d => (d.day || d.date)?.slice(5)), axisLabel: { fontSize: 10, color: '#94a3b8' }, ...EAXIS },
+                        yAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#94a3b8', formatter: v => `₹${(v / 1000).toFixed(0)}k` }, ...EAXIS },
+                        series: [{
+                            type: 'line', data: daily.map(d => d.amount || 0), smooth: 0.3,
+                            symbol: 'none', lineStyle: { color: '#1d4ed8', width: 2 },
+                            areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(29,78,216,0.18)' }, { offset: 1, color: 'rgba(29,78,216,0)' }] } },
+                        }],
+                    }} />
                 </Section>
             )}
         </div>
     );
 };
 
-// ── Service Mix Tab ───────────────────────────────────────────────────────────
+// ── Service Mix Tab ────────────────────────────────────────────────────────────
 const ServiceMixTab = ({ data, isLoading }) => {
     if (isLoading) return <div className="space-y-4"><ChartSkeleton height={220} /><TableSkeleton rows={6} cols={3} /></div>;
     if (!data) return <EmptyState title="No service data" description="Upload bill items file to see service mix analytics." />;
-    const byType  = data.by_service_type || [];
-    const byPtype = data.by_patient_type || [];
-    const topItems = data.top_items      || [];
-    const byDept   = data.by_department  || [];
-    const SERVICE_COLORS = ['#1d4ed8','#7c3aed','#059669','#d97706','#dc2626','#0891b2','#be185d','#0f766e'];
+
+    const byType   = data.by_service_type || [];
+    const byPtype  = data.by_patient_type || [];
+    const topItems = data.top_items       || [];
+    const byDept   = data.by_department   || [];
     const fmt = (v) => `₹${Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+
     return (
         <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-3"><div className="text-[10px] font-700 uppercase tracking-wider text-slate-500 mb-1">Total Revenue</div><div className="text-[1.05rem] font-800 text-blue-700">{fmt(data.total_revenue)}</div></div>
                 <div className="bg-red-50 border border-red-100 rounded-xl p-3"><div className="text-[10px] font-700 uppercase tracking-wider text-slate-500 mb-1">Total Discount</div><div className="text-[1.05rem] font-800 text-red-600">{fmt(data.total_discount)}</div></div>
             </div>
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Section title="Revenue by Service Type" icon={BarChart3}>
                     {byType.length ? (
-                        <ResponsiveContainer width="100%" height={220}>
-                            <BarChart data={byType} layout="vertical" margin={{ top: 4, right: 60, left: 0, bottom: 0 }}>
-                                <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
-                                <YAxis type="category" dataKey="service_type" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={90} />
-                                <Tooltip formatter={v => [fmt(v), 'Revenue']} contentStyle={TOOLTIP} cursor={{ fill: 'rgba(148,163,184,0.07)' }} />
-                                <Bar dataKey="revenue" radius={[0, 4, 4, 0]}>{byType.map((_, i) => <Cell key={i} fill={SERVICE_COLORS[i % SERVICE_COLORS.length]} />)}</Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
+                        <EChart height={220} option={{
+                            grid: { top: 4, right: 70, bottom: 8, left: 96 },
+                            tooltip: { trigger: 'axis', valueFormatter: v => fmt(v), ...TT },
+                            xAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#94a3b8', formatter: v => `₹${(v / 1000).toFixed(0)}k` }, ...EAXIS },
+                            yAxis: { type: 'category', data: byType.map(d => d.service_type), axisLabel: { fontSize: 9, color: '#64748b' }, axisLine: { show: false }, axisTick: { show: false } },
+                            series: [{
+                                type: 'bar', data: byType.map(d => d.revenue), barMaxWidth: 16,
+                                itemStyle: { borderRadius: [0, 4, 4, 0] },
+                                colorBy: 'data', color: SERVICE_COLORS,
+                                label: { show: true, position: 'right', formatter: p => fmt(p.value), fontSize: 9, color: '#64748b' },
+                            }],
+                        }} />
                     ) : <EmptyState title="No service type data" />}
                 </Section>
+
                 <Section title="Revenue by Patient Type" icon={Users}>
-                    {byPtype.length ? <RankedList items={byPtype} nameKey="patient_type" valueKey="revenue" barColor="#7c3aed" valueFormat={fmt} /> : <EmptyState title="No patient type data" />}
+                    {byPtype.length
+                        ? <RankedList items={byPtype} nameKey="patient_type" valueKey="revenue" barColor="#7c3aed" valueFormat={fmt} />
+                        : <EmptyState title="No patient type data" />
+                    }
                     {byDept.length > 0 && (
                         <div className="mt-4">
                             <p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">Top Departments</p>
@@ -417,11 +450,20 @@ const ServiceMixTab = ({ data, isLoading }) => {
                     )}
                 </Section>
             </div>
+
             {topItems.length > 0 && (
                 <Section title="Top Revenue Items" icon={Star}>
                     <div className="overflow-x-auto">
                         <table className="w-full text-[12px]">
-                            <thead><tr className="text-[10px] font-700 text-slate-400 uppercase text-left border-b border-slate-100"><th className="pb-1.5 pr-3">#</th><th className="pb-1.5 pr-3">Item</th><th className="pb-1.5 pr-3">Type</th><th className="pb-1.5 pr-3 text-right">Revenue</th><th className="pb-1.5 text-right">Count</th></tr></thead>
+                            <thead>
+                                <tr className="text-[10px] font-700 text-slate-400 uppercase text-left border-b border-slate-100">
+                                    <th scope="col" className="pb-1.5 pr-3">#</th>
+                                    <th scope="col" className="pb-1.5 pr-3">Item</th>
+                                    <th scope="col" className="pb-1.5 pr-3">Type</th>
+                                    <th scope="col" className="pb-1.5 pr-3 text-right">Revenue</th>
+                                    <th scope="col" className="pb-1.5 text-right">Count</th>
+                                </tr>
+                            </thead>
                             <tbody>
                                 {topItems.slice(0, 12).map((item, i) => (
                                     <tr key={i} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
@@ -441,7 +483,7 @@ const ServiceMixTab = ({ data, isLoading }) => {
     );
 };
 
-// ── Doctor Performance Tab ────────────────────────────────────────────────────
+// ── Doctor Performance Tab ─────────────────────────────────────────────────────
 const DoctorPerfTab = ({ data, isLoading }) => {
     const [sortKey, setSortKey] = useState('total_revenue');
     if (isLoading) return <TableSkeleton rows={10} cols={6} />;
@@ -450,11 +492,11 @@ const DoctorPerfTab = ({ data, isLoading }) => {
     const bySpeciality = data.by_speciality || [];
     const fmt = (v) => `₹${Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
     const cols = [
-        { key: 'total_revenue',   label: 'Revenue'  },
-        { key: 'unique_patients', label: 'Patients' },
-        { key: 'visit_count',     label: 'Visits'   },
-        { key: 'ip_admissions',   label: 'IP Adm.'  },
-        { key: 'surgeries',       label: 'Surgeries'},
+        { key: 'total_revenue',   label: 'Revenue'   },
+        { key: 'unique_patients', label: 'Patients'  },
+        { key: 'visit_count',     label: 'Visits'    },
+        { key: 'ip_admissions',   label: 'IP Adm.'   },
+        { key: 'surgeries',       label: 'Surgeries' },
     ];
     return (
         <div className="space-y-4">
@@ -466,8 +508,12 @@ const DoctorPerfTab = ({ data, isLoading }) => {
             <Section title="Doctor Performance" icon={Users} action={
                 <div className="flex items-center gap-1.5">
                     <span className="text-[10px] text-slate-400">Sort:</span>
-                    <select value={sortKey} onChange={e => setSortKey(e.target.value)}
-                        className="text-[11px] border border-slate-200 rounded-md px-2 py-0.5 text-slate-600 bg-white cursor-pointer outline-none focus:border-blue-400">
+                    <select
+                        value={sortKey}
+                        onChange={e => setSortKey(e.target.value)}
+                        aria-label="Sort doctor table by metric"
+                        className="text-[11px] border border-slate-200 rounded-md px-2 py-0.5 text-slate-600 bg-white cursor-pointer outline-none focus:border-blue-400"
+                    >
                         {cols.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
                     </select>
                 </div>
@@ -476,16 +522,21 @@ const DoctorPerfTab = ({ data, isLoading }) => {
                     <table className="w-full text-[12px]">
                         <thead>
                             <tr className="text-[10px] font-700 text-slate-400 uppercase text-left border-b border-slate-100">
-                                <th className="pb-1.5 pr-3">#</th>
-                                <th className="pb-1.5 pr-3">Doctor</th>
-                                <th className="pb-1.5 pr-3">Speciality</th>
+                                <th scope="col" className="pb-1.5 pr-3">#</th>
+                                <th scope="col" className="pb-1.5 pr-3">Doctor</th>
+                                <th scope="col" className="pb-1.5 pr-3">Speciality</th>
                                 {cols.map(c => (
-                                    <th key={c.key} onClick={() => setSortKey(c.key)}
-                                        className={`pb-1.5 pr-3 text-right cursor-pointer hover:text-slate-600 transition-colors ${sortKey === c.key ? 'text-blue-600' : ''}`}>
+                                    <th
+                                        key={c.key}
+                                        scope="col"
+                                        onClick={() => setSortKey(c.key)}
+                                        aria-sort={sortKey === c.key ? 'descending' : 'none'}
+                                        className={`pb-1.5 pr-3 text-right cursor-pointer hover:text-slate-600 transition-colors ${sortKey === c.key ? 'text-blue-600' : ''}`}
+                                    >
                                         {c.label}
                                     </th>
                                 ))}
-                                <th className="pb-1.5 text-right">Avg LOS</th>
+                                <th scope="col" className="pb-1.5 text-right">Avg LOS</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -510,25 +561,28 @@ const DoctorPerfTab = ({ data, isLoading }) => {
     );
 };
 
-// ── Analytics Tab ─────────────────────────────────────────────────────────────
-const AnalyticsTab = ({ payer, mix, isLoading }) => (
+// ── Analytics Tab ──────────────────────────────────────────────────────────────
+const AnalyticsTab = ({ payer, mix, isPayerLoading, isMixLoading }) => (
     <div className="space-y-4">
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Section title="Payer Mix Breakdown" icon={PieIcon}>
-                <PayerChart data={payer} isLoading={isLoading} />
-                {!isLoading && payer?.length > 0 && (
+                <PayerChart data={payer} isLoading={isPayerLoading} />
+                {!isPayerLoading && payer?.length > 0 && (
                     <div className="mt-3"><PayerChips items={payer} nameKey="payer_name" countKey="patient_count" /></div>
                 )}
             </Section>
             <Section title="Patient Mix Trend" icon={Users}>
-                <PatientMixChart data={mix} isLoading={isLoading} />
+                <PatientMixChart data={mix} isLoading={isMixLoading} />
             </Section>
         </div>
     </div>
 );
 
-// ── Overview Tab ──────────────────────────────────────────────────────────────
-const OverviewTab = ({ mis, kpi, trend, payer, mix, collection, serviceRev, admissions, isLoading }) => {
+// ── Overview Tab ───────────────────────────────────────────────────────────────
+const OverviewTab = ({
+    mis, kpi, trend, payer, mix, collection, serviceRev, admissions,
+    isLoading, isTrendLoading, isPayerLoading, isMixLoading, isAdmLoading,
+}) => {
     const ftdVol = mis?.volume?.ftd || {};
     return (
         <div className="space-y-4">
@@ -537,17 +591,17 @@ const OverviewTab = ({ mis, kpi, trend, payer, mix, collection, serviceRev, admi
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                 <div className="xl:col-span-2">
                     <Section title="Revenue Trend" icon={TrendingUp}>
-                        <RevenueTrendChart data={trend} isLoading={isLoading} />
+                        <RevenueTrendChart data={trend} isLoading={isTrendLoading} />
                     </Section>
                 </div>
                 <Section title="Payer Mix" icon={PieIcon}>
-                    <PayerChart data={payer} isLoading={isLoading} />
+                    <PayerChart data={payer} isLoading={isPayerLoading} />
                 </Section>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Section title="Patient Trend" icon={Users}>
-                    <PatientMixChart data={mix} isLoading={isLoading} />
+                    <PatientMixChart data={mix} isLoading={isMixLoading} />
                 </Section>
                 <Section title="Admissions vs Discharges" icon={Activity}>
                     <AdmissionsChart data={
@@ -555,14 +609,14 @@ const OverviewTab = ({ mis, kpi, trend, payer, mix, collection, serviceRev, admi
                             ? [{ date: 'IP', admissions: admissions.ip_total || 0, discharges: 0 },
                                { date: 'ER', admissions: admissions.er_total || 0, discharges: 0 }]
                             : []
-                    } isLoading={isLoading} />
+                    } isLoading={isAdmLoading} />
                 </Section>
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                 <div className="xl:col-span-2">
                     <Section title="Department Revenue" icon={BarChart3}>
-                        <DeptRevenueChart data={serviceRev} isLoading={isLoading} />
+                        <DeptRevenueChart data={serviceRev} isLoading={isTrendLoading} />
                     </Section>
                 </div>
                 <div className="space-y-4">
@@ -574,39 +628,54 @@ const OverviewTab = ({ mis, kpi, trend, payer, mix, collection, serviceRev, admi
             </div>
 
             <Section title="Pharmacy Revenue Trend" icon={ShoppingBag}>
-                <PharmacyTrendChart data={trend} isLoading={isLoading} />
+                <PharmacyTrendChart data={trend} isLoading={isTrendLoading} />
             </Section>
         </div>
     );
 };
 
-// ── Horizontal Tab Strip ──────────────────────────────────────────────────────
-const TabStrip = ({ tab, onChange }) => (
-    <div className="bg-white border-b border-slate-200 overflow-x-auto scrollbar-none flex-shrink-0">
-        <div className="flex gap-0 min-w-max px-1">
-            {TABS.map(({ key, label, icon: Icon }) => {
-                const active = tab === key;
-                return (
-                    <button
-                        key={key}
-                        onClick={() => onChange(key)}
-                        className={cn(
-                            'relative flex items-center gap-1.5 px-3.5 py-3 text-[12px] font-600 border-b-2 transition-all cursor-pointer whitespace-nowrap border-0 bg-transparent',
-                            active
-                                ? 'border-blue-600 text-blue-700'
-                                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-200',
-                        )}
-                    >
-                        <Icon className={cn('w-3.5 h-3.5', active ? 'text-blue-600' : 'text-slate-400')} />
-                        {label}
-                    </button>
-                );
-            })}
-        </div>
-    </div>
-);
+// ── Horizontal Tab Strip — WAI-ARIA tablist pattern ───────────────────────────
+const TabStrip = ({ tab, onChange }) => {
+    const handleKey = useCallback((e, index) => {
+        if (e.key === 'ArrowRight') { e.preventDefault(); onChange(TABS[Math.min(index + 1, TABS.length - 1)].key); }
+        if (e.key === 'ArrowLeft')  { e.preventDefault(); onChange(TABS[Math.max(index - 1, 0)].key); }
+        if (e.key === 'Home')       { e.preventDefault(); onChange(TABS[0].key); }
+        if (e.key === 'End')        { e.preventDefault(); onChange(TABS[TABS.length - 1].key); }
+    }, [onChange]);
 
-// ── Main Dashboard ────────────────────────────────────────────────────────────
+    return (
+        <div role="tablist" aria-label="Dashboard sections" className="bg-white border-b border-slate-200 overflow-x-auto scrollbar-none flex-shrink-0">
+            <div className="flex gap-0 min-w-max px-1">
+                {TABS.map(({ key, label, icon: Icon }, index) => {
+                    const active = tab === key;
+                    return (
+                        <button
+                            key={key}
+                            role="tab"
+                            id={`tab-${key}`}
+                            aria-selected={active}
+                            aria-controls={`tabpanel-${key}`}
+                            tabIndex={active ? 0 : -1}
+                            onClick={() => onChange(key)}
+                            onKeyDown={(e) => handleKey(e, index)}
+                            className={cn(
+                                'relative flex items-center gap-1.5 px-3.5 py-3 text-[12px] font-600 border-b-2 transition-all cursor-pointer whitespace-nowrap border-0 bg-transparent',
+                                active
+                                    ? 'border-blue-600 text-blue-700'
+                                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-200',
+                            )}
+                        >
+                            <Icon className={cn('w-3.5 h-3.5', active ? 'text-blue-600' : 'text-slate-400')} />
+                            {label}
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+// ── Main Dashboard ─────────────────────────────────────────────────────────────
 export default function Dashboard() {
     const token      = useSelector(selectToken);
     const branch     = useSelector(selBranch);
@@ -615,12 +684,17 @@ export default function Dashboard() {
     const dispatch   = useDispatch();
     const periodMode = useSelector(selectPeriodMode);
     const periodFrom = useSelector(selectPeriodFrom);
-    const periodTo   = useSelector(selectPeriodTo);
 
     const effectiveFrom = periodMode === 'custom' ? periodFrom : null;
 
-    const { mis, kpi, trend, payer, mix, ipDemo, surgery, op, collection, serviceRev, doctorPerf, admissions, isLoading, isError, refetch } =
-        useDashboard(branch, date, effectiveFrom);
+    const {
+        mis, kpi, trend, payer, mix, serviceRev, admissions,
+        ipDemo, surgery, op, collection, doctorPerf,
+        isLoading, isTrendLoading, isPayerLoading, isMixLoading,
+        isIpLoading, isSurgLoading, isOpLoading, isCollLoading,
+        isSvcLoading, isDrLoading, isAdmLoading,
+        isError, refetch, dataUpdatedAt,
+    } = useDashboard(branch, date, effectiveFrom, tab);
 
     if (!token) return <Navigate to="/login" replace />;
 
@@ -628,29 +702,56 @@ export default function Dashboard() {
 
     const tabContent = () => {
         switch (tab) {
-            case 'overview':   return <OverviewTab mis={mis} kpi={kpi} trend={trend} payer={payer} mix={mix} collection={collection} serviceRev={serviceRev} admissions={admissions} isLoading={isLoading} />;
-            case 'revenue':    return <div className="space-y-4"><Section title="Revenue Breakdown" icon={CreditCard}><RevenueTable mis={mis} isLoading={isLoading} /></Section><Section title="Daily Revenue Trend" icon={TrendingUp}><RevenueTrendChart data={trend} isLoading={isLoading} /></Section></div>;
-            case 'volume':     return <div className="space-y-4"><Section title="Volume & MRI Metrics" icon={BarChart3}><VolumeGrid mis={mis} kpi={kpi} isLoading={isLoading} /></Section><Section title="Patient Volume Trend" icon={Users}><PatientMixChart data={mix} isLoading={isLoading} /></Section></div>;
-            case 'analytics':  return <AnalyticsTab payer={payer} mix={mix} isLoading={isLoading} />;
-            case 'ip':         return <Section title="IP Admissions & Demographics" icon={BedDouble}><IPDemographics data={ipDemo} isLoading={isLoading} /></Section>;
-            case 'surgery':    return <Section title="Surgery Analytics" icon={Scissors}><SurgeryDetail data={surgery} isLoading={isLoading} /></Section>;
-            case 'op':         return <Section title="OP Metrics" icon={Users}><OPMetrics data={op} isLoading={isLoading} /></Section>;
-            case 'collection': return <CollectionTab data={collection} isLoading={isLoading} />;
-            case 'service':    return <ServiceMixTab data={serviceRev} isLoading={isLoading} />;
-            case 'doctors':    return <DoctorPerfTab data={doctorPerf} isLoading={isLoading} />;
+            case 'overview':
+                return (
+                    <OverviewTab
+                        mis={mis} kpi={kpi} trend={trend} payer={payer} mix={mix}
+                        collection={collection} serviceRev={serviceRev} admissions={admissions}
+                        isLoading={isLoading}
+                        isTrendLoading={isTrendLoading}
+                        isPayerLoading={isPayerLoading}
+                        isMixLoading={isMixLoading}
+                        isAdmLoading={isAdmLoading}
+                    />
+                );
+            case 'revenue':
+                return (
+                    <div className="space-y-4">
+                        <Section title="Revenue Breakdown" icon={CreditCard}><RevenueTable mis={mis} isLoading={isLoading} /></Section>
+                        <Section title="Daily Revenue Trend" icon={TrendingUp}><RevenueTrendChart data={trend} isLoading={isTrendLoading} /></Section>
+                    </div>
+                );
+            case 'volume':
+                return (
+                    <div className="space-y-4">
+                        <Section title="Volume & MRI Metrics" icon={BarChart3}><VolumeGrid mis={mis} kpi={kpi} isLoading={isLoading} /></Section>
+                        <Section title="Patient Volume Trend" icon={Users}><PatientMixChart data={mix} isLoading={isMixLoading} /></Section>
+                    </div>
+                );
+            case 'analytics':  return <AnalyticsTab payer={payer} mix={mix} isPayerLoading={isPayerLoading} isMixLoading={isMixLoading} />;
+            case 'ip':         return <Section title="IP Admissions & Demographics" icon={BedDouble}><IPDemographics data={ipDemo} isLoading={isIpLoading} /></Section>;
+            case 'surgery':    return <Section title="Surgery Analytics" icon={Scissors}><SurgeryDetail data={surgery} isLoading={isSurgLoading} /></Section>;
+            case 'op':         return <Section title="OP Metrics" icon={Users}><OPMetrics data={op} isLoading={isOpLoading} /></Section>;
+            case 'collection': return <CollectionTab data={collection} isLoading={isCollLoading} />;
+            case 'service':    return <ServiceMixTab data={serviceRev} isLoading={isSvcLoading} />;
+            case 'doctors':    return <DoctorPerfTab data={doctorPerf} isLoading={isDrLoading} />;
             default:           return null;
         }
     };
 
     return (
-        <AppLayout onPrint={handlePrint} topbar={
-            <Topbar isLoading={isLoading} onPrint={handlePrint} />
-        }>
-            {/* Horizontal tab strip — sticky below the topbar */}
+        <AppLayout topbar={<Topbar isLoading={isLoading} onPrint={handlePrint} dataUpdatedAt={dataUpdatedAt} />}>
+            {/* Horizontal tab strip sticky below topbar */}
             <TabStrip tab={tab} onChange={(key) => dispatch(setActiveTab(key))} />
 
-            <main className="flex-1 overflow-y-auto p-4">
+            <main
+                role="tabpanel"
+                id={`tabpanel-${tab}`}
+                aria-labelledby={`tab-${tab}`}
+                className="flex-1 overflow-y-auto p-4"
+            >
                 {!isLoading && <SmartAlerts mis={mis} kpi={kpi} />}
+
                 <AnimatePresence mode="wait">
                     {isError ? (
                         <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -675,7 +776,9 @@ export default function Dashboard() {
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.16 }}
                         >
-                            {tabContent()}
+                            <ErrorBoundary key={tab}>
+                                {tabContent()}
+                            </ErrorBoundary>
                         </motion.div>
                     )}
                 </AnimatePresence>

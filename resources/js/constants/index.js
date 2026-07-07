@@ -21,12 +21,3 @@ export const DATE_PRESETS = [
     { key: 'last_month', label: 'Last Month' },
 ];
 
-export const NAV_TABS = [
-    { key: 'overview',  label: 'Overview',      icon: 'LayoutDashboard' },
-    { key: 'revenue',   label: 'Revenue',        icon: 'CreditCard' },
-    { key: 'volume',    label: 'Volume & MRI',   icon: 'TrendingUp' },
-    { key: 'analytics', label: 'Analytics',      icon: 'BarChart2' },
-    { key: 'ip',        label: 'IP',             icon: 'BedDouble' },
-    { key: 'surgery',   label: 'Surgery',        icon: 'Stethoscope' },
-    { key: 'op',        label: 'OP',             icon: 'UserCheck' },
-];

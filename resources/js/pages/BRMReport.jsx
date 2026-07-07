@@ -19,6 +19,7 @@ import { BRANCHES } from '../constants';
 import { fmtL, fmtRupee } from '../utils/formatters';
 import { monthStart, resolvePresetRange, today } from '../utils/dateHelpers';
 import { cn } from '../utils/cn';
+import { triggerDownload } from '../utils/download';
 
 const brmColHelper = createColumnHelper();
 const BRM_COLS = [
@@ -62,16 +63,6 @@ const PRESET_BTNS = [
     { label: 'MTD',       key: 'mtd'        },
 ];
 
-const triggerDownload = async (fetchFn, filename) => {
-    try {
-        const res  = await fetchFn();
-        const url  = URL.createObjectURL(new Blob([res.data]));
-        const a    = document.createElement('a');
-        a.href     = url; a.download = filename;
-        document.body.appendChild(a); a.click();
-        setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
-    } catch { alert('Download failed. Please try again.'); }
-};
 
 export default function BRMReport() {
     const token    = useSelector(selectToken);

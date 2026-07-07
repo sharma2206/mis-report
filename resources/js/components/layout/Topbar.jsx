@@ -1,39 +1,61 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-    Download, RefreshCw, FileSpreadsheet, FileText, Table2, Printer, BarChart3,
+    Download, RefreshCw, FileSpreadsheet, FileText, Table2, Printer, BarChart3, Clock,
 } from 'lucide-react';
 import {
     selectBranch, selectDate,
     setBranch, setDate,
 } from '../../store/reportSlice';
 import { misApi } from '../../services/api';
-import { BRANCHES } from '../../constants';
 import { cn } from '../../utils/cn';
 import { ReportPeriodSelector } from '../ui/ReportPeriodSelector';
 import { resolvePresetRange, today } from '../../utils/dateHelpers';
+import { triggerDownload } from '../../utils/download';
+import { useBranches } from '../../hooks/useBranches';
 
-const triggerDownload = async (fetchFn, filename) => {
-    try {
-        const res  = await fetchFn();
-        const url  = URL.createObjectURL(new Blob([res.data]));
-        const a    = document.createElement('a');
-        a.href     = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
-    } catch {
-        alert('Download failed. Please try again.');
-    }
-};
+// How long before we consider data "stale" and show the indicator (15 min)
+const STALE_AFTER_MS = 15 * 60 * 1000;
 
-export const Topbar = ({ onPrint, isLoading }) => {
-    const dispatch = useDispatch();
-    const branch   = useSelector(selectBranch);
-    const date     = useSelector(selectDate);
-    const todayStr = today();
-    const dropRef  = useRef(null);
+function useUpdatedAgo(dataUpdatedAt) {
+    const [label, setLabel] = useState(null);
+
+    useEffect(() => {
+        if (!dataUpdatedAt) { setLabel(null); return; }
+
+        const compute = () => {
+            const diff = Date.now() - dataUpdatedAt;
+            if (diff < 60_000) { setLabel('just now'); return; }
+            const mins = Math.floor(diff / 60_000);
+            if (mins < 60) { setLabel(`${mins}m ago`); return; }
+            setLabel(`${Math.floor(mins / 60)}h ago`);
+        };
+
+        compute();
+        const id = setInterval(compute, 30_000);
+        return () => clearInterval(id);
+    }, [dataUpdatedAt]);
+
+    const isStale = dataUpdatedAt && (Date.now() - dataUpdatedAt) > STALE_AFTER_MS;
+    return { label, isStale };
+}
+
+export const Topbar = ({ onPrint, isLoading, dataUpdatedAt }) => {
+    const dispatch  = useDispatch();
+    const branch    = useSelector(selectBranch);
+    const date      = useSelector(selectDate);
+    const todayStr  = today();
+    const dropRef   = useRef(null);
+
+    const { branches }                         = useBranches();
+    const { label: updatedLabel, isStale }     = useUpdatedAgo(dataUpdatedAt);
+
+    // M-8: auto-reset branch if the stored value is not in the user's allowed list
+    useEffect(() => {
+        if (branches.length > 0 && branch && !branches.find(b => b.key === branch)) {
+            dispatch(setBranch(branches[0].key));
+        }
+    }, [branches, branch, dispatch]);
 
     const [exporting,     setExporting]     = useState(null);
     const [brmFrom,       setBrmFrom]       = useState('');
@@ -75,22 +97,16 @@ export const Topbar = ({ onPrint, isLoading }) => {
         setShowBrmPicker(true);
     };
 
-    // Branch change: just dispatch — React Query refetches automatically (key changes)
-    const handleBranch = (b) => dispatch(setBranch(b));
-
-    // Period selector: dispatch date — React Query refetches automatically
-    const handlePeriodLoad = (from, to) => {
-        if (to) dispatch(setDate(to));
-    };
-
-    const toggleDrop = () => dropRef.current?.classList.toggle('hidden');
+    const handleBranch    = (b) => dispatch(setBranch(b));
+    const handlePeriodLoad = (from, to) => { if (to) dispatch(setDate(to)); };
+    const toggleDrop      = () => dropRef.current?.classList.toggle('hidden');
 
     return (
         <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm flex-shrink-0 no-print">
             <div className="flex items-center gap-2.5 px-4 h-[54px]">
-                {/* Branch selector pills */}
+                {/* Branch selector pills — rendered from API / fallback constant */}
                 <div className="flex gap-1.5 flex-shrink-0">
-                    {Object.entries(BRANCHES).map(([key, { label }]) => (
+                    {branches.map(({ key, label }) => (
                         <button
                             key={key}
                             onClick={() => handleBranch(key)}
@@ -111,13 +127,25 @@ export const Topbar = ({ onPrint, isLoading }) => {
                 {/* Period Selector */}
                 <ReportPeriodSelector onLoad={handlePeriodLoad} />
 
-                {/* Loading indicator */}
-                {isLoading && (
-                    <div className="flex items-center gap-1.5 text-[12px] text-slate-400 ml-2">
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span className="hidden sm:inline">Loading…</span>
-                    </div>
-                )}
+                {/* Loading / stale indicator */}
+                <div className="flex items-center ml-2">
+                    {isLoading ? (
+                        <div className="flex items-center gap-1.5 text-[12px] text-slate-400">
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span className="hidden sm:inline">Loading…</span>
+                        </div>
+                    ) : updatedLabel ? (
+                        <div className={cn(
+                            'flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-500',
+                            isStale
+                                ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                                : 'bg-slate-50 text-slate-400 border border-slate-100',
+                        )}>
+                            <Clock className="w-3 h-3 flex-shrink-0" />
+                            <span className="hidden sm:inline">{updatedLabel}</span>
+                        </div>
+                    ) : null}
+                </div>
 
                 <div className="flex gap-2 ml-auto items-center flex-shrink-0">
                     {/* Export dropdown */}

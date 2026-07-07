@@ -21,25 +21,10 @@ import { BRANCHES, CHART_PALETTE, DATE_PRESETS } from '../constants';
 import { cn } from '../utils/cn';
 import { TableSkeleton, ChartSkeleton, KPISkeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
+import { triggerDownload } from '../utils/download';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const todayStr = today();
-
-const triggerDownload = async (fetchFn, filename, onStart, onEnd) => {
-    onStart?.();
-    try {
-        const res = await fetchFn();
-        const url = URL.createObjectURL(new Blob([res.data]));
-        const a = Object.assign(document.createElement('a'), { href: url, download: filename });
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
-    } catch {
-        alert('Download failed — please try again.');
-    } finally {
-        onEnd?.();
-    }
-};
 
 const fmtDateShort = (d) => {
     if (!d) return '';

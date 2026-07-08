@@ -169,6 +169,38 @@
     animation: pulse-ring 2s ease infinite;
 }
 
+/* ── Form utilities ──────────────────────────────────────────────── */
+.label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+}
+.input {
+    display: block;
+    width: 100%;
+    padding: 6px 10px;
+    font-size: 13px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+    color: #1e293b;
+    transition: border-color 0.15s;
+    outline: none;
+}
+.input:focus {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 2px rgba(96,165,250,0.18);
+}
+.input:disabled {
+    background: #f8fafc;
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
 /* ── Loading dot bounce ──────────────────────────────────────────── */
 @keyframes dot-bounce {
     0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }

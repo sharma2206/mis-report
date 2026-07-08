@@ -4,6 +4,8 @@ use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\MISController;
 use App\Http\Controllers\Api\OperationalController;
+use App\Http\Controllers\Api\RbacController;
+use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
 // ─── Health check (no auth, no version prefix) ───────────────────────────────
@@ -79,6 +81,48 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
         Route::get('/analytics/collection',               [AnalyticsController::class, 'collectionReport']);
         Route::get('/analytics/service-revenue',          [AnalyticsController::class, 'serviceRevenue']);
         Route::get('/analytics/doctor-performance',       [AnalyticsController::class, 'doctorPerformance']);
+
+        // ─── Users ───────────────────────────────────────────────────────────
+        Route::prefix('users')->middleware('permission:users.view')->group(function () {
+            Route::get('/',              [UserController::class, 'index']);
+            Route::get('/stats',         [UserController::class, 'stats']);
+            Route::get('/select',        [UserController::class, 'select']);
+            Route::get('/export',        [UserController::class, 'export']);
+            Route::post('/',             [UserController::class, 'store'])->middleware('permission:users.create');
+            Route::post('/bulk',         [UserController::class, 'bulk'])->middleware('permission:users.edit');
+            Route::get('/{id}',          [UserController::class, 'show']);
+            Route::put('/{id}',          [UserController::class, 'update'])->middleware('permission:users.edit');
+            Route::delete('/{id}',       [UserController::class, 'destroy'])->middleware('permission:users.delete');
+            Route::post('/{id}/activate',       [UserController::class, 'activate'])->middleware('permission:users.edit');
+            Route::post('/{id}/deactivate',     [UserController::class, 'deactivate'])->middleware('permission:users.edit');
+            Route::post('/{id}/lock',           [UserController::class, 'lock'])->middleware('permission:users.edit');
+            Route::post('/{id}/unlock',         [UserController::class, 'unlock'])->middleware('permission:users.edit');
+            Route::post('/{id}/reset-password', [UserController::class, 'resetPassword'])->middleware('permission:users.edit');
+            Route::post('/{id}/clone',          [UserController::class, 'clone'])->middleware('permission:users.create');
+            Route::put('/{id}/roles',           [UserController::class, 'syncRoles'])->middleware('permission:users.edit');
+            Route::put('/{id}/branches',        [UserController::class, 'syncBranches'])->middleware('permission:users.edit');
+            Route::put('/{id}/departments',     [UserController::class, 'syncDepartments'])->middleware('permission:users.edit');
+            Route::get('/{id}/login-logs',      [UserController::class, 'loginLogs']);
+        });
+
+        // ─── RBAC ────────────────────────────────────────────────────────────
+        Route::prefix('rbac')->middleware('permission:roles.view')->group(function () {
+            Route::get('/roles',                    [RbacController::class, 'indexRoles']);
+            Route::post('/roles',                   [RbacController::class, 'storeRole'])->middleware('permission:roles.create');
+            Route::get('/roles/{id}',               [RbacController::class, 'showRole']);
+            Route::put('/roles/{id}',               [RbacController::class, 'updateRole'])->middleware('permission:roles.edit');
+            Route::delete('/roles/{id}',            [RbacController::class, 'destroyRole'])->middleware('permission:roles.delete');
+            Route::post('/roles/{id}/clone',        [RbacController::class, 'cloneRole'])->middleware('permission:roles.create');
+            Route::patch('/roles/{id}/toggle',      [RbacController::class, 'toggleRole'])->middleware('permission:roles.edit');
+            Route::put('/roles/{id}/permissions',   [RbacController::class, 'updateRolePermissions'])->middleware('permission:roles.edit');
+            Route::put('/roles/{id}/branches',      [RbacController::class, 'updateRoleBranches'])->middleware('permission:roles.edit');
+            Route::get('/roles/{id}/users',         [RbacController::class, 'getRoleUsers']);
+            Route::get('/permissions',              [RbacController::class, 'indexPermissions']);
+            Route::post('/assign',                  [RbacController::class, 'assignRoles'])->middleware('permission:users.edit');
+            Route::delete('/roles/{roleId}/users/{userId}', [RbacController::class, 'removeRoleFromUser'])->middleware('permission:users.edit');
+            Route::get('/stats',                    [RbacController::class, 'stats']);
+            Route::get('/audit',                    [RbacController::class, 'audit']);
+        });
 
         // ─── Operational Centre ───────────────────────────────────────────────
         Route::prefix('operational')->group(function () {

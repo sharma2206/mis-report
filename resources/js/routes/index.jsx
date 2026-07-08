@@ -16,6 +16,8 @@ const Financial    = lazy(() => import('../pages/Financial'));
 const Operational  = lazy(() => import('../pages/Operational'));
 const Doctors      = lazy(() => import('../pages/Doctors'));
 const Placeholder  = lazy(() => import('../pages/Placeholder').then(m => ({ default: m.PlaceholderPage })));
+const Roles        = lazy(() => import('../pages/Roles'));
+const Users        = lazy(() => import('../pages/Users'));
 
 // ── Shared page loader spinner shown while a chunk downloads
 const PageLoader = () => (
@@ -77,8 +79,8 @@ export const AppRoutes = () => (
         {/* Administration — admin-only */}
         <Route path="/scheduler"     element={<PA title="Scheduler"       description="Configure automated daily, weekly and monthly report email schedules."   icon="⏰" />} />
         <Route path="/notifications" element={<P  title="Notifications"   description="Import alerts, report completions, data anomalies and system notifications." icon="🔔" />} />
-        <Route path="/users"         element={<PA title="User Management" description="Create, manage and assign roles to hospital system users."              icon="👥" />} />
-        <Route path="/roles"         element={<PA title="Role Management" description="Configure role-based access control with module and branch permissions."  icon="🛡️" />} />
+        <Route path="/users"         element={<Wrap minRole="admin"><Users /></Wrap>} />
+        <Route path="/roles"         element={<Wrap minRole="admin"><Roles /></Wrap>} />
         <Route path="/audit-logs"    element={<PA title="Audit Logs"      description="Complete compliance trail of all user actions, exports and data changes."  icon="📝" />} />
         <Route path="/settings"      element={<PA title="System Settings" description="Hospital branches, email SMTP, currency format, timezone and preferences." icon="⚙️" />} />
 

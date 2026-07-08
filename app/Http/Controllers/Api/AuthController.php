@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\LoginLog;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -38,17 +39,13 @@ class AuthController extends Controller
 
         $request->session()->regenerate();
 
+        $user->update(['last_login_at' => now(), 'failed_login_attempts' => 0]);
         AuditLog::record('login', ['role' => $user->role], $user->branch, null, $request);
+        LoginLog::record($user->id, 'login', [], $request->ip(), $request->userAgent());
 
         return response()->json([
             'success' => true,
-            'user'    => [
-                'id'     => $user->id,
-                'name'   => $user->name,
-                'email'  => $user->email,
-                'role'   => $user->role,
-                'branch' => $user->branch,
-            ],
+            'user'    => $this->userPayload($user),
         ]);
     }
 
@@ -57,7 +54,10 @@ class AuthController extends Controller
      */
     public function logout(Request $request): JsonResponse
     {
+        $uid = $request->user()->id;
+        $request->user()->update(['last_logout_at' => now()]);
         AuditLog::record('logout', [], null, null, $request);
+        LoginLog::record($uid, 'logout', [], $request->ip(), $request->userAgent());
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
@@ -70,7 +70,24 @@ class AuthController extends Controller
      */
     public function me(Request $request): JsonResponse
     {
-        return response()->json(['success' => true, 'data' => $request->user()]);
+        return response()->json(['success' => true, 'data' => $this->userPayload($request->user())]);
+    }
+
+    private function userPayload(User $user): array
+    {
+        $permissions = $user->getAllPermissions();
+        $roles = $user->roles()->select('roles.id', 'roles.name', 'roles.slug', 'roles.color')->get();
+
+        return [
+            'id'          => $user->id,
+            'name'        => $user->name,
+            'email'       => $user->email,
+            'role'        => $user->role,
+            'branch'      => $user->branch,
+            'is_active'   => $user->is_active,
+            'permissions' => $permissions,
+            'roles'       => $roles,
+        ];
     }
 
     /**

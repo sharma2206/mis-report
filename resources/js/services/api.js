@@ -73,6 +73,50 @@ export const analyticsApi = {
     doctorPerformance:(params)        => client.get('/analytics/doctor-performance', { params }),
 };
 
+// ─── Users ───────────────────────────────────────────────────────────────────
+
+export const usersApi = {
+    list:             (params)      => client.get('/users', { params }),
+    stats:            ()            => client.get('/users/stats'),
+    select:           ()            => client.get('/users/select'),
+    export:           (params)      => client.get('/users/export', { params, responseType: 'blob' }),
+    get:              (id)          => client.get(`/users/${id}`),
+    create:           (data)        => client.post('/users', data),
+    update:           (id, data)    => client.put(`/users/${id}`, data),
+    delete:           (id)          => client.delete(`/users/${id}`),
+    activate:         (id)          => client.post(`/users/${id}/activate`),
+    deactivate:       (id)          => client.post(`/users/${id}/deactivate`),
+    lock:             (id)          => client.post(`/users/${id}/lock`),
+    unlock:           (id)          => client.post(`/users/${id}/unlock`),
+    resetPassword:    (id, data)    => client.post(`/users/${id}/reset-password`, data),
+    clone:            (id, data)    => client.post(`/users/${id}/clone`, data),
+    syncRoles:        (id, ids)     => client.put(`/users/${id}/roles`, { role_ids: ids }),
+    syncBranches:     (id, branches)=> client.put(`/users/${id}/branches`, { branches }),
+    syncDepartments:  (id, depts)   => client.put(`/users/${id}/departments`, { departments: depts }),
+    bulk:             (data)        => client.post('/users/bulk', data),
+    loginLogs:        (id)          => client.get(`/users/${id}/login-logs`),
+};
+
+// ─── RBAC ────────────────────────────────────────────────────────────────────
+
+export const rbacApi = {
+    getRoles:             (params)      => client.get('/rbac/roles', { params }),
+    getRole:              (id)          => client.get(`/rbac/roles/${id}`),
+    createRole:           (data)        => client.post('/rbac/roles', data),
+    updateRole:           (id, data)    => client.put(`/rbac/roles/${id}`, data),
+    deleteRole:           (id)          => client.delete(`/rbac/roles/${id}`),
+    cloneRole:            (id, name)    => client.post(`/rbac/roles/${id}/clone`, { name }),
+    toggleRole:           (id)          => client.patch(`/rbac/roles/${id}/toggle`),
+    updateRolePermissions:(id, ids)     => client.put(`/rbac/roles/${id}/permissions`, { permission_ids: ids }),
+    updateRoleBranches:   (id, branches)=> client.put(`/rbac/roles/${id}/branches`, { branches }),
+    getRoleUsers:         (id)          => client.get(`/rbac/roles/${id}/users`),
+    getPermissions:       ()            => client.get('/rbac/permissions'),
+    assignRoles:          (data)        => client.post('/rbac/assign', data),
+    removeRoleFromUser:   (roleId, uid) => client.delete(`/rbac/roles/${roleId}/users/${uid}`),
+    getStats:             ()            => client.get('/rbac/stats'),
+    getAudit:             (params)      => client.get('/rbac/audit', { params }),
+};
+
 // ─── Operational Centre ───────────────────────────────────────────────────────
 
 export const operationalApi = {

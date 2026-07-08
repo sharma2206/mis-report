@@ -170,7 +170,9 @@ const VolumeGrid = ({ mis, kpi, isLoading }) => {
     };
     const mtd = {
         ...volMtd,
-        mri_count: mriM != null ? (mriM.op?.count ?? 0) + (mriM.ip?.count ?? 0) : undefined,
+        ip_count:      volMtd.admission      != null ? volMtd.admission      : undefined,
+        surgery_count: volMtd.surgery_count  != null ? volMtd.surgery_count  : undefined,
+        mri_count:     mriM                  != null ? (mriM.op?.count ?? 0) + (mriM.ip?.count ?? 0) : undefined,
     };
     const fmtCell = (key, v) => {
         if (v === null) return <span className="text-slate-400 italic text-[11px]">N/A</span>;
@@ -568,7 +570,7 @@ const AnalyticsTab = ({ payer, mix, isPayerLoading, isMixLoading }) => (
             <Section title="Payer Mix Breakdown" icon={PieIcon}>
                 <PayerChart data={payer} isLoading={isPayerLoading} />
                 {!isPayerLoading && payer?.length > 0 && (
-                    <div className="mt-3"><PayerChips items={payer} nameKey="payer_name" countKey="patient_count" /></div>
+                    <div className="mt-3"><PayerChips items={payer} nameKey="payer_type" countKey="transactions" /></div>
                 )}
             </Section>
             <Section title="Patient Mix Trend" icon={Users}>
@@ -748,7 +750,7 @@ export default function Dashboard() {
                 role="tabpanel"
                 id={`tabpanel-${tab}`}
                 aria-labelledby={`tab-${tab}`}
-                className="flex-1 overflow-y-auto p-4"
+                className="flex-1 min-h-0 overflow-y-auto p-4"
             >
                 {!isLoading && <SmartAlerts mis={mis} kpi={kpi} />}
 

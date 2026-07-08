@@ -26,6 +26,7 @@ class MisReport extends Model
         'discharge',
         'total_op',
         'er_count',
+        'surgery_count',
         'sources',
     ];
 

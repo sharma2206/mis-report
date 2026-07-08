@@ -55,7 +55,7 @@ class ErAdmissionImport implements ToCollection, WithHeadingRow, WithChunkReadin
                 'short_stay'          => strtolower(trim($row['short_stay'] ?? '')) === 'yes',
                 'discharge_type'      => trim($row['discharge_type'] ?? '') ?: null,
                 'discharge_date'      => $this->parseDateTime($row['discharge_date_time'] ?? null),
-                'actual_los'          => $this->parseNumeric($row['actual_los_in_days'] ?? null),
+                'actual_los'          => $this->parseNumeric($this->getValue($row, ['actual_los_in_days', 'actual_l_o_s_in_days'], null)),
                 'created_at'          => now(),
                 'updated_at'          => now(),
             ];
@@ -137,7 +137,7 @@ class ErAdmissionImport implements ToCollection, WithHeadingRow, WithChunkReadin
         }
     }
 
-    private function parseNumeric(?string $value): ?float
+    private function parseNumeric(mixed $value): ?float
     {
         if ($value === null || trim((string) $value) === '') {
             return null;

@@ -61,20 +61,20 @@ export const useDashboard = (branch, date, from = null, activeTab = 'overview') 
             },
             // ── Tab-specific: only load when that tab is first visited ───────
             {
-                queryKey: ['ipDemo', branch, date],
-                queryFn:  () => analyticsApi.ipDemographics({ branch, date }).then(r => r.data),
+                queryKey: ['ipDemo', branch, rangeFrom, date],
+                queryFn:  () => analyticsApi.ipDemographics({ branch, from: rangeFrom, to: date }).then(r => r.data),
                 enabled:  base && activeTab === 'ip',
                 staleTime: STALE,
             },
             {
-                queryKey: ['surgeryDetail', branch, date],
-                queryFn:  () => analyticsApi.surgeryDetail({ branch, date }).then(r => r.data),
+                queryKey: ['surgeryDetail', branch, rangeFrom, date],
+                queryFn:  () => analyticsApi.surgeryDetail({ branch, from: rangeFrom, to: date }).then(r => r.data),
                 enabled:  base && activeTab === 'surgery',
                 staleTime: STALE,
             },
             {
-                queryKey: ['opMetrics', branch, date],
-                queryFn:  () => analyticsApi.opMetrics({ branch, date }).then(r => r.data),
+                queryKey: ['opMetrics', branch, rangeFrom, date],
+                queryFn:  () => analyticsApi.opMetrics({ branch, from: rangeFrom, to: date }).then(r => r.data),
                 enabled:  base && activeTab === 'op',
                 staleTime: STALE,
             },

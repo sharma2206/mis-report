@@ -91,13 +91,14 @@ class AnalyticsService
     {
         return CashierCollection::select(
                 'payer_type',
-                DB::raw('SUM(paid_amount) as amount'),
+                DB::raw('SUM(paid_amount) as revenue'),
+                DB::raw('COUNT(DISTINCT uhid) as patients'),
                 DB::raw('COUNT(*) as transactions')
             )
             ->where('branch', $branch)
             ->whereDate('collection_date', '>=', $from)->whereDate('collection_date', '<=', $to)
             ->groupBy('payer_type')
-            ->orderByDesc('amount')
+            ->orderByDesc('revenue')
             ->get();
     }
 

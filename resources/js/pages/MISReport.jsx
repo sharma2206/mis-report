@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { useDispatch, useSelector } from 'react-redux';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -624,7 +625,7 @@ export default function MISReport() {
                 isLoading={isLoading}
             />
         }>
-            <main className="flex-1 p-5 space-y-4 min-w-0">
+            <main className="flex-1 overflow-y-auto p-5 space-y-4 min-w-0">
 
                 {/* Empty state */}
                 {!enabled && (

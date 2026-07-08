@@ -45,8 +45,8 @@ const colHelper = createColumnHelper();
 
 const TABLE_COLS = [
     colHelper.display({ id: 'rank', header: '#', cell: info => info.row.index + 1, meta: { className: 'w-8 text-center text-slate-400' }, enableSorting: false }),
-    colHelper.accessor('treating_doctor', { header: 'Doctor', cell: info => <span className="font-600">{info.getValue() || '—'}</span>, meta: { className: 'min-w-[140px]' } }),
-    colHelper.accessor('treating_doctor_speciality', { header: 'Speciality', cell: info => info.getValue() || '—', meta: { className: 'min-w-[110px] text-slate-500' } }),
+    colHelper.accessor('doctor', { header: 'Doctor', cell: info => <span className="font-600">{info.getValue() || '—'}</span>, meta: { className: 'min-w-[140px]' } }),
+    colHelper.accessor('speciality', { header: 'Speciality', cell: info => info.getValue() || '—', meta: { className: 'min-w-[110px] text-slate-500' } }),
     colHelper.accessor('total_revenue', { header: 'Revenue', cell: info => <span className="font-700 text-slate-800">{fmtL(info.getValue())}</span>, meta: { align: 'right' } }),
     colHelper.accessor('unique_patients', { header: 'Patients', cell: info => Number(info.getValue()).toLocaleString('en-IN'), meta: { align: 'right' } }),
     colHelper.accessor('op_revenue', { header: 'OP Rev', cell: info => fmtL(info.getValue()), meta: { align: 'right' } }),
@@ -79,7 +79,7 @@ export default function Doctors() {
 
     // Derive unique specialities for filter chips
     const specialities = useMemo(() => {
-        const set = new Set(allDoctors.map(d => d.treating_doctor_speciality).filter(Boolean));
+        const set = new Set(allDoctors.map(d => d.speciality).filter(Boolean));
         return [...set].sort();
     }, [allDoctors]);
 
@@ -87,7 +87,7 @@ export default function Doctors() {
     const doctors = useMemo(() => {
         let arr = allDoctors;
         if (selectedSpecialities.length > 0) {
-            arr = arr.filter(d => selectedSpecialities.includes(d.treating_doctor_speciality));
+            arr = arr.filter(d => selectedSpecialities.includes(d.speciality));
         }
         if (minRevenue && Number(minRevenue) > 0) {
             const threshold = Number(minRevenue) * 100000; // input is in lakhs
@@ -107,7 +107,7 @@ export default function Doctors() {
         .sort((a, b) => (Number(b.total_revenue) || 0) - (Number(a.total_revenue) || 0))
         .slice(0, 10)
         .map(d => ({
-            name: (d.treating_doctor || '').split(' ').slice(0, 2).join(' '),
+            name: (d.doctor || '').split(' ').slice(0, 2).join(' '),
             revenue: Number(d.total_revenue) || 0,
         }))
     , [doctors]);

@@ -24,8 +24,8 @@ import { triggerDownload } from '../utils/download';
 const brmColHelper = createColumnHelper();
 const BRM_COLS = [
     brmColHelper.display({ id: 'rank', header: '#', cell: info => info.row.index + 1, enableSorting: false, meta: { className: 'w-8 text-center text-slate-400' } }),
-    brmColHelper.accessor('treating_doctor', { header: 'Doctor', cell: info => <span className="font-600">{info.getValue() || '—'}</span> }),
-    brmColHelper.accessor('treating_doctor_speciality', { header: 'Speciality', cell: info => <span className="text-slate-500">{info.getValue() || '—'}</span> }),
+    brmColHelper.accessor('doctor', { header: 'Doctor', cell: info => <span className="font-600">{info.getValue() || '—'}</span> }),
+    brmColHelper.accessor('speciality', { header: 'Speciality', cell: info => <span className="text-slate-500">{info.getValue() || '—'}</span> }),
     brmColHelper.accessor('total_revenue', { header: 'Revenue', cell: info => <span className="font-700 text-blue-700 tabular-nums">{fmtL(info.getValue())}</span>, meta: { align: 'right' } }),
     brmColHelper.accessor('unique_patients', { header: 'Patients', cell: info => Number(info.getValue()).toLocaleString('en-IN'), meta: { align: 'right' } }),
     brmColHelper.accessor('op_revenue', { header: 'OP', cell: info => fmtL(info.getValue()), meta: { align: 'right' } }),
@@ -198,7 +198,7 @@ export default function BRMReport() {
                                 grid: { top: 8, right: 70, bottom: 8, left: 8, containLabel: true },
                                 tooltip: { trigger: 'axis', valueFormatter: v => `₹${Number(v).toFixed(2)}L`, backgroundColor: '#fff', borderColor: '#e2e8f0', borderWidth: 1, textStyle: { fontSize: 11 }, extraCssText: 'border-radius:10px' },
                                 xAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#94a3b8', formatter: v => `₹${v}L` }, axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
-                                yAxis: { type: 'category', data: doctors.slice(0, 10).map(d => (d.treating_doctor || '').split(' ').slice(0, 2).join(' ')), axisLabel: { fontSize: 10, color: '#64748b' }, axisLine: { show: false }, axisTick: { show: false } },
+                                yAxis: { type: 'category', data: doctors.slice(0, 10).map(d => (d.doctor || '').split(' ').slice(0, 2).join(' ')), axisLabel: { fontSize: 10, color: '#64748b' }, axisLine: { show: false }, axisTick: { show: false } },
                                 series: [{ type: 'bar', barMaxWidth: 20, label: { show: true, position: 'right', formatter: p => `₹${Number(p.value).toFixed(1)}L`, fontSize: 9, color: '#64748b' },
                                     data: doctors.slice(0, 10).map((d, i) => ({ value: (Number(d.total_revenue) / 100000).toFixed(2), itemStyle: { color: PALETTE[i % PALETTE.length], borderRadius: [0, 4, 4, 0] } })) }],
                             }} />
@@ -214,7 +214,7 @@ export default function BRMReport() {
                                 grid: { top: 8, right: 70, bottom: 8, left: 8, containLabel: true },
                                 tooltip: { trigger: 'axis', valueFormatter: v => `₹${Number(v).toFixed(2)}L`, backgroundColor: '#fff', borderColor: '#e2e8f0', borderWidth: 1, textStyle: { fontSize: 11 }, extraCssText: 'border-radius:10px' },
                                 xAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#94a3b8', formatter: v => `₹${v}L` }, axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
-                                yAxis: { type: 'category', data: deptArr.slice(0, 10).map(d => (d.department || '').substring(0, 18)), axisLabel: { fontSize: 9, color: '#64748b' }, axisLine: { show: false }, axisTick: { show: false } },
+                                yAxis: { type: 'category', data: deptArr.slice(0, 10).map(d => (d.treating_department || '').substring(0, 18)), axisLabel: { fontSize: 9, color: '#64748b' }, axisLine: { show: false }, axisTick: { show: false } },
                                 series: [{ type: 'bar', barMaxWidth: 20, label: { show: true, position: 'right', formatter: p => `₹${Number(p.value).toFixed(1)}L`, fontSize: 9, color: '#64748b' },
                                     data: deptArr.slice(0, 10).map((d, i) => ({ value: (Number(d.revenue) / 100000).toFixed(2), itemStyle: { color: PALETTE[i % PALETTE.length], borderRadius: [0, 4, 4, 0] } })) }],
                             }} />

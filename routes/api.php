@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\MISController;
+use App\Http\Controllers\Api\OperationalController;
 use Illuminate\Support\Facades\Route;
 
 // ─── Health check (no auth, no version prefix) ───────────────────────────────
@@ -78,6 +79,19 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
         Route::get('/analytics/collection',               [AnalyticsController::class, 'collectionReport']);
         Route::get('/analytics/service-revenue',          [AnalyticsController::class, 'serviceRevenue']);
         Route::get('/analytics/doctor-performance',       [AnalyticsController::class, 'doctorPerformance']);
+
+        // ─── Operational Centre ───────────────────────────────────────────────
+        Route::prefix('operational')->group(function () {
+            Route::get('/kpis',         [OperationalController::class, 'kpis']);
+            Route::get('/bed-occupancy',[OperationalController::class, 'bedOccupancy']);
+            Route::get('/admissions',   [OperationalController::class, 'admissions']);
+            Route::get('/census',       [OperationalController::class, 'census']);
+            Route::get('/surgery',      [OperationalController::class, 'surgery']);
+            Route::get('/departments',  [OperationalController::class, 'departments']);
+            Route::get('/doctors',      [OperationalController::class, 'doctors']);
+            Route::get('/alerts',       [OperationalController::class, 'alerts']);
+            Route::get('/analytics',    [OperationalController::class, 'analytics']);
+        });
     });
 
     // ─── Protected: branch-scoped (branch.access middleware enforced) ────────

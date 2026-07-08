@@ -290,7 +290,7 @@ export default function ReportCenter() {
                 </div>
             </div>
         }>
-            <main className="flex-1 p-5">
+            <main className=" overflow-y-auto flex-1 p-5">
                 {/* Filter Pills */}
                 <div className="flex gap-2 mb-5 flex-wrap">
                     {FILTERS.map(f => (

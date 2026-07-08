@@ -296,7 +296,7 @@ export default function ImportCenter() {
 
     return (
         <AppLayout topbar={topbar}>
-            <main className="flex-1 p-5 grid grid-cols-1 xl:grid-cols-3 gap-5 min-w-0">
+            <main className="flex-1 overflow-y-auto p-5 grid grid-cols-1 xl:grid-cols-3 gap-5 min-w-0">
 
                 {/* ── Left: Drop zone + File cards ──────────────────────────── */}
                 <div className="xl:col-span-2 space-y-4">

@@ -13,6 +13,7 @@ const ReportCenter = lazy(() => import('../pages/ReportCenter'));
 const MISReport    = lazy(() => import('../pages/MISReport'));
 const BRMReport    = lazy(() => import('../pages/BRMReport'));
 const Financial    = lazy(() => import('../pages/Financial'));
+const Operational  = lazy(() => import('../pages/Operational'));
 const Doctors      = lazy(() => import('../pages/Doctors'));
 const Placeholder  = lazy(() => import('../pages/Placeholder').then(m => ({ default: m.PlaceholderPage })));
 
@@ -65,7 +66,7 @@ export const AppRoutes = () => (
         <Route path="/mis"         element={<Wrap><MISReport /></Wrap>} />
         <Route path="/brm"         element={<Wrap minRole="staff"><BRMReport /></Wrap>} />
         <Route path="/financial"   element={<Wrap minRole="manager"><Financial /></Wrap>} />
-        <Route path="/operational" element={<P title="Operational Reports"  description="Bed occupancy, admission/discharge, OT utilization, patient census reports."  icon="⚙️" />} />
+        <Route path="/operational" element={<Wrap minRole="staff"><Operational /></Wrap>} />
 
         {/* Analytics */}
         <Route path="/doctors"     element={<Wrap><Doctors /></Wrap>} />

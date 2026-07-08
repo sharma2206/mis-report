@@ -72,3 +72,17 @@ export const analyticsApi = {
     serviceRevenue:   (params)        => client.get('/analytics/service-revenue', { params }),
     doctorPerformance:(params)        => client.get('/analytics/doctor-performance', { params }),
 };
+
+// ─── Operational Centre ───────────────────────────────────────────────────────
+
+export const operationalApi = {
+    kpis:        (params) => client.get('/operational/kpis',          { params }),
+    bedOccupancy:(params) => client.get('/operational/bed-occupancy',  { params }),
+    admissions:  (params) => client.get('/operational/admissions',     { params }),
+    census:      (params) => client.get('/operational/census',         { params }),
+    surgery:     (params) => client.get('/operational/surgery',        { params }),
+    departments: (params) => client.get('/operational/departments',    { params }),
+    doctors:     (params) => client.get('/operational/doctors',        { params }),
+    alerts:      (params) => client.get('/operational/alerts',         { params }),
+    analytics:   (params) => client.get('/operational/analytics',      { params }),
+};

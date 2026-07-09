@@ -1,10 +1,13 @@
 <?php
 
 use App\Http\Controllers\Api\AnalyticsController;
+use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\MISController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OperationalController;
 use App\Http\Controllers\Api\RbacController;
+use App\Http\Controllers\Api\SchedulerController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -123,6 +126,22 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
             Route::get('/stats',                    [RbacController::class, 'stats']);
             Route::get('/audit',                    [RbacController::class, 'audit']);
         });
+
+        // ─── Audit Logs ──────────────────────────────────────────────────────
+        Route::prefix('audit-logs')->middleware('permission:roles.view')->group(function () {
+            Route::get('/',       [AuditLogController::class, 'index']);
+            Route::get('/events', [AuditLogController::class, 'events']);
+        });
+
+        // ─── Notifications ────────────────────────────────────────────────────
+        Route::prefix('notifications')->group(function () {
+            Route::get('/',       [NotificationController::class, 'index']);
+            Route::get('/unread', [NotificationController::class, 'unread']);
+        });
+
+        // ─── Scheduler ────────────────────────────────────────────────────────
+        Route::get('/scheduler/status', [SchedulerController::class, 'status'])
+            ->middleware('permission:roles.view');
 
         // ─── Operational Centre ───────────────────────────────────────────────
         Route::prefix('operational')->group(function () {

@@ -15,9 +15,15 @@ const BRMReport    = lazy(() => import('../pages/BRMReport'));
 const Financial    = lazy(() => import('../pages/Financial'));
 const Operational  = lazy(() => import('../pages/Operational'));
 const Doctors      = lazy(() => import('../pages/Doctors'));
-const Placeholder  = lazy(() => import('../pages/Placeholder').then(m => ({ default: m.PlaceholderPage })));
 const Roles        = lazy(() => import('../pages/Roles'));
 const Users        = lazy(() => import('../pages/Users'));
+const Departments  = lazy(() => import('../pages/Departments'));
+const Surgery      = lazy(() => import('../pages/Surgery'));
+const Pharmacy     = lazy(() => import('../pages/Pharmacy'));
+const AuditLogs    = lazy(() => import('../pages/AuditLogs'));
+const Notifications= lazy(() => import('../pages/Notifications'));
+const Scheduler    = lazy(() => import('../pages/Scheduler'));
+const Settings     = lazy(() => import('../pages/Settings'));
 
 // ── Shared page loader spinner shown while a chunk downloads
 const PageLoader = () => (
@@ -52,8 +58,6 @@ const Wrap = ({ children, minRole = 'viewer' }) => (
     </ProtectedRoute>
 );
 
-const P = (props) => <Wrap><Placeholder {...props} /></Wrap>;
-const PA = (props) => <Wrap minRole="admin"><Placeholder {...props} /></Wrap>;
 
 export const AppRoutes = () => (
     <Routes>
@@ -72,17 +76,17 @@ export const AppRoutes = () => (
 
         {/* Analytics */}
         <Route path="/doctors"     element={<Wrap><Doctors /></Wrap>} />
-        <Route path="/departments" element={<P title="Department Analytics" description="Revenue and volume breakdown by department with month-over-month comparison."    icon="🏢" />} />
-        <Route path="/surgery"     element={<P title="Surgery Analytics"    description="OT utilization, surgeon ranking, major/minor split, TAT and implant analysis."  icon="🔪" />} />
-        <Route path="/pharmacy"    element={<P title="Pharmacy Analytics"   description="Pharmacy revenue, top drugs, generic vs brand, department-wise breakdown."     icon="💊" />} />
+        <Route path="/departments" element={<Wrap><Departments /></Wrap>} />
+        <Route path="/surgery"     element={<Wrap><Surgery /></Wrap>} />
+        <Route path="/pharmacy"    element={<Wrap><Pharmacy /></Wrap>} />
 
-        {/* Administration — admin-only */}
-        <Route path="/scheduler"     element={<PA title="Scheduler"       description="Configure automated daily, weekly and monthly report email schedules."   icon="⏰" />} />
-        <Route path="/notifications" element={<P  title="Notifications"   description="Import alerts, report completions, data anomalies and system notifications." icon="🔔" />} />
+        {/* Administration */}
+        <Route path="/notifications" element={<Wrap><Notifications /></Wrap>} />
         <Route path="/users"         element={<Wrap minRole="admin"><Users /></Wrap>} />
         <Route path="/roles"         element={<Wrap minRole="admin"><Roles /></Wrap>} />
-        <Route path="/audit-logs"    element={<PA title="Audit Logs"      description="Complete compliance trail of all user actions, exports and data changes."  icon="📝" />} />
-        <Route path="/settings"      element={<PA title="System Settings" description="Hospital branches, email SMTP, currency format, timezone and preferences." icon="⚙️" />} />
+        <Route path="/scheduler"     element={<Wrap minRole="admin"><Scheduler /></Wrap>} />
+        <Route path="/audit-logs"    element={<Wrap minRole="admin"><AuditLogs /></Wrap>} />
+        <Route path="/settings"      element={<Wrap minRole="admin"><Settings /></Wrap>} />
 
         {/* Legacy redirect */}
         <Route path="/upload" element={<Navigate to="/import" replace />} />

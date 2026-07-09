@@ -117,6 +117,26 @@ export const rbacApi = {
     getAudit:             (params)      => client.get('/rbac/audit', { params }),
 };
 
+// ─── Audit Logs ──────────────────────────────────────────────────────────────
+
+export const auditLogsApi = {
+    list:   (params) => client.get('/audit-logs',        { params }),
+    events: ()       => client.get('/audit-logs/events'),
+};
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+export const notificationsApi = {
+    list:   (params) => client.get('/notifications',        { params }),
+    unread: ()       => client.get('/notifications/unread'),
+};
+
+// ─── Scheduler ───────────────────────────────────────────────────────────────
+
+export const schedulerApi = {
+    status: () => client.get('/scheduler/status'),
+};
+
 // ─── Operational Centre ───────────────────────────────────────────────────────
 
 export const operationalApi = {

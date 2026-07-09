@@ -70,12 +70,6 @@ export default function BRMReport() {
 
     const params = { branch, from, to };
 
-    const { data: drRaw,   isLoading: loadDr   } = useQuery({
-        queryKey: ['brm-docrev',  branch, from, to],
-        queryFn:  () => analyticsApi.doctorRevenue(params).then(r => r.data),
-        enabled:  !!(branch && from && to),
-    });
-
     const { data: deptRaw, isLoading: loadDept  } = useQuery({
         queryKey: ['brm-dept',    branch, from, to],
         queryFn:  () => analyticsApi.deptRevenue(params).then(r => r.data),
@@ -90,7 +84,6 @@ export default function BRMReport() {
 
     if (!token) return <Navigate to="/login" replace />;
 
-    const docRevArr  = drRaw?.success   ? (drRaw.data ?? [])   : [];
     const deptArr    = deptRaw?.success ? (deptRaw.data ?? []) : [];
     const doctors    = perfRaw?.success ? (perfRaw.data?.doctors ?? perfRaw.data ?? []) : [];
 
@@ -179,7 +172,7 @@ export default function BRMReport() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {/* Doctor revenue chart */}
                     <Section title="Doctor Revenue (Top 10)" icon={Stethoscope}>
-                        {loadDr || loadPerf ? <ChartSkeleton /> : doctors.length === 0 ? (
+                        {loadPerf ? <ChartSkeleton /> : doctors.length === 0 ? (
                             <EmptyState title="No doctor data" description="Upload bill items CSV to see BRM data." />
                         ) : (
                             <EChart height={280} option={{

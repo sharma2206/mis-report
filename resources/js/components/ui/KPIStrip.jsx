@@ -68,7 +68,7 @@ const KPICard = ({ label, ftd, mtd, icon: Icon, color = 'blue', format = 'rupee'
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.03, duration: 0.2 }}
-            className={`relative flex-shrink-0 w-[148px] bg-white border border-slate-200 rounded-xl
+            className={`relative bg-white border border-slate-200 rounded-xl
                         hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-default
                         overflow-hidden`}
             style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
@@ -118,9 +118,9 @@ const KPICard = ({ label, ftd, mtd, icon: Icon, color = 'blue', format = 'rupee'
 export const KPIStrip = ({ mis, kpi, collection, isLoading }) => {
     if (isLoading) {
         return (
-            <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-1">
+            <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(148px, 1fr))' }}>
                 {Array.from({ length: 10 }).map((_, i) => (
-                    <div key={i} className="flex-shrink-0 w-[148px] h-[108px] rounded-xl bg-slate-100 animate-pulse" />
+                    <div key={i} className="h-[108px] rounded-xl bg-slate-100 animate-pulse" />
                 ))}
             </div>
         );
@@ -163,14 +163,10 @@ export const KPIStrip = ({ mis, kpi, collection, isLoading }) => {
     const visibleCards = cards.filter(c => c.ftd !== null && c.ftd !== undefined);
 
     return (
-        <div className="relative">
-            <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-1 pt-0.5">
-                {visibleCards.map((card, i) => (
-                    <KPICard key={card.label} {...card} index={i} />
-                ))}
-            </div>
-            {/* Right-fade scroll hint */}
-            <div className="absolute right-0 top-0 bottom-1 w-8 bg-gradient-to-l from-slate-50/90 to-transparent pointer-events-none rounded-r-xl" />
+        <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(148px, 1fr))' }}>
+            {visibleCards.map((card, i) => (
+                <KPICard key={card.label} {...card} index={i} />
+            ))}
         </div>
     );
 };

@@ -736,7 +736,7 @@ export default function Dashboard() {
                 role="tabpanel"
                 id={`tabpanel-${tab}`}
                 aria-labelledby={`tab-${tab}`}
-                className="flex-1 min-h-0 overflow-y-auto p-4"
+                className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4"
             >
                 {!isLoading && <SmartAlerts mis={mis} kpi={kpi} />}
 

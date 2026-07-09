@@ -100,7 +100,7 @@ export const useDashboard = (branch, date, from = null, activeTab = 'overview') 
     return {
         mis:        d(mis),
         kpi:        d(kpi),
-        trend:      mis.data?.success ? (trend.data?.success ? trend.data.data : []) : [],
+        trend:      trend.data?.success ? trend.data.data : [],
         payer:      payer.data?.success      ? payer.data.data      : [],
         mix:        mix.data?.success        ? mix.data.data        : [],
         serviceRev: serviceRev.data?.success ? serviceRev.data.data : null,

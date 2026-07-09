@@ -42,8 +42,27 @@ class CsvProcessingService
     ): array {
         return DB::transaction(function () use ($branch, $date, $billFile, $cashierFile, $packageFile, $erFile, $ipFile, $surgeryFile) {
 
-            $this->deleteForBranchDate($branch, $date);
-            \App\Repositories\CachedMisRepository::bustFor($branch->value, $date);
+            // Detect the actual date range inside each CSV so we can wipe the full
+            // range before re-importing, not just the single upload date.
+            $billRange    = $this->csvDateRange($billFile->getRealPath(), 'Bill Date Time');
+            $cashierRange = $this->csvDateRange($cashierFile->getRealPath(), 'Receipt/Refund Date Time');
+            $erRange      = $erFile  ? $this->csvDateRange($erFile->getRealPath(),  'Admission Date Time') : null;
+            $ipRange      = $ipFile  ? $this->csvDateRange($ipFile->getRealPath(),  'IP Conversion Date Time', 'Admission Date Time') : null;
+            $surgRange    = $surgeryFile ? $this->csvDateRange($surgeryFile->getRealPath(), 'Surgery Start Date and Time', 'Surgery Booking Date and Time') : null;
+
+            $this->deleteForBranchRange($branch, $billRange, $cashierRange, $erRange, $ipRange, $surgRange, $date);
+
+            // Bust cache for every date in the range covered by the bill CSV
+            if ($billRange) {
+                $cur = \Carbon\Carbon::parse($billRange[0]);
+                $end = \Carbon\Carbon::parse($billRange[1]);
+                while ($cur->lte($end)) {
+                    \App\Repositories\CachedMisRepository::bustFor($branch->value, $cur->toDateString());
+                    $cur->addDay();
+                }
+            } else {
+                \App\Repositories\CachedMisRepository::bustFor($branch->value, $date);
+            }
             CachedAnalyticsService::bustForBranch($branch->value);
 
             // ── Core files ────────────────────────────────────────────────────
@@ -133,9 +152,8 @@ class CsvProcessingService
     }
 
     /**
-     * Delete all imported rows for a given branch and date.
-     * Called by both the import pipeline (before re-import) and the rollback endpoint.
-     * Single source of truth — add new tables here only.
+     * Delete rows for a specific date only.
+     * Used by the rollback endpoint where no CSV is available to scan.
      */
     public function deleteForBranchDate(Branch $branch, string $date): void
     {
@@ -148,5 +166,86 @@ class CsvProcessingService
         if ($branch === Branch::CHROMEPET) {
             PackageConsumption::where('branch', $branch->value)->whereDate('consumption_date', $date)->delete();
         }
+    }
+
+    /**
+     * Delete rows across the full date range detected inside each CSV.
+     * Called before every import so that re-uploading a monthly CSV fully
+     * replaces the old data instead of leaving stale rows from prior uploads.
+     */
+    private function deleteForBranchRange(
+        Branch $branch,
+        ?array $billRange,
+        ?array $cashierRange,
+        ?array $erRange,
+        ?array $ipRange,
+        ?array $surgRange,
+        string $fallbackDate
+    ): void {
+        $b = $branch->value;
+
+        $del = fn($model, $col, $range) =>
+            $range
+                ? $model::where('branch', $b)->whereDate($col, '>=', $range[0])->whereDate($col, '<=', $range[1])->delete()
+                : $model::where('branch', $b)->whereDate($col, $fallbackDate)->delete();
+
+        $del(BillItem::class,          'bill_date',       $billRange);
+        $del(CashierCollection::class, 'collection_date', $cashierRange);
+        $del(ErAdmission::class,       'admission_date',  $erRange);
+        $del(IpAdmission::class,       'admission_date',  $ipRange);
+        $del(Surgery::class,           'surgery_date',    $surgRange);
+
+        if ($branch === Branch::CHROMEPET) {
+            PackageConsumption::where('branch', $b)->whereDate('consumption_date', $fallbackDate)->delete();
+        }
+    }
+
+    /**
+     * Scan the first few thousand rows of a CSV to find the earliest and latest
+     * dates in the given column(s). Returns [minDate, maxDate] as Y-m-d strings,
+     * or null if no parseable dates are found.
+     */
+    private function csvDateRange(string $path, string ...$columnNames): ?array
+    {
+        $handle = @fopen($path, 'r');
+        if (!$handle) return null;
+
+        $rawHeaders = fgetcsv($handle);
+        if (!$rawHeaders) { fclose($handle); return null; }
+
+        // Build a normalised header → index map
+        $normalize = fn($s) => strtolower(preg_replace('/[^a-z0-9]+/i', '_', trim($s)));
+        $hmap = [];
+        foreach ($rawHeaders as $i => $h) {
+            $hmap[$normalize($h)] = $i;
+        }
+
+        // Resolve column indices (try each candidate column name in order)
+        $colIdx = null;
+        foreach ($columnNames as $name) {
+            $key = $normalize($name);
+            if (isset($hmap[$key])) { $colIdx = $hmap[$key]; break; }
+        }
+        if ($colIdx === null) { fclose($handle); return null; }
+
+        $min = null; $max = null; $scanned = 0;
+        while (($row = fgetcsv($handle)) !== false && $scanned < 50000) {
+            $scanned++;
+            $raw = trim($row[$colIdx] ?? '');
+            if (!$raw) continue;
+
+            try {
+                $d = \Carbon\Carbon::createFromFormat('d/m/Y, h:i a', $raw)->format('Y-m-d');
+            } catch (\Exception) {
+                try { $d = \Carbon\Carbon::parse($raw)->format('Y-m-d'); }
+                catch (\Exception) { continue; }
+            }
+
+            if ($min === null || $d < $min) $min = $d;
+            if ($max === null || $d > $max) $max = $d;
+        }
+        fclose($handle);
+
+        return ($min && $max) ? [$min, $max] : null;
     }
 }

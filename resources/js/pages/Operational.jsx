@@ -12,13 +12,14 @@ import {
     Calendar, RefreshCw, ChevronRight, Minus,
 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
+import { Section } from '../components/ui/Section';
 import { selectToken } from '../store/authSlice';
 import { selectBranch, selectDate } from '../store/reportSlice';
 import { operationalApi } from '../services/api';
 import { TableSkeleton, ChartSkeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
-import { BRANCHES } from '../constants';
-import { fmtL, fmtRupee } from '../utils/formatters';
+import { BRANCHES, DATE_PRESETS } from '../constants';
+import { fmtL } from '../utils/formatters';
 import { monthStart, resolvePresetRange, today } from '../utils/dateHelpers';
 import { cn } from '../utils/cn';
 
@@ -39,29 +40,8 @@ const TABS = [
     { id: 'analytics',   label: 'Analytics',      icon: TrendingUp      },
 ];
 
-const PRESETS = [
-    { key: 'today',     label: 'Today'     },
-    { key: 'yesterday', label: 'Yesterday' },
-    { key: 'week',      label: 'This Week' },
-    { key: 'mtd',       label: 'MTD'       },
-];
-
 // ─── Shared UI helpers ────────────────────────────────────────────────────────
 
-const Section = ({ title, icon: Icon, children, action, className = '' }) => (
-    <div className={cn('bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden', className)}>
-        <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/60 to-white">
-            {Icon && (
-                <div className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center flex-shrink-0">
-                    <Icon className="w-3.5 h-3.5 text-slate-500" />
-                </div>
-            )}
-            <span className="text-[12px] font-700 text-slate-700 flex-1">{title}</span>
-            {action}
-        </div>
-        <div className="p-4">{children}</div>
-    </div>
-);
 
 const KPICard = ({ label, value, sub, color = 'blue', icon: Icon, loading }) => {
     const colors = {
@@ -1103,7 +1083,7 @@ export default function Operational() {
                 <div className="bg-white border-b border-slate-100 px-4 py-2 flex flex-wrap items-center gap-2">
                     <Calendar className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                     <div className="flex gap-1 flex-wrap">
-                        {PRESETS.map(p => (
+                        {DATE_PRESETS.map(p => (
                             <button key={p.key} onClick={() => applyPreset(p.key)}
                                 className={cn(
                                     'px-2.5 py-0.5 rounded-full text-[10px] font-600 border transition-all cursor-pointer',

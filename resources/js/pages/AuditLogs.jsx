@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux';
 import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { createColumnHelper } from '@tanstack/react-table';
-import { ClipboardList, Search, RefreshCw, Filter, Calendar } from 'lucide-react';
+import { ClipboardList, Search, RefreshCw, Filter } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import DataTable from '../components/ui/DataTable';
 import { TableSkeleton } from '../components/ui/Skeleton';
@@ -106,7 +106,7 @@ export default function AuditLogs() {
     const q = useQuery({
         queryKey: ['audit-logs', params],
         queryFn:  () => auditLogsApi.list(params).then(r => r.data),
-        keepPreviousData: true,
+        placeholderData: (prev) => prev,
     });
 
     if (!token) return <Navigate to="/login" replace />;

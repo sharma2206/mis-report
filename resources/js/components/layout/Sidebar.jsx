@@ -36,22 +36,22 @@ const NAV_GROUPS = [
     {
         label: 'Analytics',
         items: [
-            { path: '/doctors',     label: 'Doctors',     Icon: Stethoscope },
-            { path: '/departments', label: 'Departments', Icon: Building2 },
-            { path: '/surgery',     label: 'Surgery',     Icon: Scissors },
-            { path: '/pharmacy',    label: 'Pharmacy',    Icon: Pill },
+            { path: '/doctors',       label: 'Doctors',       Icon: Stethoscope },
+            { path: '/departments',   label: 'Departments',   Icon: Building2 },
+            { path: '/surgery',       label: 'Surgery',       Icon: Scissors },
+            { path: '/pharmacy',      label: 'Pharmacy',      Icon: Pill },
+            { path: '/notifications', label: 'Notifications', Icon: Bell },
         ],
     },
     {
         label: 'Administration',
         minRole: 'admin',
         items: [
-            { path: '/scheduler',     label: 'Scheduler',     Icon: Clock },
-            { path: '/notifications', label: 'Notifications', Icon: Bell },
-            { path: '/users',         label: 'Users',         Icon: Users },
-            { path: '/roles',         label: 'Roles',         Icon: ShieldCheck },
-            { path: '/audit-logs',    label: 'Audit Logs',    Icon: ClipboardList },
-            { path: '/settings',      label: 'Settings',      Icon: Settings },
+            { path: '/scheduler',  label: 'Scheduler',  Icon: Clock },
+            { path: '/users',      label: 'Users',      Icon: Users },
+            { path: '/roles',      label: 'Roles',      Icon: ShieldCheck },
+            { path: '/audit-logs', label: 'Audit Logs', Icon: ClipboardList },
+            { path: '/settings',   label: 'Settings',   Icon: Settings },
         ],
     },
 ];

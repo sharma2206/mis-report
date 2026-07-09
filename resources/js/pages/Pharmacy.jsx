@@ -8,35 +8,22 @@ import EChart from '../components/ui/EChart';
 import DataTable from '../components/ui/DataTable';
 import { Pill, TrendingUp, ShoppingCart, Users, Calendar, RefreshCw } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
+import { Section } from '../components/ui/Section';
 import { selectToken } from '../store/authSlice';
 import { selectBranch, selectDate } from '../store/reportSlice';
 import { analyticsApi } from '../services/api';
 import { TableSkeleton, ChartSkeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { BRANCHES, CHART_PALETTE, DATE_PRESETS } from '../constants';
-import { fmtL, fmtRupee } from '../utils/formatters';
+import { fmtL } from '../utils/formatters';
 import { monthStart, resolvePresetRange, today } from '../utils/dateHelpers';
 import { cn } from '../utils/cn';
-
-const Section = ({ title, icon: Icon, children }) => (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/60 to-white">
-            {Icon && (
-                <div className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center flex-shrink-0">
-                    <Icon className="w-3.5 h-3.5 text-slate-500" />
-                </div>
-            )}
-            <span className="text-[12px] font-700 text-slate-700 flex-1">{title}</span>
-        </div>
-        <div className="p-4">{children}</div>
-    </div>
-);
 
 const colHelper = createColumnHelper();
 
 const ITEM_COLS = [
     colHelper.display({ id: 'rank', header: '#', cell: i => <span className="text-slate-400">{i.row.index + 1}</span>, enableSorting: false, meta: { className: 'w-8 text-center' } }),
-    colHelper.accessor('item_name',    { header: 'Item',       cell: i => <span className="font-600 text-slate-800">{i.getValue() || '—'}</span>, meta: { className: 'min-w-[160px]' } }),
+    colHelper.accessor('service_item_name', { header: 'Item', cell: i => <span className="font-600 text-slate-800">{i.getValue() || '—'}</span>, meta: { className: 'min-w-[160px]' } }),
     colHelper.accessor('revenue',      { header: 'Revenue',    cell: i => <span className="font-700 text-blue-700 tabular-nums">{fmtL(i.getValue())}</span>, meta: { align: 'right' } }),
     colHelper.accessor('revenue_share',{ header: 'Share %',    cell: i => (
         <div className="flex items-center gap-2 justify-end">
@@ -109,7 +96,7 @@ export default function Pharmacy() {
         }));
     }, [allItems, pharmRevenue, totalRevenue]);
 
-    const topItem = items[0]?.item_name || '—';
+    const topItem = items[0]?.service_item_name || '—';
 
     const kpis = [
         { label: 'Total Revenue',      value: isLoading ? '—' : fmtL(pharmRevenue),                  color: 'green'  },

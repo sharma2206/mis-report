@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux';
 import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Bell, RefreshCw, Search, LogIn, Upload, Download, Trash2, Mail, FileText, AlertTriangle, Info } from 'lucide-react';
+import { Bell, RefreshCw, LogIn, Upload, Download, Trash2, Mail, FileText, AlertTriangle, Info } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { EmptyState } from '../components/ui/EmptyState';
 import { TableSkeleton } from '../components/ui/Skeleton';
@@ -66,7 +66,7 @@ export default function Notifications() {
     const q = useQuery({
         queryKey: ['notifications', params],
         queryFn:  () => notificationsApi.list(params).then(r => r.data),
-        keepPreviousData: true,
+        placeholderData: (prev) => prev,
         refetchInterval: 60_000,
     });
 

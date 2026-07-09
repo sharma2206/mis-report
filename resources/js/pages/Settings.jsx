@@ -1,26 +1,13 @@
+import axios from 'axios';
 import { useSelector } from 'react-redux';
 import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Settings2, RefreshCw, Server, Database, GitBranch, Shield, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Settings2, RefreshCw, Server, GitBranch, Shield, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
+import { Section } from '../components/ui/Section';
 import { selectToken } from '../store/authSlice';
 import { cn } from '../utils/cn';
-import client from '../services/api';
-
-const Section = ({ title, icon: Icon, children }) => (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/60 to-white">
-            {Icon && (
-                <div className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center flex-shrink-0">
-                    <Icon className="w-3.5 h-3.5 text-slate-500" />
-                </div>
-            )}
-            <span className="text-[12px] font-700 text-slate-700 flex-1">{title}</span>
-        </div>
-        <div className="p-4">{children}</div>
-    </div>
-);
 
 const Row = ({ label, value, status }) => (
     <div className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
@@ -43,7 +30,7 @@ export default function Settings() {
 
     const healthQ = useQuery({
         queryKey: ['health-check'],
-        queryFn:  () => client.get('/../../api/health').then(r => r.data),
+        queryFn:  () => axios.get('/api/health', { withCredentials: true }).then(r => r.data),
         refetchInterval: 60_000,
     });
 

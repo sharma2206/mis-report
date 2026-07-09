@@ -10,13 +10,14 @@ import {
     BarChart3, Download, RefreshCw, TrendingUp, Users, Stethoscope, Calendar,
 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
+import { Section } from '../components/ui/Section';
 import { selectToken } from '../store/authSlice';
 import { selectBranch, selectDate } from '../store/reportSlice';
 import { analyticsApi, misApi } from '../services/api';
 import { TableSkeleton, ChartSkeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { BRANCHES } from '../constants';
-import { fmtL, fmtRupee } from '../utils/formatters';
+import { fmtL } from '../utils/formatters';
 import { monthStart, resolvePresetRange, today } from '../utils/dateHelpers';
 import { cn } from '../utils/cn';
 import { triggerDownload } from '../utils/download';
@@ -41,20 +42,7 @@ const TOOLTIP_STYLE = {
     boxShadow: '0 8px 24px -4px rgba(0,0,0,0.12)', fontSize: 12, padding: '8px 12px',
 };
 
-const Section = ({ title, icon: Icon, children, action }) => (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/60 to-white">
-            {Icon && (
-                <div className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center flex-shrink-0">
-                    <Icon className="w-3.5 h-3.5 text-slate-500" />
-                </div>
-            )}
-            <span className="text-[12px] font-700 text-slate-700 flex-1">{title}</span>
-            {action}
-        </div>
-        <div className="p-4">{children}</div>
-    </div>
-);
+
 
 const PRESET_BTNS = [
     { label: 'Today',     key: 'today'      },

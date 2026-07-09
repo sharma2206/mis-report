@@ -392,7 +392,8 @@ class AnalyticsService
             'top_items'       => (clone $base)->select(
                                     'service_item_name', 'service_type',
                                     DB::raw('SUM(net_amount) as revenue'),
-                                    DB::raw('SUM(quantity) as qty')
+                                    DB::raw('SUM(quantity) as quantity'),
+                                    DB::raw('COUNT(*) as transactions')
                                 )->whereNotNull('service_item_name')->where('service_item_name', '!=', '')
                                 ->groupBy('service_item_name', 'service_type')->orderByDesc('revenue')->limit(20)->get(),
             'by_department'   => (clone $base)->select(

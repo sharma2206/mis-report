@@ -10,6 +10,7 @@ import {
     Wallet, TrendingUp, CreditCard, Users, RefreshCw, BarChart3, PieChart as PieIcon,
 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
+import { Section } from '../components/ui/Section';
 import { selectToken } from '../store/authSlice';
 import { selectBranch, selectDate } from '../store/reportSlice';
 import { analyticsApi } from '../services/api';
@@ -64,19 +65,6 @@ const TOOLTIP_STYLE = {
     boxShadow: '0 8px 24px -4px rgba(0,0,0,0.12)', fontSize: 12, padding: '8px 12px',
 };
 
-const Section = ({ title, icon: Icon, children }) => (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/60 to-white">
-            {Icon && (
-                <div className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center flex-shrink-0">
-                    <Icon className="w-3.5 h-3.5 text-slate-500" />
-                </div>
-            )}
-            <span className="text-[12px] font-700 text-slate-700 flex-1">{title}</span>
-        </div>
-        <div className="p-4">{children}</div>
-    </div>
-);
 
 const KPICard = ({ label, value, sub, icon: Icon, color = 'blue' }) => {
     const colors = {
@@ -137,7 +125,7 @@ export default function Financial() {
 
     const totalColl     = coll?.total_collection ?? 0;
     const byPatientType = coll?.by_patient_type ?? [];
-    const byPaymentMode = coll?.by_payment_mode ?? [];
+    const byPaymentMode = coll?.payment_modes ?? [];
 
     const svcTotal = svc?.total_revenue ?? 0;
     const svcItems = svc?.by_service_type ?? [];

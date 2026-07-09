@@ -11,26 +11,12 @@ import { AppLayout } from '../components/layout/AppLayout';
 import { selectToken } from '../store/authSlice';
 import { selectBranch, selectDate } from '../store/reportSlice';
 import { analyticsApi } from '../services/api';
-import { TableSkeleton, ChartSkeleton } from '../components/ui/Skeleton';
+import { TableSkeleton } from '../components/ui/Skeleton';
+import { Section } from '../components/ui/Section';
 import { EmptyState } from '../components/ui/EmptyState';
 import { BRANCHES, CHART_PALETTE, DATE_PRESETS } from '../constants';
 import { monthStart, resolvePresetRange, today } from '../utils/dateHelpers';
 import { cn } from '../utils/cn';
-
-const Section = ({ title, icon: Icon, children, action }) => (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/60 to-white">
-            {Icon && (
-                <div className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center flex-shrink-0">
-                    <Icon className="w-3.5 h-3.5 text-slate-500" />
-                </div>
-            )}
-            <span className="text-[12px] font-700 text-slate-700 flex-1">{title}</span>
-            {action}
-        </div>
-        <div className="p-4">{children}</div>
-    </div>
-);
 
 const colHelper = createColumnHelper();
 
@@ -68,16 +54,10 @@ export default function Surgery() {
         queryFn:  () => analyticsApi.surgeryDetail({ branch, from, to }).then(r => r.data),
         enabled,
     });
-    const overviewQ = useQuery({
-        queryKey: ['surgeries', branch, from, to],
-        queryFn:  () => analyticsApi.surgeries({ branch, from, to }).then(r => r.data),
-        enabled,
-    });
 
     if (!token) return <Navigate to="/login" replace />;
 
-    const detail   = surgQ.data?.success   ? (surgQ.data.data ?? {})   : {};
-    const overview = overviewQ.data?.success ? (overviewQ.data.data ?? {}) : {};
+    const detail    = surgQ.data?.success ? (surgQ.data.data ?? {}) : {};
     const isLoading = surgQ.isLoading;
 
     const total      = detail.total      ?? 0;
@@ -118,9 +98,9 @@ export default function Surgery() {
                     <h1 className="text-[15px] font-700 text-slate-800">Surgery Analytics</h1>
                     <p className="text-[11px] text-slate-400">{branchLabel} · {from} – {to}</p>
                 </div>
-                <button onClick={() => { surgQ.refetch(); overviewQ.refetch(); }}
+                <button onClick={() => surgQ.refetch()}
                     className="w-8 h-8 flex items-center justify-center border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
-                    <RefreshCw className={cn('w-3.5 h-3.5', (surgQ.isFetching || overviewQ.isFetching) && 'animate-spin text-red-600')} />
+                    <RefreshCw className={cn('w-3.5 h-3.5', surgQ.isFetching && 'animate-spin text-red-600')} />
                 </button>
             </div>
         }>

@@ -151,12 +151,12 @@ export const KPIStrip = ({ mis, kpi, collection, isLoading }) => {
         { label: 'Net Collection',  ftd: kpi?.net_collection,         mtd: null,                icon: Wallet,      color: 'cyan',   format: 'rupee' },
         { label: 'Package',         ftd: kpi?.package_consumption,    mtd: null,                icon: Package,     color: 'indigo', format: 'rupee' },
         { label: 'OP Visits',       ftd: kpi?.op_count   ?? ftdVol.total_op, mtd: mtdVol.total_op, icon: Users,   color: 'green',  format: 'count' },
-        { label: 'IP Patients',     ftd: kpi?.ip_count   ?? ftdVol.admission, mtd: null,        icon: BedDouble,   color: 'violet', format: 'count' },
-        { label: 'ER Patients',     ftd: kpi?.er_count   ?? ftdVol.er_count,  mtd: null,        icon: HeartPulse,  color: 'red',    format: 'count' },
-        { label: 'Admissions',      ftd: ftdVol.admission,            mtd: mtdVol.admission,    icon: Activity,    color: 'sky',    format: 'count' },
-        { label: 'Discharges',      ftd: ftdVol.discharge,            mtd: mtdVol.discharge,    icon: Star,        color: 'teal',   format: 'count' },
-        { label: 'Surgeries',       ftd: kpi?.surgery_count,          mtd: null,                icon: Scissors,    color: 'rose',   format: 'count' },
-        { label: 'Bed Occupancy',   ftd: ftdVol.occupancy_pct,        mtd: mtdVol.occupancy_pct,icon: Stethoscope, color: 'amber',  format: 'pct'   },
+        { label: 'IP Census',        ftd: kpi?.bed_occupancy  ?? ftdVol.occupancy,     mtd: null,                icon: BedDouble,   color: 'violet', format: 'count' },
+        { label: 'ER Patients',     ftd: kpi?.er_count       ?? ftdVol.er_count,      mtd: null,                icon: HeartPulse,  color: 'red',    format: 'count' },
+        { label: 'Admissions',      ftd: kpi?.ip_count       ?? ftdVol.admission,     mtd: mtdVol.admission,    icon: Activity,    color: 'sky',    format: 'count' },
+        { label: 'Discharges',      ftd: ftdVol.discharge,                            mtd: mtdVol.discharge,    icon: Star,        color: 'teal',   format: 'count' },
+        { label: 'Surgeries',       ftd: kpi?.surgery_count,                          mtd: null,                icon: Scissors,    color: 'rose',   format: 'count' },
+        { label: 'Bed Occupancy',   ftd: kpi?.bed_occupancy_pct ?? ftdVol.occupancy_pct, mtd: mtdVol.occupancy_pct, icon: Stethoscope, color: 'amber',  format: 'pct'   },
     ];
 
     // Only show cards that have data (non-null, non-undefined FTD value)

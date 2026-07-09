@@ -133,7 +133,7 @@ class DashboardKpiService
      */
     public function calculateBedsOccupied(Branch $branch, string $date, ?array $sources = null): ?int
     {
-        if (!$this->sourceAvailable($branch, $date, $date, 'ip', $sources)) return null;
+        if (!$this->everUploaded($branch, 'ip')) return null;
 
         return IpAdmission::where('branch', $branch->value)
             ->whereDate('admission_date', '<=', $date)

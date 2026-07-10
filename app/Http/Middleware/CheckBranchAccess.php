@@ -10,7 +10,9 @@ class CheckBranchAccess
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $branch = $request->route('branch');
+        // Route param takes precedence; fall back to query/body param so
+        // analytics-style endpoints (?branch=...) are also branch-scoped.
+        $branch = $request->route('branch') ?? $request->input('branch');
 
         if ($branch && ! $request->user()?->canAccessBranch($branch)) {
             return response()->json(['success' => false, 'message' => 'Access denied for this branch.'], 403);

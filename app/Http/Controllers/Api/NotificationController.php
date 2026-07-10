@@ -10,14 +10,29 @@ class NotificationController extends Controller
 {
     public function index(Request $request)
     {
-        $q = AuditLog::with('user:id,name,email')
+        $user = $request->user();
+        $q    = AuditLog::with('user:id,name,email')
             ->orderByDesc('created_at');
+
+        // Scope to branches the requesting user can access.
+        if ($user->branch) {
+            $accessible = array_merge(
+                [$user->branch],
+                $user->branches ?? [],
+            );
+            $q->where(function ($sub) use ($accessible) {
+                $sub->whereIn('branch', $accessible)->orWhereNull('branch');
+            });
+        }
 
         if ($request->filled('event_type')) {
             $q->where('event', 'like', '%' . $request->event_type . '%');
         }
         if ($request->filled('branch')) {
-            $q->where('branch', $request->branch);
+            // Secondary filter only narrows within already-scoped results.
+            if ($user->canAccessBranch($request->branch)) {
+                $q->where('branch', $request->branch);
+            }
         }
         if ($request->filled('from')) {
             $q->whereDate('created_at', '>=', $request->from);
@@ -43,9 +58,16 @@ class NotificationController extends Controller
 
     public function unread(Request $request)
     {
-        $count = AuditLog::whereDate('created_at', '>=', now()->subDay())
-            ->count();
+        $user = $request->user();
+        $q    = AuditLog::whereDate('created_at', '>=', now()->subDay());
 
-        return response()->json(['success' => true, 'data' => ['unread' => $count]]);
+        if ($user->branch) {
+            $accessible = array_merge([$user->branch], $user->branches ?? []);
+            $q->where(function ($sub) use ($accessible) {
+                $sub->whereIn('branch', $accessible)->orWhereNull('branch');
+            });
+        }
+
+        return response()->json(['success' => true, 'data' => ['unread' => $q->count()]]);
     }
 }

@@ -25,6 +25,14 @@ const BRANCHES     = ['chromepet', 'oragadam'];
 const LEGACY_ROLES = ['viewer', 'staff', 'manager', 'admin'];
 const EMP_STATUSES = ['active', 'on_leave', 'resigned', 'terminated', 'probation'];
 
+// Static map — template literals like `text-${color}-700` are invisible to
+// Tailwind's compiler and produce no CSS
+const STAT_TEXT = {
+    blue: 'text-blue-700', emerald: 'text-emerald-700', slate: 'text-slate-700',
+    red: 'text-red-700', violet: 'text-violet-700', teal: 'text-teal-700',
+    orange: 'text-orange-700', sky: 'text-sky-700',
+};
+
 const ROLE_COLORS = {
     admin:   { bg: 'bg-red-100',    text: 'text-red-700'    },
     manager: { bg: 'bg-violet-100', text: 'text-violet-700' },
@@ -424,9 +432,7 @@ function UserFormModal({ mode, userId, rolesData, managersData, onClose, onSaved
     });
     const u = detailQ.data;
 
-    useEffect(() => {
-        if (mode === 'edit' && u) {
-            setForm({
+    const formFromUser = (u) => ({
                 name: u.name ?? '', email: u.email ?? '', password: '', password_confirmation: '',
                 role: u.role ?? 'viewer', branch: u.branch ?? '',
                 employee_id: u.employee_id ?? '', employee_code: u.employee_code ?? '',
@@ -440,7 +446,11 @@ function UserFormModal({ mode, userId, rolesData, managersData, onClose, onSaved
                 bio: u.profile?.bio ?? '', mfa_enabled: u.mfa_enabled ?? false,
                 role_ids: u.roles?.map(r => r.id) ?? [],
                 branches: u.branches ?? [], departments: u.departments ?? [],
-            });
+    });
+
+    useEffect(() => {
+        if (mode === 'edit' && u) {
+            setForm(formFromUser(u));
             setDirty(false);
         }
     }, [u, mode]);
@@ -523,7 +533,7 @@ function UserFormModal({ mode, userId, rolesData, managersData, onClose, onSaved
                             <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
                                 className="flex items-center gap-3 mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
                                 <span className="text-[12px] text-amber-800 flex-1">You have unsaved changes.</span>
-                                <button onClick={() => { if (u) { setForm({ ...DEFAULT_FORM }); setDirty(false); } }}
+                                <button onClick={() => { if (u) { setForm(formFromUser(u)); setDirty(false); } }}
                                     className="text-[12px] text-slate-600 hover:text-slate-800 px-2 py-0.5 rounded transition-colors">Discard</button>
                             </motion.div>
                         )}
@@ -950,7 +960,7 @@ export default function UsersPage() {
                             transition={{ delay: i * 0.04 }}
                             className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                             <div className="text-[10px] font-700 uppercase tracking-wider text-slate-400 mb-1">{label}</div>
-                            <div className={`text-[1.2rem] font-800 tabular-nums text-${color}-700`}>{value ?? '—'}</div>
+                            <div className={cn('text-[1.2rem] font-800 tabular-nums', STAT_TEXT[color] ?? STAT_TEXT.slate)}>{value ?? '—'}</div>
                         </motion.div>
                     ))}
                 </div>

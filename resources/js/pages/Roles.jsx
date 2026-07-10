@@ -36,6 +36,13 @@ const BRANCHES = [
     { key: 'oragadam',  label: 'Oragadam'  },
 ];
 
+// Static map — template literals like `text-${color}-700` are invisible to
+// Tailwind's compiler and produce no CSS
+const STAT_TEXT = {
+    violet: 'text-violet-700', emerald: 'text-emerald-700', amber: 'text-amber-700',
+    blue: 'text-blue-700', slate: 'text-slate-700', teal: 'text-teal-700',
+};
+
 const COLOR_PRESETS = [
     '#dc2626','#ea580c','#d97706','#16a34a','#0891b2','#2563eb',
     '#7c3aed','#be185d','#374151','#0f766e','#92400e','#6366f1',
@@ -793,7 +800,7 @@ export default function RolesPage() {
                             transition={{ delay: i * 0.04 }}
                             className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                             <div className="text-[10px] font-700 uppercase tracking-wider text-slate-400 mb-1">{label}</div>
-                            <div className={`text-[1.2rem] font-800 tabular-nums text-${color}-700`}>{value ?? '—'}</div>
+                            <div className={cn('text-[1.2rem] font-800 tabular-nums', STAT_TEXT[color] ?? STAT_TEXT.slate)}>{value ?? '—'}</div>
                         </motion.div>
                     ))}
                 </div>

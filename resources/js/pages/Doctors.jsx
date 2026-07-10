@@ -59,8 +59,6 @@ export default function Doctors() {
         enabled:  !!(branch && date),
     });
 
-    if (!token) return <Navigate to="/login" replace />;
-
     const perf    = raw?.success ? raw.data : null;
     const allDoctors = perf?.doctors ?? perf ?? [];
 
@@ -98,6 +96,9 @@ export default function Doctors() {
             revenue: Number(d.total_revenue) || 0,
         }))
     , [doctors]);
+
+    // After all hooks — conditional returns must not precede hook calls
+    if (!token) return <Navigate to="/login" replace />;
 
     const totalRevenue = doctors.reduce((s, d) => s + (Number(d.total_revenue) || 0), 0);
     const totalPts     = doctors.reduce((s, d) => s + (Number(d.unique_patients) || 0), 0);

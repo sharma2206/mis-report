@@ -60,30 +60,35 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
             return response()->json(['success' => true, 'data' => $data]);
         });
 
-        Route::get('/mis/import-logs',         [MISController::class, 'importLogs']);
-        Route::delete('/mis/import-logs/{id}', [MISController::class, 'rollbackImport']);
+        // Branch-scoped via query/route param — CheckBranchAccess also reads ?branch=
+        Route::middleware('branch.access')->group(function () use ($date) {
+            Route::get('/mis/import-logs',         [MISController::class, 'importLogs']);
+            // Rollback requires staff+ so viewers cannot delete imported data.
+            Route::delete('/mis/import-logs/{id}', [MISController::class, 'rollbackImport'])
+                ->middleware('role:staff|manager|admin');
 
-        Route::get('/mis/dashboard/{date}', [MISController::class, 'dashboard'])
-            ->where('date', $date);
+            Route::get('/mis/dashboard/{date}', [MISController::class, 'dashboard'])
+                ->where('date', $date);
 
-        Route::get('/analytics/kpi/{branch}/{date}', [AnalyticsController::class, 'kpi'])
-            ->where('branch', 'chromepet|oragadam')->where('date', $date);
+            Route::get('/analytics/kpi/{branch}/{date}', [AnalyticsController::class, 'kpi'])
+                ->where('branch', 'chromepet|oragadam')->where('date', $date);
 
-        Route::get('/analytics/charts/daily-trend',       [AnalyticsController::class, 'dailyTrend']);
-        Route::get('/analytics/charts/monthly-trend',     [AnalyticsController::class, 'monthlyTrend']);
-        Route::get('/analytics/charts/dept-revenue',      [AnalyticsController::class, 'deptRevenue']);
-        Route::get('/analytics/charts/payer-mix',         [AnalyticsController::class, 'payerMix']);
-        Route::get('/analytics/charts/patient-mix',       [AnalyticsController::class, 'patientMix']);
-        Route::get('/analytics/charts/branch-comparison', [AnalyticsController::class, 'branchComparison']);
-        Route::get('/analytics/charts/doctor-revenue',    [AnalyticsController::class, 'doctorRevenue']);
-        Route::get('/analytics/admissions',               [AnalyticsController::class, 'admissions']);
-        Route::get('/analytics/surgeries',                [AnalyticsController::class, 'surgeries']);
-        Route::get('/analytics/ip-demographics',          [AnalyticsController::class, 'ipDemographics']);
-        Route::get('/analytics/surgery-detail',           [AnalyticsController::class, 'surgeryDetail']);
-        Route::get('/analytics/op-metrics',               [AnalyticsController::class, 'opMetrics']);
-        Route::get('/analytics/collection',               [AnalyticsController::class, 'collectionReport']);
-        Route::get('/analytics/service-revenue',          [AnalyticsController::class, 'serviceRevenue']);
-        Route::get('/analytics/doctor-performance',       [AnalyticsController::class, 'doctorPerformance']);
+            Route::get('/analytics/charts/daily-trend',       [AnalyticsController::class, 'dailyTrend']);
+            Route::get('/analytics/charts/monthly-trend',     [AnalyticsController::class, 'monthlyTrend']);
+            Route::get('/analytics/charts/dept-revenue',      [AnalyticsController::class, 'deptRevenue']);
+            Route::get('/analytics/charts/payer-mix',         [AnalyticsController::class, 'payerMix']);
+            Route::get('/analytics/charts/patient-mix',       [AnalyticsController::class, 'patientMix']);
+            Route::get('/analytics/charts/branch-comparison', [AnalyticsController::class, 'branchComparison']);
+            Route::get('/analytics/charts/doctor-revenue',    [AnalyticsController::class, 'doctorRevenue']);
+            Route::get('/analytics/admissions',               [AnalyticsController::class, 'admissions']);
+            Route::get('/analytics/surgeries',                [AnalyticsController::class, 'surgeries']);
+            Route::get('/analytics/ip-demographics',          [AnalyticsController::class, 'ipDemographics']);
+            Route::get('/analytics/surgery-detail',           [AnalyticsController::class, 'surgeryDetail']);
+            Route::get('/analytics/op-metrics',               [AnalyticsController::class, 'opMetrics']);
+            Route::get('/analytics/collection',               [AnalyticsController::class, 'collectionReport']);
+            Route::get('/analytics/service-revenue',          [AnalyticsController::class, 'serviceRevenue']);
+            Route::get('/analytics/doctor-performance',       [AnalyticsController::class, 'doctorPerformance']);
+        });
 
         // ─── Users ───────────────────────────────────────────────────────────
         Route::prefix('users')->middleware('permission:users.view')->group(function () {
@@ -134,7 +139,9 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
         });
 
         // ─── Notifications ────────────────────────────────────────────────────
-        Route::prefix('notifications')->group(function () {
+        // Gated to roles.view (manager+) — feed is scoped audit logs, not
+        // per-user inbox, so viewer exposure would leak cross-branch events.
+        Route::prefix('notifications')->middleware('permission:roles.view')->group(function () {
             Route::get('/',       [NotificationController::class, 'index']);
             Route::get('/unread', [NotificationController::class, 'unread']);
         });
@@ -144,7 +151,7 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
             ->middleware('permission:roles.view');
 
         // ─── Operational Centre ───────────────────────────────────────────────
-        Route::prefix('operational')->group(function () {
+        Route::prefix('operational')->middleware('branch.access')->group(function () {
             Route::get('/kpis',         [OperationalController::class, 'kpis']);
             Route::get('/bed-occupancy',[OperationalController::class, 'bedOccupancy']);
             Route::get('/admissions',   [OperationalController::class, 'admissions']);
@@ -161,13 +168,19 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
     Route::middleware(['auth:sanctum', 'throttle:120,1', 'branch.access'])
         ->where(['branch' => $branch, 'date' => $date])
         ->group(function () {
-            Route::post('/mis/{branch}/upload',           [MISController::class, 'upload']);
+            // Read-only MIS endpoints — any authenticated + branch-scoped user.
             Route::get('/mis/{branch}/{date}',            [MISController::class, 'show']);
             Route::get('/mis/{branch}/{date}/export',     [MISController::class, 'export'])->middleware('throttle:10,1');
             Route::get('/mis/{branch}/{date}/export-pdf', [MISController::class, 'exportPdf'])->middleware('throttle:10,1');
             Route::get('/mis/{branch}/{date}/export-csv', [MISController::class, 'exportCsv'])->middleware('throttle:10,1');
             Route::get('/mis/{branch}/export-brm',        [MISController::class, 'exportBrm'])->middleware('throttle:10,1');
-            Route::post('/mis/{branch}/{date}/email',     [MISController::class, 'emailReport'])->middleware('throttle:5,1');
+
+            // Write operations — staff role or above (viewer cannot mutate data).
+            Route::middleware('role:staff|manager|admin')->group(function () {
+                Route::post('/mis/{branch}/upload',           [MISController::class, 'upload']);
+                Route::post('/mis/{branch}/{date}/email',     [MISController::class, 'emailReport'])->middleware('throttle:5,1');
+            });
         });
 
 });
+

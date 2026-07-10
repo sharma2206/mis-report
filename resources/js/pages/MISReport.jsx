@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef } from 'react';
-import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { useDispatch, useSelector } from 'react-redux';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -272,39 +271,50 @@ const VolumeSection = ({ volume, isLoading }) => {
 };
 
 // ─── Trend Chart ──────────────────────────────────────────────────────────────
-const TrendSection = ({ data, isLoading, month }) => {
+const TrendSection = ({ data, isLoading }) => {
     if (isLoading) return <ChartSkeleton height={220} />;
     if (!data?.length) return <EmptyState title="No trend data for this period" />;
 
-    const chartData = data.map(d => ({
-        date: d.date?.slice(5) || d.date,
-        Revenue: toLakhs(d.total_revenue ?? d.revenue ?? d.total),
-        Collection: toLakhs(d.total_collection ?? d.collection),
-    }));
+    const dates   = data.map(d => d.date?.slice(5) || d.date);
+    const revenue = data.map(d => toLakhs(d.total_revenue ?? d.revenue ?? d.total));
+    const coll    = data.map(d => toLakhs(d.total_collection ?? d.collection));
 
     return (
-        <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                <defs>
-                    <linearGradient id="gradRev" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#1d4ed8" stopOpacity={0.18} />
-                        <stop offset="95%" stopColor="#1d4ed8" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gradColl" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#059669" stopOpacity={0.14} />
-                        <stop offset="95%" stopColor="#059669" stopOpacity={0} />
-                    </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v}L`} />
-                <Tooltip formatter={(v, n) => [`₹${v}L`, n]} labelFormatter={l => `Date: ${l}`}
-                    contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }} />
-                <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
-                <Area type="monotone" dataKey="Revenue" stroke="#1d4ed8" strokeWidth={2} fill="url(#gradRev)" dot={false} />
-                <Area type="monotone" dataKey="Collection" stroke="#059669" strokeWidth={2} fill="url(#gradColl)" dot={false} />
-            </AreaChart>
-        </ResponsiveContainer>
+        <EChart height={220} option={{
+            grid: { top: 12, right: 16, bottom: 24, left: 48, containLabel: true },
+            legend: { bottom: 0, icon: 'circle', itemWidth: 8, textStyle: { fontSize: 10, color: '#64748b' } },
+            tooltip: {
+                trigger: 'axis',
+                backgroundColor: '#fff', borderColor: '#e2e8f0', borderWidth: 1,
+                textStyle: { fontSize: 11 },
+                extraCssText: 'border-radius:8px',
+                valueFormatter: v => `₹${Number(v).toFixed(2)}L`,
+            },
+            xAxis: {
+                type: 'category', data: dates, boundaryGap: false,
+                axisLabel: { fontSize: 10, color: '#94a3b8' },
+                axisLine: { show: false }, axisTick: { show: false },
+                splitLine: { show: false },
+            },
+            yAxis: {
+                type: 'value',
+                axisLabel: { fontSize: 10, color: '#94a3b8', formatter: v => `₹${v}L` },
+                axisLine: { show: false }, axisTick: { show: false },
+                splitLine: { lineStyle: { color: '#f1f5f9' } },
+            },
+            series: [
+                {
+                    name: 'Revenue', type: 'line', data: revenue,
+                    smooth: true, symbol: 'none', lineStyle: { color: '#1d4ed8', width: 2 },
+                    areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(29,78,216,0.18)' }, { offset: 1, color: 'rgba(29,78,216,0)' }] } },
+                },
+                {
+                    name: 'Collection', type: 'line', data: coll,
+                    smooth: true, symbol: 'none', lineStyle: { color: '#059669', width: 2 },
+                    areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(5,150,105,0.14)' }, { offset: 1, color: 'rgba(5,150,105,0)' }] } },
+                },
+            ],
+        }} />
     );
 };
 

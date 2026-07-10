@@ -18,6 +18,7 @@ import { misApi, analyticsApi } from '../services/api';
 import { fmtL, fmtRupee, fmtPct, toLakhs, cfClass } from '../utils/formatters';
 import { today, monthStart, shiftDate, formatDisplayDate } from '../utils/dateHelpers';
 import { BRANCHES, CHART_PALETTE, DATE_PRESETS } from '../constants';
+import { useBranches } from '../hooks/useBranches';
 import { cn } from '../utils/cn';
 import { TableSkeleton, ChartSkeleton, KPISkeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -510,6 +511,7 @@ const QuickSummary = ({ mis }) => {
 
 // ─── Filter Bar ───────────────────────────────────────────────────────────────
 const FilterBar = ({ branch, date, onBranch, onDate, onGenerate, isLoading }) => {
+    const { branches } = useBranches();
     const PRESETS = [
         { label: 'Today',     value: today() },
         { label: 'Yesterday', value: shiftDate(today(), -1) },
@@ -517,9 +519,9 @@ const FilterBar = ({ branch, date, onBranch, onDate, onGenerate, isLoading }) =>
     ];
     return (
         <div className="bg-white border-b border-slate-200 px-5 py-3 flex flex-wrap items-center gap-3">
-            {/* Branch */}
+            {/* Branch — only shows branches the current user can access */}
             <div className="flex gap-1.5">
-                {Object.entries(BRANCHES).map(([key, { label }]) => (
+                {branches.map(({ key, label }) => (
                     <button key={key} onClick={() => onBranch(key)}
                         className={cn(
                             'px-3 py-1.5 rounded-full text-[12px] font-600 border-[1.5px] transition-all cursor-pointer',

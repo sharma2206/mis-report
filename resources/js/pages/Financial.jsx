@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { createColumnHelper } from '@tanstack/react-table';
@@ -7,19 +7,20 @@ import { motion } from 'framer-motion';
 import EChart from '../components/ui/EChart';
 import DataTable from '../components/ui/DataTable';
 import {
-    Wallet, TrendingUp, CreditCard, Users, RefreshCw, BarChart3, PieChart as PieIcon,
+    Wallet, TrendingUp, CreditCard, Users, BarChart3, PieChart as PieIcon, Calendar,
 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { Section } from '../components/ui/Section';
 import { selectToken } from '../store/authSlice';
-import { selectBranch, selectDate } from '../store/reportSlice';
+import { selectBranch, setBranch } from '../store/reportSlice';
 import { analyticsApi } from '../services/api';
 import { TableSkeleton, ChartSkeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { BRANCHES } from '../constants';
 import { fmtL, fmtRupee } from '../utils/formatters';
-import { monthStart } from '../utils/dateHelpers';
+import { monthStart, resolvePresetRange, today } from '../utils/dateHelpers';
 import { cn } from '../utils/cn';
+import { useBranches } from '../hooks/useBranches';
 
 const PALETTE = ['#1d4ed8', '#7c3aed', '#dc2626', '#059669', '#d97706', '#0891b2', '#9333ea', '#ea580c'];
 
@@ -91,30 +92,48 @@ const KPICard = ({ label, value, sub, icon: Icon, color = 'blue' }) => {
     );
 };
 
-export default function Financial() {
-    const token  = useSelector(selectToken);
-    const branch = useSelector(selectBranch);
-    const date   = useSelector(selectDate);
-    const from   = monthStart(date) || date;
+const FIN_PRESETS = [
+    { label: 'Today',      key: 'today'      },
+    { label: 'Yesterday',  key: 'yesterday'  },
+    { label: 'This Week',  key: 'week'       },
+    { label: 'MTD',        key: 'mtd'        },
+    { label: 'Last Month', key: 'last_month' },
+];
 
-    const params = { branch, from, to: date };
+export default function Financial() {
+    const dispatch = useDispatch();
+    const token    = useSelector(selectToken);
+    const branch   = useSelector(selectBranch);
+    const todayStr = today();
+    const { branches } = useBranches();
+
+    const [preset, setPreset] = useState('mtd');
+    const [from,   setFrom]   = useState(() => monthStart(todayStr) || todayStr);
+    const [to,     setTo]     = useState(todayStr);
+
+    const applyPreset = (key) => {
+        const r = resolvePresetRange(key);
+        setFrom(r.from); setTo(r.to); setPreset(key);
+    };
+
+    const params = { branch, from, to };
 
     const { data: collRaw,  isLoading: loadColl }    = useQuery({
-        queryKey: ['fin-collection', branch, from, date],
+        queryKey: ['fin-collection', branch, from, to],
         queryFn:  () => analyticsApi.collection(params).then(r => r.data),
-        enabled:  !!(branch && date),
+        enabled:  !!(branch && from && to),
     });
 
     const { data: payerRaw, isLoading: loadPayer }   = useQuery({
-        queryKey: ['fin-payer', branch, from, date],
+        queryKey: ['fin-payer', branch, from, to],
         queryFn:  () => analyticsApi.payerMix(params).then(r => r.data),
-        enabled:  !!(branch && date),
+        enabled:  !!(branch && from && to),
     });
 
     const { data: svcRaw,   isLoading: loadSvc }     = useQuery({
-        queryKey: ['fin-service', branch, from, date],
+        queryKey: ['fin-service', branch, from, to],
         queryFn:  () => analyticsApi.serviceRevenue(params).then(r => r.data),
-        enabled:  !!(branch && date),
+        enabled:  !!(branch && from && to),
     });
 
     if (!token) return <Navigate to="/login" replace />;
@@ -136,17 +155,69 @@ export default function Financial() {
 
     return (
         <AppLayout topbar={
-            <div className="bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-3">
+            <div className="bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-3 flex-wrap">
                 <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
                     <Wallet className="w-3.5 h-3.5 text-emerald-600" />
                 </div>
-                <div>
+                <div className="flex-1 min-w-0">
                     <h1 className="text-[15px] font-700 text-slate-800">Financial Reports</h1>
-                    <p className="text-[11px] text-slate-400">{branchLabel} · MTD {from} – {date}</p>
+                    <p className="text-[11px] text-slate-400">{from} – {to}</p>
                 </div>
+
+                {/* Inline branch selector */}
+                {branches.length > 1 && (
+                    <div className="flex gap-1">
+                        {branches.map(b => (
+                            <button key={b.key} onClick={() => dispatch(setBranch(b.key))}
+                                className={cn(
+                                    'px-3 py-1.5 rounded-lg text-[12px] font-600 border transition-all cursor-pointer',
+                                    branch === b.key
+                                        ? 'bg-emerald-600 border-emerald-600 text-white'
+                                        : 'bg-white border-slate-200 text-slate-600 hover:border-emerald-300 hover:text-emerald-700',
+                                )}>
+                                {b.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
+                {branches.length === 1 && (
+                    <span className="px-3 py-1.5 rounded-lg text-[12px] font-600 bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        {branchLabel}
+                    </span>
+                )}
             </div>
         }>
             <main className="flex-1 overflow-y-auto p-4 space-y-4">
+
+                {/* Date range selector */}
+                <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap items-center gap-3">
+                    <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                    <div className="flex gap-1.5 flex-wrap">
+                        {FIN_PRESETS.map(b => (
+                            <button key={b.key} onClick={() => applyPreset(b.key)}
+                                className={cn(
+                                    'px-3 py-1 rounded-full text-[11px] font-600 border transition-all cursor-pointer',
+                                    preset === b.key
+                                        ? 'bg-emerald-600 border-emerald-600 text-white'
+                                        : 'bg-white border-slate-200 text-slate-500 hover:border-emerald-300 hover:text-emerald-700',
+                                )}>
+                                {b.label}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex items-center gap-2 ml-auto">
+                        <div className="flex flex-col gap-0.5">
+                            <label className="text-[9px] font-700 uppercase tracking-wider text-slate-400">From</label>
+                            <input type="date" value={from} max={to} onChange={e => { setFrom(e.target.value); setPreset(''); }}
+                                className="border border-slate-200 rounded-md px-2 py-1 text-[11px] text-slate-700 outline-none focus:border-emerald-400" />
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                            <label className="text-[9px] font-700 uppercase tracking-wider text-slate-400">To</label>
+                            <input type="date" value={to} min={from} max={todayStr} onChange={e => { setTo(e.target.value); setPreset(''); }}
+                                className="border border-slate-200 rounded-md px-2 py-1 text-[11px] text-slate-700 outline-none focus:border-emerald-400" />
+                        </div>
+                    </div>
+                </div>
 
                 {/* KPI Strip */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

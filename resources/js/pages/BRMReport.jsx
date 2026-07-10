@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { createColumnHelper } from '@tanstack/react-table';
@@ -8,11 +8,12 @@ import EChart from '../components/ui/EChart';
 import DataTable from '../components/ui/DataTable';
 import {
     BarChart3, Download, RefreshCw, TrendingUp, Users, Stethoscope, Calendar,
+    AlertCircle,
 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { Section } from '../components/ui/Section';
 import { selectToken } from '../store/authSlice';
-import { selectBranch, selectDate } from '../store/reportSlice';
+import { selectBranch, selectDate, setBranch } from '../store/reportSlice';
 import { analyticsApi, misApi } from '../services/api';
 import { TableSkeleton, ChartSkeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -21,6 +22,7 @@ import { fmtL } from '../utils/formatters';
 import { monthStart, resolvePresetRange, today } from '../utils/dateHelpers';
 import { cn } from '../utils/cn';
 import { triggerDownload } from '../utils/download';
+import { useBranches } from '../hooks/useBranches';
 
 const brmColHelper = createColumnHelper();
 const BRM_COLS = [
@@ -53,15 +55,18 @@ const PRESET_BTNS = [
 
 
 export default function BRMReport() {
+    const dispatch = useDispatch();
     const token    = useSelector(selectToken);
     const branch   = useSelector(selectBranch);
     const date     = useSelector(selectDate);
     const todayStr = today();
+    const { branches } = useBranches();
 
-    const [from, setFrom]     = useState(monthStart(date) || date);
-    const [to,   setTo]       = useState(date);
-    const [preset, setPreset] = useState('mtd');
-    const [exporting, setExp] = useState(false);
+    const [from, setFrom]       = useState(monthStart(date) || date);
+    const [to,   setTo]         = useState(date);
+    const [preset, setPreset]   = useState('mtd');
+    const [exporting, setExp]   = useState(false);
+    const [dlError,  setDlErr]  = useState(null);
 
     const applyPreset = (key) => {
         const r = resolvePresetRange(key);
@@ -91,25 +96,53 @@ export default function BRMReport() {
     const totalPts   = doctors.reduce((s, d) => s + (Number(d.unique_patients) || 0), 0);
 
     const handleDownload = async () => {
-        setExp(true);
         const branchShort = branch?.slice(0, 3).toUpperCase() || 'BRM';
         const f = from.replace(/-/g, ''); const t = to.replace(/-/g, '');
-        await triggerDownload(() => misApi.exportBrm(branch, from, to), `BRM-${branchShort}-${f}-${t}.xlsx`);
-        setExp(false);
+        setDlErr(null);
+        await triggerDownload(
+            () => misApi.exportBrm(branch, from, to),
+            `BRM-${branchShort}-${f}-${t}.xlsx`,
+            () => setExp(true),
+            () => setExp(false),
+            () => setDlErr('Export failed — no data found for this branch and date range.'),
+        );
     };
 
     const branchLabel = BRANCHES[branch]?.label || branch;
 
     return (
         <AppLayout topbar={
-            <div className="bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-3">
+            <div className="bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-3 flex-wrap">
                 <div className="w-7 h-7 rounded-lg bg-sky-100 flex items-center justify-center flex-shrink-0">
                     <BarChart3 className="w-3.5 h-3.5 text-sky-600" />
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                     <h1 className="text-[15px] font-700 text-slate-800">BRM Report</h1>
-                    <p className="text-[11px] text-slate-400">{branchLabel} · {from} – {to}</p>
+                    <p className="text-[11px] text-slate-400">{from} – {to}</p>
                 </div>
+
+                {/* Inline branch selector */}
+                {branches.length > 1 && (
+                    <div className="flex gap-1">
+                        {branches.map(b => (
+                            <button key={b.key} onClick={() => dispatch(setBranch(b.key))}
+                                className={cn(
+                                    'px-3 py-1.5 rounded-lg text-[12px] font-600 border transition-all cursor-pointer',
+                                    branch === b.key
+                                        ? 'bg-sky-600 border-sky-600 text-white'
+                                        : 'bg-white border-slate-200 text-slate-600 hover:border-sky-300 hover:text-sky-700',
+                                )}>
+                                {b.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
+                {branches.length === 1 && (
+                    <span className="px-3 py-1.5 rounded-lg text-[12px] font-600 bg-sky-50 text-sky-700 border border-sky-200">
+                        {branchLabel}
+                    </span>
+                )}
+
                 <button
                     onClick={handleDownload}
                     disabled={exporting}
@@ -122,6 +155,15 @@ export default function BRMReport() {
             </div>
         }>
             <main className="flex-1 overflow-y-auto p-4 space-y-4">
+
+                {/* Download error */}
+                {dlError && (
+                    <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-[12px]">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                        <span className="flex-1">{dlError}</span>
+                        <button onClick={() => setDlErr(null)} className="text-red-400 hover:text-red-600 cursor-pointer">✕</button>
+                    </div>
+                )}
 
                 {/* Date range selector */}
                 <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap items-center gap-3">

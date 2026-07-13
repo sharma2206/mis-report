@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -7,18 +7,17 @@ import { motion } from 'framer-motion';
 import EChart from '../components/ui/EChart';
 import DataTable from '../components/ui/DataTable';
 import {
-    Wallet, TrendingUp, CreditCard, Users, BarChart3, PieChart as PieIcon, Calendar,
+    Wallet, TrendingUp, CreditCard, Users, BarChart3, PieChart as PieIcon,
 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { Section } from '../components/ui/Section';
 import { selectToken } from '../store/authSlice';
-import { selectBranch, setBranch } from '../store/reportSlice';
+import { selectBranch, setBranch, selectGlobalFrom, selectGlobalTo } from '../store/reportSlice';
 import { analyticsApi } from '../services/api';
 import { TableSkeleton, ChartSkeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { BRANCHES } from '../constants';
 import { fmtL, fmtRupee } from '../utils/formatters';
-import { monthStart, resolvePresetRange, today } from '../utils/dateHelpers';
 import { cn } from '../utils/cn';
 import { useBranches } from '../hooks/useBranches';
 
@@ -92,29 +91,14 @@ const KPICard = ({ label, value, sub, icon: Icon, color = 'blue' }) => {
     );
 };
 
-const FIN_PRESETS = [
-    { label: 'Today',      key: 'today'      },
-    { label: 'Yesterday',  key: 'yesterday'  },
-    { label: 'This Week',  key: 'week'       },
-    { label: 'MTD',        key: 'mtd'        },
-    { label: 'Last Month', key: 'last_month' },
-];
 
 export default function Financial() {
     const dispatch = useDispatch();
-    const token    = useSelector(selectToken);
-    const branch   = useSelector(selectBranch);
-    const todayStr = today();
+    const token  = useSelector(selectToken);
+    const branch = useSelector(selectBranch);
+    const from   = useSelector(selectGlobalFrom);
+    const to     = useSelector(selectGlobalTo);
     const { branches } = useBranches();
-
-    const [preset, setPreset] = useState('mtd');
-    const [from,   setFrom]   = useState(() => monthStart(todayStr) || todayStr);
-    const [to,     setTo]     = useState(todayStr);
-
-    const applyPreset = (key) => {
-        const r = resolvePresetRange(key);
-        setFrom(r.from); setTo(r.to); setPreset(key);
-    };
 
     const params = { branch, from, to };
 
@@ -189,35 +173,6 @@ export default function Financial() {
         }>
             <main className="flex-1 overflow-y-auto p-4 space-y-4">
 
-                {/* Date range selector */}
-                <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap items-center gap-3">
-                    <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                    <div className="flex gap-1.5 flex-wrap">
-                        {FIN_PRESETS.map(b => (
-                            <button key={b.key} onClick={() => applyPreset(b.key)}
-                                className={cn(
-                                    'px-3 py-1 rounded-full text-[11px] font-600 border transition-all cursor-pointer',
-                                    preset === b.key
-                                        ? 'bg-emerald-600 border-emerald-600 text-white'
-                                        : 'bg-white border-slate-200 text-slate-500 hover:border-emerald-300 hover:text-emerald-700',
-                                )}>
-                                {b.label}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-2 ml-auto">
-                        <div className="flex flex-col gap-0.5">
-                            <label className="text-[9px] font-700 uppercase tracking-wider text-slate-400">From</label>
-                            <input type="date" value={from} max={to} onChange={e => { setFrom(e.target.value); setPreset(''); }}
-                                className="border border-slate-200 rounded-md px-2 py-1 text-[11px] text-slate-700 outline-none focus:border-emerald-400" />
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                            <label className="text-[9px] font-700 uppercase tracking-wider text-slate-400">To</label>
-                            <input type="date" value={to} min={from} max={todayStr} onChange={e => { setTo(e.target.value); setPreset(''); }}
-                                className="border border-slate-200 rounded-md px-2 py-1 text-[11px] text-slate-700 outline-none focus:border-emerald-400" />
-                        </div>
-                    </div>
-                </div>
 
                 {/* KPI Strip */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

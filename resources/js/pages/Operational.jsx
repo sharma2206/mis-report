@@ -9,18 +9,17 @@ import DataTable from '../components/ui/DataTable';
 import {
     LayoutDashboard, BedDouble, UserPlus, Users, Activity, Building2,
     Stethoscope, TrendingUp, AlertTriangle, XCircle, Info, CheckCircle,
-    Calendar, RefreshCw, ChevronRight, Minus,
+    RefreshCw, ChevronRight, Minus,
 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { Section } from '../components/ui/Section';
 import { selectToken } from '../store/authSlice';
-import { selectBranch, selectDate } from '../store/reportSlice';
+import { selectBranch, selectDate, selectGlobalFrom, selectGlobalTo } from '../store/reportSlice';
 import { operationalApi } from '../services/api';
 import { TableSkeleton, ChartSkeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
-import { BRANCHES, DATE_PRESETS } from '../constants';
+import { BRANCHES } from '../constants';
 import { fmtL } from '../utils/formatters';
-import { monthStart, resolvePresetRange, today } from '../utils/dateHelpers';
 import { cn } from '../utils/cn';
 
 // ─── Palette ─────────────────────────────────────────────────────────────────
@@ -951,19 +950,13 @@ export default function Operational() {
     const date   = useSelector(selectDate);
 
     const [activeTab, setActiveTab] = useState('overview');
-    const [from, setFrom]           = useState(() => monthStart(date) || date);
-    const [to, setTo]               = useState(date);
-    const [preset, setPreset]       = useState('mtd');
+    const from = useSelector(selectGlobalFrom);
+    const to   = useSelector(selectGlobalTo);
 
     if (!token) return <Navigate to="/login" replace />;
 
     const dateParams = useMemo(() => ({ branch, date, from, to }), [branch, date, from, to]);
     const kpiParams  = useMemo(() => ({ branch, date }),           [branch, date]);
-
-    const applyPreset = key => {
-        const r = resolvePresetRange(key);
-        setFrom(r.from); setTo(r.to); setPreset(key);
-    };
 
     // Always-on queries
     const { data: kpisRaw,   isLoading: loadKpis   } = useQuery({
@@ -1079,41 +1072,6 @@ export default function Operational() {
                     </div>
                 </div>
 
-                {/* Date filter bar */}
-                <div className="bg-white border-b border-slate-100 px-4 py-2 flex flex-wrap items-center gap-2">
-                    <Calendar className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                    <div className="flex gap-1 flex-wrap">
-                        {DATE_PRESETS.map(p => (
-                            <button key={p.key} onClick={() => applyPreset(p.key)}
-                                className={cn(
-                                    'px-2.5 py-0.5 rounded-full text-[10px] font-600 border transition-all cursor-pointer',
-                                    preset === p.key
-                                        ? 'bg-teal-600 border-teal-600 text-white'
-                                        : 'bg-white border-slate-200 text-slate-500 hover:border-teal-300 hover:text-teal-700',
-                                )}>
-                                {p.label}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-2 ml-auto flex-wrap">
-                        <div className="flex flex-col gap-0.5">
-                            <label className="text-[9px] font-700 uppercase tracking-wider text-slate-400">From</label>
-                            <input type="date" value={from} max={to}
-                                onChange={e => { setFrom(e.target.value); setPreset(''); }}
-                                className="border border-slate-200 rounded-md px-2 py-0.5 text-[11px] text-slate-700 outline-none focus:border-teal-400" />
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                            <label className="text-[9px] font-700 uppercase tracking-wider text-slate-400">To</label>
-                            <input type="date" value={to} min={from} max={today()}
-                                onChange={e => { setTo(e.target.value); setPreset(''); }}
-                                className="border border-slate-200 rounded-md px-2 py-0.5 text-[11px] text-slate-700 outline-none focus:border-teal-400" />
-                        </div>
-                        <button onClick={() => { setFrom(monthStart(date) || date); setTo(date); setPreset('mtd'); }}
-                            className="flex items-center gap-1 px-2 py-1 text-[10px] font-600 text-slate-500 border border-slate-200 rounded-md hover:border-slate-300 cursor-pointer mt-3">
-                            <RefreshCw className="w-3 h-3" /> Reset
-                        </button>
-                    </div>
-                </div>
 
                 {/* Tab content */}
                 <div className="flex-1 p-4">

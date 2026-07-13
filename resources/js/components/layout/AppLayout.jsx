@@ -4,7 +4,14 @@ import { useLocation, NavLink } from 'react-router-dom';
 import { ChevronRight, Home, Menu, Hospital } from 'lucide-react';
 import { selectSidebarOpen, setSidebarOpen, toggleSidebar } from '../../store/reportSlice';
 import { Sidebar } from './Sidebar';
+import { DateRangeFilter } from '../ui/DateRangeFilter';
 import { useIsMobile } from '../../hooks/useIsMobile';
+
+// Pages that use the global date filter
+const DATE_FILTER_ROUTES = new Set([
+    '/brm', '/financial', '/operational', '/mis', '/surgery', '/pharmacy',
+    '/doctors', '/departments',
+]);
 
 const BREADCRUMB_MAP = {
     '/dashboard':     ['Dashboard'],
@@ -50,7 +57,8 @@ export const AppLayout = ({ children, topbar, onPrint }) => {
     const dispatch = useDispatch();
     const isMobile = useIsMobile();
     const { pathname } = useLocation();
-    const showBreadcrumb = pathname !== '/dashboard' && BREADCRUMB_MAP[pathname];
+    const showBreadcrumb  = pathname !== '/dashboard' && BREADCRUMB_MAP[pathname];
+    const showDateFilter  = DATE_FILTER_ROUTES.has(pathname);
 
     return (
         <div className="flex h-screen overflow-hidden bg-slate-50/80">
@@ -102,6 +110,8 @@ export const AppLayout = ({ children, topbar, onPrint }) => {
                         <Breadcrumb />
                     </div>
                 )}
+
+                {showDateFilter && <DateRangeFilter />}
 
                 {children}
             </motion.div>

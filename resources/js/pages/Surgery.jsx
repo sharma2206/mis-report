@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -6,16 +6,15 @@ import { createColumnHelper } from '@tanstack/react-table';
 import { motion } from 'framer-motion';
 import EChart from '../components/ui/EChart';
 import DataTable from '../components/ui/DataTable';
-import { Scissors, Activity, Users, Calendar, RefreshCw, ShieldAlert, Star } from 'lucide-react';
+import { Scissors, Activity, Users, RefreshCw, ShieldAlert, Star } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { selectToken } from '../store/authSlice';
-import { selectBranch, selectDate } from '../store/reportSlice';
+import { selectBranch, selectDate, selectGlobalFrom, selectGlobalTo } from '../store/reportSlice';
 import { analyticsApi } from '../services/api';
 import { TableSkeleton } from '../components/ui/Skeleton';
 import { Section } from '../components/ui/Section';
 import { EmptyState } from '../components/ui/EmptyState';
-import { BRANCHES, CHART_PALETTE, DATE_PRESETS } from '../constants';
-import { monthStart, resolvePresetRange, today } from '../utils/dateHelpers';
+import { BRANCHES, CHART_PALETTE } from '../constants';
 import { cn } from '../utils/cn';
 
 const colHelper = createColumnHelper();
@@ -36,16 +35,8 @@ export default function Surgery() {
     const token  = useSelector(selectToken);
     const branch = useSelector(selectBranch);
     const date   = useSelector(selectDate);
-    const todayStr = today();
-
-    const [from,   setFrom]   = useState(() => monthStart(date) || date);
-    const [to,     setTo]     = useState(date);
-    const [preset, setPreset] = useState('mtd');
-
-    const applyPreset = (key) => {
-        const r = resolvePresetRange(key);
-        setFrom(r.from); setTo(r.to); setPreset(key);
-    };
+    const from   = useSelector(selectGlobalFrom);
+    const to     = useSelector(selectGlobalTo);
 
     const enabled = !!(branch && from && to);
 
@@ -106,33 +97,6 @@ export default function Surgery() {
         }>
             <main className="flex-1 overflow-y-auto p-4 space-y-4">
 
-                {/* Date range */}
-                <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap items-center gap-3">
-                    <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                    <div className="flex gap-1.5 flex-wrap">
-                        {DATE_PRESETS.map(b => (
-                            <button key={b.key} onClick={() => applyPreset(b.key)}
-                                className={cn('px-3 py-1 rounded-full text-[11px] font-600 border transition-all cursor-pointer',
-                                    preset === b.key
-                                        ? 'bg-red-600 border-red-600 text-white'
-                                        : 'bg-white border-slate-200 text-slate-500 hover:border-red-300 hover:text-red-700')}>
-                                {b.label}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-2 ml-auto flex-wrap">
-                        <div className="flex flex-col gap-0.5">
-                            <label className="text-[9px] font-700 uppercase tracking-wider text-slate-400">From</label>
-                            <input type="date" value={from} max={to} onChange={e => { setFrom(e.target.value); setPreset(''); }}
-                                className="border border-slate-200 rounded-md px-2 py-1 text-[11px] text-slate-700 outline-none focus:border-red-400" />
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                            <label className="text-[9px] font-700 uppercase tracking-wider text-slate-400">To</label>
-                            <input type="date" value={to} min={from} max={todayStr} onChange={e => { setTo(e.target.value); setPreset(''); }}
-                                className="border border-slate-200 rounded-md px-2 py-1 text-[11px] text-slate-700 outline-none focus:border-red-400" />
-                        </div>
-                    </div>
-                </div>
 
                 {/* KPI cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

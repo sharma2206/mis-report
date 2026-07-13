@@ -7,19 +7,18 @@ import { motion } from 'framer-motion';
 import EChart from '../components/ui/EChart';
 import DataTable from '../components/ui/DataTable';
 import {
-    BarChart3, Download, RefreshCw, TrendingUp, Users, Stethoscope, Calendar,
+    BarChart3, Download, RefreshCw, TrendingUp, Users, Stethoscope,
     AlertCircle,
 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { Section } from '../components/ui/Section';
 import { selectToken } from '../store/authSlice';
-import { selectBranch, selectDate, setBranch } from '../store/reportSlice';
+import { selectBranch, selectDate, setBranch, selectGlobalFrom, selectGlobalTo } from '../store/reportSlice';
 import { analyticsApi, misApi } from '../services/api';
 import { TableSkeleton, ChartSkeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { BRANCHES } from '../constants';
 import { fmtL } from '../utils/formatters';
-import { monthStart, resolvePresetRange, today } from '../utils/dateHelpers';
 import { cn } from '../utils/cn';
 import { triggerDownload } from '../utils/download';
 import { useBranches } from '../hooks/useBranches';
@@ -46,32 +45,19 @@ const TOOLTIP_STYLE = {
 
 
 
-const PRESET_BTNS = [
-    { label: 'Today',     key: 'today'      },
-    { label: 'Yesterday', key: 'yesterday'  },
-    { label: 'This Week', key: 'week'       },
-    { label: 'MTD',       key: 'mtd'        },
-];
 
 
 export default function BRMReport() {
     const dispatch = useDispatch();
-    const token    = useSelector(selectToken);
-    const branch   = useSelector(selectBranch);
-    const date     = useSelector(selectDate);
-    const todayStr = today();
+    const token  = useSelector(selectToken);
+    const branch = useSelector(selectBranch);
+    const date   = useSelector(selectDate);
+    const from   = useSelector(selectGlobalFrom);
+    const to     = useSelector(selectGlobalTo);
     const { branches } = useBranches();
 
-    const [from, setFrom]       = useState(monthStart(date) || date);
-    const [to,   setTo]         = useState(date);
-    const [preset, setPreset]   = useState('mtd');
-    const [exporting, setExp]   = useState(false);
-    const [dlError,  setDlErr]  = useState(null);
-
-    const applyPreset = (key) => {
-        const r = resolvePresetRange(key);
-        setFrom(r.from); setTo(r.to); setPreset(key);
-    };
+    const [exporting, setExp]  = useState(false);
+    const [dlError,  setDlErr] = useState(null);
 
     const params = { branch, from, to };
 
@@ -165,35 +151,6 @@ export default function BRMReport() {
                     </div>
                 )}
 
-                {/* Date range selector */}
-                <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap items-center gap-3">
-                    <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                    <div className="flex gap-1.5 flex-wrap">
-                        {PRESET_BTNS.map(b => (
-                            <button key={b.key} onClick={() => applyPreset(b.key)}
-                                className={cn(
-                                    'px-3 py-1 rounded-full text-[11px] font-600 border transition-all cursor-pointer',
-                                    preset === b.key
-                                        ? 'bg-sky-600 border-sky-600 text-white'
-                                        : 'bg-white border-slate-200 text-slate-500 hover:border-sky-300 hover:text-sky-700',
-                                )}>
-                                {b.label}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-2 ml-auto">
-                        <div className="flex flex-col gap-0.5">
-                            <label className="text-[9px] font-700 uppercase tracking-wider text-slate-400">From</label>
-                            <input type="date" value={from} max={to} onChange={e => { setFrom(e.target.value); setPreset(''); }}
-                                className="border border-slate-200 rounded-md px-2 py-1 text-[11px] text-slate-700 outline-none focus:border-sky-400" />
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                            <label className="text-[9px] font-700 uppercase tracking-wider text-slate-400">To</label>
-                            <input type="date" value={to} min={from} max={todayStr} onChange={e => { setTo(e.target.value); setPreset(''); }}
-                                className="border border-slate-200 rounded-md px-2 py-1 text-[11px] text-slate-700 outline-none focus:border-sky-400" />
-                        </div>
-                    </div>
-                </div>
 
                 {/* Summary KPIs */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

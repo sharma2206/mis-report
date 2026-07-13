@@ -1,5 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit';
-import { today } from '../utils/dateHelpers';
+import { today, monthStart, resolvePresetRange } from '../utils/dateHelpers';
+
+const _initRange = resolvePresetRange('mtd');
 
 const reportSlice = createSlice({
     name: 'report',
@@ -18,6 +20,11 @@ const reportSlice = createSlice({
 
         // Last Import Info
         lastImportInfo: (() => { try { const v = localStorage.getItem('mis_last_import'); return v ? JSON.parse(v) : null; } catch { return null; } })(),
+
+        // Global date filter — shared across all report pages
+        globalPreset: 'mtd',
+        globalFrom:   _initRange.from,
+        globalTo:     _initRange.to,
 
         // Smart Alerts
         alerts: [],                      // [{ id, type, title, message, dismissible }]
@@ -58,6 +65,19 @@ const reportSlice = createSlice({
             state.periodMode = 'custom';
         },
 
+        // Global date filter
+        setGlobalPreset(state, { payload: key }) {
+            const r = resolvePresetRange(key);
+            state.globalPreset = key;
+            state.globalFrom   = r.from;
+            state.globalTo     = r.to;
+        },
+        setGlobalRange(state, { payload: { from, to } }) {
+            state.globalPreset = '';
+            state.globalFrom   = from;
+            state.globalTo     = to;
+        },
+
         // Last Import
         setLastImportInfo(state, { payload }) {
             state.lastImportInfo = payload;
@@ -87,6 +107,7 @@ const reportSlice = createSlice({
 export const {
     setBranch, setDate, setActiveTab, toggleSidebar, setSidebarOpen, setMobileMenuOpen,
     setPeriodMode, setPeriodPreset, setPeriodRange,
+    setGlobalPreset, setGlobalRange,
     setLastImportInfo,
     addAlert, dismissAlert, clearAlerts, setAlerts,
 } = reportSlice.actions;
@@ -102,6 +123,9 @@ export const selectPeriodFrom     = (s) => s.report.periodFrom;
 export const selectPeriodTo       = (s) => s.report.periodTo;
 export const selectLastImportInfo = (s) => s.report.lastImportInfo;
 export const selectAlerts         = (s) => s.report.alerts;
+export const selectGlobalPreset   = (s) => s.report.globalPreset;
+export const selectGlobalFrom     = (s) => s.report.globalFrom;
+export const selectGlobalTo       = (s) => s.report.globalTo;
 
 // Derived: the period start to use when auto mode is active.
 // Falls back to the import date itself if periodFrom was never stored

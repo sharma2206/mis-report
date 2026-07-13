@@ -96,8 +96,8 @@ class MISService
      * This ensures that uploading a multi-day CSV on a single date still produces
      * accurate MTD totals without relying on per-day snapshot accumulation.
      *
-     * Occupancy (census) is point-in-time so we keep the daily-average approach
-     * from persisted mis_reports for that metric only.
+     * Occupancy is derived from ip_admissions (patient-days / days) so bulk imports
+     * produce correct MTD census without requiring daily mis_reports snapshots.
      */
     private function buildMtdVolume(Branch $branch, string $date, array $todayFtd, int $mtdOp): array
     {
@@ -127,20 +127,35 @@ class MISService
             ->whereDate('surgery_date', '<=', $date)
             ->count();
 
-        // Occupancy % — keep daily-average from persisted snapshots (census is point-in-time)
-        $prev   = $this->repo->getPreviousMtdReports($branch, $date);
-        $pctSum = $todayFtd['occupancy_pct'] ?? 0;
-        $occ    = $todayFtd['occupancy']     ?? 0;
-        $days   = 1;
-        foreach ($prev as $r) {
-            $occ    += $r->occupancy     ?? 0;
-            $pctSum += (float) ($r->occupancy_pct ?? 0);
-            $days++;
-        }
+        // Occupancy (census) — calculated directly from ip_admissions.
+        // Sum the overlap of each patient's stay with the MTD window, divided by
+        // the number of days, gives the average daily bed census.
+        // This works correctly for bulk imports where no mis_reports snapshots exist.
+        $bedCount = $branch->bedCount();
+        $days     = Carbon::parse($from)->diffInDays(Carbon::parse($date)) + 1;
+
+        $patientDays = IpAdmission::where('branch', $branch->value)
+            ->whereDate('admission_date', '<=', $date)
+            ->where(function ($q) use ($from) {
+                $q->whereNull('discharge_date')
+                  ->orWhereDate('discharge_date', '>=', $from);
+            })
+            ->selectRaw('
+                SUM(
+                    DATEDIFF(
+                        LEAST(COALESCE(DATE(discharge_date), ?), ?),
+                        GREATEST(DATE(admission_date), ?)
+                    ) + 1
+                ) as total_days
+            ', [$date, $date, $from])
+            ->value('total_days') ?? 0;
+
+        $avgCensus  = $days > 0 ? round($patientDays / $days, 0) : 0;
+        $avgOccPct  = ($bedCount > 0 && $days > 0) ? round(($patientDays / $days / $bedCount) * 100, 1) : 0;
 
         return [
-            'occupancy'     => round($occ, 0),
-            'occupancy_pct' => $days > 0 ? round($pctSum / $days, 0) : 0,
+            'occupancy'     => $avgCensus,
+            'occupancy_pct' => $avgOccPct,
             'admission'     => $admission,
             'discharge'     => $discharge,
             'er_count'      => $erCount,

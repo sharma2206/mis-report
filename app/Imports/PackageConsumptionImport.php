@@ -4,6 +4,7 @@ namespace App\Imports;
 
 use App\Enums\Branch;
 use App\Models\PackageConsumption;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
@@ -43,9 +44,14 @@ class PackageConsumptionImport implements ToCollection, WithHeadingRow, WithChun
             $packageAmountRaw = str_replace(',', '', $row['package_amount'] ?? '0');
             $packageAmount    = (float) trim($packageAmountRaw);
 
+            // Prefer the bill/consumption date from the CSV; fall back to the upload date.
+            $consumptionDate = $this->parseDateOnly(
+                $row['bill_date_time'] ?? $row['consumption_date_time'] ?? $row['order_date_time'] ?? null
+            ) ?? $this->date;
+
             $insert[] = [
                 'branch'               => $this->branch->value,
-                'consumption_date'     => $this->date,
+                'consumption_date'     => $consumptionDate,
                 'uhid'                 => trim($row['uhid'] ?? '') ?: null,
                 'patient_name'         => trim($row['patient_name'] ?? '') ?: null,
                 'bill_no'              => trim($row['bill_no'] ?? '') ?: null,
@@ -80,6 +86,17 @@ class PackageConsumptionImport implements ToCollection, WithHeadingRow, WithChun
     public function chunkSize(): int
     {
         return 1000;
+    }
+
+    private function parseDateOnly($value): ?string
+    {
+        if (!$value || trim((string) $value) === '') return null;
+        try {
+            return Carbon::createFromFormat('d/m/Y, h:i a', trim($value))->format('Y-m-d');
+        } catch (\Exception) {
+            try { return Carbon::parse(trim($value))->format('Y-m-d'); }
+            catch (\Exception) { return null; }
+        }
     }
 
     private function normalizePatientType(?string $type): ?string

@@ -47,10 +47,18 @@ class CsvProcessingService
             $billRange    = $this->csvDateRange($billFile->getRealPath(), 'Bill Date Time');
             $cashierRange = $this->csvDateRange($cashierFile->getRealPath(), 'Receipt/Refund Date Time');
             $erRange      = $erFile  ? $this->csvDateRange($erFile->getRealPath(),  'Admission Date Time') : null;
-            $ipRange      = $ipFile  ? $this->csvDateRange($ipFile->getRealPath(),  'IP Conversion Date Time', 'Admission Date Time') : null;
-            $surgRange    = $surgeryFile ? $this->csvDateRange($surgeryFile->getRealPath(), 'Surgery Start Date and Time', 'Surgery Booking Date and Time') : null;
+            // Use Admission Date Time as primary — IP Conversion Date Time is only
+            // populated for ER→IP conversions (minority of rows) and would miss
+            // the full date span of direct IP admissions.
+            $ipRange      = $ipFile  ? $this->csvDateRange($ipFile->getRealPath(),  'Admission Date Time') : null;
+            $surgRange    = $surgeryFile ? $this->csvDateRange($surgeryFile->getRealPath(), 'Surgery Start Date and Time', 'Surgery Scheduled Date Time') : null;
+            // Package consumption: detect date range from bill date column so re-uploads
+            // covering multi-day ranges delete+replace the full span, not just the fallback date.
+            $pkgRange     = ($branch === Branch::CHROMEPET && $packageFile)
+                ? $this->csvDateRange($packageFile->getRealPath(), 'Bill Date Time', 'Consumption Date Time', 'Order Date Time')
+                : null;
 
-            $this->deleteForBranchRange($branch, $billRange, $cashierRange, $erRange, $ipRange, $surgRange, $date);
+            $this->deleteForBranchRange($branch, $billRange, $cashierRange, $erRange, $ipRange, $surgRange, $pkgRange, $date);
 
             // Bust cache for every date in the range covered by the bill CSV
             if ($billRange) {
@@ -180,6 +188,7 @@ class CsvProcessingService
         ?array $erRange,
         ?array $ipRange,
         ?array $surgRange,
+        ?array $pkgRange,
         string $fallbackDate
     ): void {
         $b = $branch->value;
@@ -196,7 +205,7 @@ class CsvProcessingService
         $del(Surgery::class,           'surgery_date',    $surgRange);
 
         if ($branch === Branch::CHROMEPET) {
-            PackageConsumption::where('branch', $b)->whereDate('consumption_date', $fallbackDate)->delete();
+            $del(PackageConsumption::class, 'consumption_date', $pkgRange);
         }
     }
 

@@ -1,19 +1,30 @@
-// ── Date column patterns (KareXpert CSV headers) ─────────────────────────────
-export const DATE_COL_PATTERNS = [
-    /^bill\s*date/i,
-    /^bill\s*date\s*time/i,
-    /^admission\s*date/i,
-    /^discharge\s*date/i,
-    /^visit\s*date/i,
-    /^surgery\s*date/i,
-    /^collection\s*date/i,
-    /^procedure\s*date/i,
-    /^transaction\s*date/i,
-    /^created\s*at/i,
+// ── Primary date column(s) per KareXpert report type ──────────────────────
+// Checked in priority order against normalized CSV headers; first match wins.
+// Keys match FILE_FIELD_MAP typeKey values in fileDetect.js.
+const DATE_COLS_BY_TYPE = {
+    bill_items: ['Bill Date Time',                'Bill Date'],
+    cashier:    ['Receipt/Refund Date Time',       'Receipt Date Time',      'Collection Date'],
+    er:         ['Admission Date Time',             'Admission Date'],
+    ip:         ['Admission Date Time',             'Admission Date'],
+    surgery:    ['Surgery Booking Date and Time',   'Surgery Start Date and Time', 'Surgery Scheduled Date Time'],
+    package:    ['Bill Date Time',                  'Consumption Date Time',  'Order Date Time'],
+};
+
+// Fallback regex patterns for unrecognised file types, checked in order.
+const FALLBACK_DATE_PATTERNS = [
+    /^bill\s+date/i,
+    /^receipt[^a-z]*date/i,
+    /^admission\s+date/i,
+    /^surgery[^a-z]+date/i,
+    /^collection\s+date/i,
     /\bdate\b/i,
 ];
 
-// KareXpert CSV date format: "05/07/2026, 11:48 pm" or "05/07/2026"
+// Normalize a header string so "Bill Date Time", "bill date time", "Bill  Date  Time"
+// all compare equal.
+const normalizeHeader = s => s.replace(/[^a-z0-9]+/gi, ' ').trim().toLowerCase();
+
+// KareXpert date format: "01/06/2026, 09:30 am" or "01/06/2026" or "2026-06-01"
 export function parseKareDate(raw) {
     if (!raw) return null;
     const s = raw.trim().replace(/"/g, '');
@@ -46,28 +57,57 @@ export function tsToYMD(ts) {
     return `${y}-${m}-${day}`;
 }
 
-// Read first ~100 KB of a File, parse headers and date column range.
-export function scanCsvFile(file, maxRows = 200) {
+/**
+ * Scan an entire CSV file for the earliest and latest business dates.
+ *
+ * Uses file-type-specific column selection so the correct business date is
+ * always targeted (e.g. "Receipt/Refund Date Time" for cashier, not whatever
+ * date column happens to appear first in the headers).
+ *
+ * The entire file is read — no byte cap, no row cap — so a 30-day CSV
+ * spanning June 1–30 is guaranteed to detect June 1 as the minimum.
+ *
+ * @param {File}         file    Browser File object
+ * @param {string|null}  typeKey Report type key from FILE_FIELD_MAP
+ *                               ('bill_items' | 'cashier' | 'er' | 'ip' | 'surgery' | 'package')
+ * @returns {Promise<{min: number|null, max: number|null, col: string|null}>}
+ */
+export function scanCsvFile(file, typeKey = null) {
     return new Promise((resolve) => {
-        const reader = new FileReader();
+        const reader  = new FileReader();
         reader.onload = (e) => {
             try {
                 const text    = e.target.result;
                 const lines   = text.split(/\r?\n/).filter(l => l.trim());
                 if (lines.length < 2) return resolve({ min: null, max: null, col: null });
 
-                const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-                let colIdx    = -1;
-                let colName   = null;
-                for (const pat of DATE_COL_PATTERNS) {
-                    colIdx = headers.findIndex(h => pat.test(h));
-                    if (colIdx !== -1) { colName = headers[colIdx]; break; }
+                // Parse headers; keep original casing for display, normalise for matching.
+                const rawHeaders  = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+                const normHeaders = rawHeaders.map(normalizeHeader);
+
+                let colIdx  = -1;
+                let colName = null;
+
+                // 1. Try file-type-specific columns in declared priority order.
+                for (const target of (DATE_COLS_BY_TYPE[typeKey] ?? [])) {
+                    const normTarget = normalizeHeader(target);
+                    const idx = normHeaders.findIndex(h => h === normTarget);
+                    if (idx !== -1) { colIdx = idx; colName = rawHeaders[idx]; break; }
                 }
+
+                // 2. If still not found, fall back to generic regex patterns.
+                if (colIdx === -1) {
+                    for (const pat of FALLBACK_DATE_PATTERNS) {
+                        const idx = rawHeaders.findIndex(h => pat.test(h));
+                        if (idx !== -1) { colIdx = idx; colName = rawHeaders[idx]; break; }
+                    }
+                }
+
                 if (colIdx === -1) return resolve({ min: null, max: null, col: null });
 
+                // 3. Scan ALL data rows — no row cap or byte cap.
                 let minTs = Infinity, maxTs = -Infinity;
-                const limit = Math.min(lines.length, maxRows + 1);
-                for (let i = 1; i < limit; i++) {
+                for (let i = 1; i < lines.length; i++) {
                     const cells = lines[i].split(',');
                     const ts    = parseKareDate(cells[colIdx]);
                     if (ts !== null) {
@@ -75,6 +115,7 @@ export function scanCsvFile(file, maxRows = 200) {
                         if (ts > maxTs) maxTs = ts;
                     }
                 }
+
                 resolve({
                     min: minTs === Infinity  ? null : minTs,
                     max: maxTs === -Infinity ? null : maxTs,
@@ -85,6 +126,6 @@ export function scanCsvFile(file, maxRows = 200) {
             }
         };
         reader.onerror = () => resolve({ min: null, max: null, col: null });
-        reader.readAsText(file.slice(0, 1024 * 100));
+        reader.readAsText(file);  // Read the complete file — no byte slice.
     });
 }

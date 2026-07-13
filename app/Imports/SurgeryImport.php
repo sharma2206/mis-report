@@ -33,7 +33,7 @@ class SurgeryImport implements ToCollection, WithHeadingRow, WithChunkReading
 
             $insert[] = [
                 'branch'               => $this->branch->value,
-                'surgery_date'         => $this->parseDateOnly($this->getValue($row, ['surgery_start_date_and_time', 'surgery_scheduled_date_time', 'surgery_booking_date_and_time'], null)) ?? $this->date,
+                'surgery_date'         => $this->parseDateOnly($this->getValue($row, ['surgery_start_date_and_time', 'surgery_scheduled_date_time'], null)) ?? $this->date,
                 'admission_no'         => $admissionNo ?: null,
                 'uhid'                 => trim($row['uhid'] ?? '') ?: null,
                 'patient_name'         => trim($row['patient_name'] ?? '') ?: null,

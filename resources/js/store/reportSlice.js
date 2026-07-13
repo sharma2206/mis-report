@@ -91,16 +91,28 @@ export const {
     addAlert, dismissAlert, clearAlerts, setAlerts,
 } = reportSlice.actions;
 
-export const selectBranch        = (s) => s.report.branch;
-export const selectDate          = (s) => s.report.date;
-export const selectActiveTab     = (s) => s.report.activeTab;
-export const selectSidebarOpen   = (s) => s.report.sidebarOpen;
+export const selectBranch         = (s) => s.report.branch;
+export const selectDate           = (s) => s.report.date;
+export const selectActiveTab      = (s) => s.report.activeTab;
+export const selectSidebarOpen    = (s) => s.report.sidebarOpen;
 export const selectMobileMenuOpen = (s) => s.report.mobileMenuOpen;
-export const selectPeriodMode    = (s) => s.report.periodMode;
-export const selectPeriodPreset  = (s) => s.report.periodPreset;
-export const selectPeriodFrom    = (s) => s.report.periodFrom;
-export const selectPeriodTo      = (s) => s.report.periodTo;
+export const selectPeriodMode     = (s) => s.report.periodMode;
+export const selectPeriodPreset   = (s) => s.report.periodPreset;
+export const selectPeriodFrom     = (s) => s.report.periodFrom;
+export const selectPeriodTo       = (s) => s.report.periodTo;
 export const selectLastImportInfo = (s) => s.report.lastImportInfo;
-export const selectAlerts        = (s) => s.report.alerts;
+export const selectAlerts         = (s) => s.report.alerts;
+
+// Derived: the period start to use when auto mode is active.
+// Falls back to the import date itself if periodFrom was never stored
+// (backward-compatible with older lastImportInfo shapes).
+export const selectAutoFrom = (s) => {
+    const info = s.report.lastImportInfo;
+    return info?.periodFrom ?? info?.date ?? null;
+};
+export const selectAutoTo = (s) => {
+    const info = s.report.lastImportInfo;
+    return info?.periodTo ?? info?.date ?? null;
+};
 
 export default reportSlice.reducer;

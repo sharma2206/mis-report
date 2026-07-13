@@ -11,7 +11,7 @@ import {
 import { selectToken } from '../store/authSlice';
 import {
     selectBranch as selBranch, selectDate as selDate, selectActiveTab,
-    selectPeriodMode, selectPeriodFrom, setActiveTab,
+    selectPeriodMode, selectPeriodFrom, selectLastImportInfo, selectAutoFrom, setActiveTab,
 } from '../store/reportSlice';
 import { useDashboard } from '../hooks/useDashboard';
 import { AppLayout } from '../components/layout/AppLayout';
@@ -672,8 +672,13 @@ export default function Dashboard() {
     const dispatch   = useDispatch();
     const periodMode = useSelector(selectPeriodMode);
     const periodFrom = useSelector(selectPeriodFrom);
+    const autoFrom   = useSelector(selectAutoFrom);
 
-    const effectiveFrom = periodMode === 'custom' ? periodFrom : null;
+    // In auto mode use the actual import period start so range queries (trend, payer, etc.)
+    // cover the full uploaded period rather than defaulting to the current month start.
+    const effectiveFrom = periodMode === 'auto'
+        ? autoFrom
+        : (periodMode === 'custom' ? periodFrom : null);
 
     const {
         mis, kpi, trend, payer, mix, serviceRev, admissions,

@@ -7,7 +7,7 @@ import {
     Trash2, RefreshCw,
 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
-import { selectToken } from '../store/authSlice';
+import { selectToken, selectUser } from '../store/authSlice';
 import { selectBranch as selBranch, setBranch, setDate, setLastImportInfo } from '../store/reportSlice';
 import { Navigate } from 'react-router-dom';
 import { misApi } from '../services/api';
@@ -54,17 +54,20 @@ const AutoKpiNotice = () => (
 export default function ImportCenter() {
     const token       = useSelector(selectToken);
     const branch      = useSelector(selBranch);
+    const user        = useSelector(selectUser);
     const dispatch    = useDispatch();
     const queryClient = useQueryClient();
 
-    const [items,       setItems]       = useState([]);
-    const [isDragging,  setIsDragging]  = useState(false);
-    const [isImporting, setIsImporting] = useState(false);
-    const [result,      setResult]      = useState(null);
-    const [periodMode,  setPeriodMode]  = useState('auto');
-    const [period,      setPeriod]      = useState({ status: 'idle', min: null, max: null, sources: [], scanCount: 0 });
-    const [manualFrom,  setManualFrom]  = useState('');
-    const [manualTo,    setManualTo]    = useState(today());
+    const [items,          setItems]          = useState([]);
+    const [isDragging,     setIsDragging]     = useState(false);
+    const [isImporting,    setIsImporting]    = useState(false);
+    const [result,         setResult]         = useState(null);
+    const [periodMode,     setPeriodMode]     = useState('auto');
+    const [period,         setPeriod]         = useState({ status: 'idle', min: null, max: null, sources: [], scanCount: 0 });
+    const [manualFrom,     setManualFrom]     = useState('');
+    const [manualTo,       setManualTo]       = useState(today());
+    // Per-file scan ranges — stored so the import metadata carries mismatch info.
+    const [perFilePeriods, setPerFilePeriods] = useState([]);
 
     if (!token) return <Navigate to="/login" replace />;
 
@@ -80,12 +83,13 @@ export default function ImportCenter() {
     // ── Scan CSV files for date columns ───────────────────────────────────────
     const scanFiles = async (files) => {
         setPeriod({ status: 'scanning', min: null, max: null, sources: [], scanCount: files.length });
-        const results = await Promise.all(files.map(item => scanCsvFile(item.file)));
+        const results = await Promise.all(files.map(item => scanCsvFile(item.file, detectFile(item.name).typeKey)));
 
         let globalMin = Infinity, globalMax = -Infinity;
-        const sources = [];
-        let filesWithDates = 0;
-        const perFile = {};
+        const sources          = [];
+        const collectedPerFile = [];
+        let filesWithDates     = 0;
+        const perFile          = {};
 
         results.forEach((res, i) => {
             const item = files[i];
@@ -96,8 +100,17 @@ export default function ImportCenter() {
                 if (res.max > globalMax) globalMax = res.max;
                 sources.push(info.label);
                 perFile[item.id] = res.col;
+                collectedPerFile.push({
+                    typeKey: info.typeKey,
+                    label:   info.label,
+                    col:     res.col,
+                    from:    tsToYMD(res.min),
+                    to:      tsToYMD(res.max),
+                });
             }
         });
+
+        setPerFilePeriods(collectedPerFile);
 
         setItems(prev => prev.map(item => {
             const col = perFile[item.id];
@@ -193,7 +206,17 @@ export default function ImportCenter() {
             }));
 
             dispatch(setDate(importDate));
-            dispatch(setLastImportInfo({ branch, date: importDate, uploadedAt: new Date().toISOString() }));
+            dispatch(setLastImportInfo({
+                branch,
+                date:           importDate,
+                uploadedAt:     new Date().toISOString(),
+                uploadedBy:     user?.name || user?.email || 'Unknown',
+                periodFrom:     period.min ? tsToYMD(period.min) : importDate,
+                periodTo:       period.max ? tsToYMD(period.max) : importDate,
+                files:          items.map(item => detectFile(item.name).label),
+                perFilePeriods,
+                detectedSource: periodMode === 'auto' ? 'CSV Auto-Scan' : 'Manual Range',
+            }));
 
             // Invalidate all queries so Dashboard auto-refreshes
             ['mis','kpi','dailyTrend','payerMix','patientMix','ipDemo','surgeryDetail',

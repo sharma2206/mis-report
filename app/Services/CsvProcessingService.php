@@ -33,8 +33,8 @@ class CsvProcessingService
     public function process(
         Branch $branch,
         string $date,
-        UploadedFile $billFile,
-        UploadedFile $cashierFile,
+        ?UploadedFile $billFile = null,
+        ?UploadedFile $cashierFile = null,
         ?UploadedFile $packageFile = null,
         ?UploadedFile $erFile = null,
         ?UploadedFile $ipFile = null,
@@ -44,8 +44,8 @@ class CsvProcessingService
 
             // Detect the actual date range inside each CSV so we can wipe the full
             // range before re-importing, not just the single upload date.
-            $billRange    = $this->csvDateRange($billFile->getRealPath(), 'Bill Date Time');
-            $cashierRange = $this->csvDateRange($cashierFile->getRealPath(), 'Receipt/Refund Date Time');
+            $billRange    = $billFile    ? $this->csvDateRange($billFile->getRealPath(), 'Bill Date Time') : null;
+            $cashierRange = $cashierFile ? $this->csvDateRange($cashierFile->getRealPath(), 'Receipt/Refund Date Time') : null;
             $erRange      = $erFile  ? $this->csvDateRange($erFile->getRealPath(),  'Admission Date Time') : null;
             // Use Admission Date Time as primary — IP Conversion Date Time is only
             // populated for ER→IP conversions (minority of rows) and would miss
@@ -60,10 +60,12 @@ class CsvProcessingService
 
             $this->deleteForBranchRange($branch, $billRange, $cashierRange, $erRange, $ipRange, $surgRange, $pkgRange, $date);
 
-            // Bust cache for every date in the range covered by the bill CSV
-            if ($billRange) {
-                $cur = \Carbon\Carbon::parse($billRange[0]);
-                $end = \Carbon\Carbon::parse($billRange[1]);
+            // Bust cache for every date in the range covered by the bill CSV (or cashier
+            // range for single-file uploads that don't include a bill file).
+            $primaryRange = $billRange ?? $cashierRange;
+            if ($primaryRange) {
+                $cur = \Carbon\Carbon::parse($primaryRange[0]);
+                $end = \Carbon\Carbon::parse($primaryRange[1]);
                 while ($cur->lte($end)) {
                     \App\Repositories\CachedMisRepository::bustFor($branch->value, $cur->toDateString());
                     $cur->addDay();
@@ -73,19 +75,25 @@ class CsvProcessingService
             }
             CachedAnalyticsService::bustForBranch($branch->value);
 
-            // ── Core files ────────────────────────────────────────────────────
-            try {
-                $billImport = new BillItemImport($branch, $date);
-                Excel::import($billImport, $billFile);
-            } catch (\Throwable $e) {
-                throw new \RuntimeException('Bill item import failed: ' . $e->getMessage(), 0, $e);
+            // ── Core files (nullable for single-file imports) ─────────────────
+            $billImport = null;
+            if ($billFile) {
+                try {
+                    $billImport = new BillItemImport($branch, $date);
+                    Excel::import($billImport, $billFile);
+                } catch (\Throwable $e) {
+                    throw new \RuntimeException('Bill item import failed: ' . $e->getMessage(), 0, $e);
+                }
             }
 
-            try {
-                $cashierImport = new CashierCollectionImport($branch, $date);
-                Excel::import($cashierImport, $cashierFile);
-            } catch (\Throwable $e) {
-                throw new \RuntimeException('Cashier collection import failed: ' . $e->getMessage(), 0, $e);
+            $cashierImport = null;
+            if ($cashierFile) {
+                try {
+                    $cashierImport = new CashierCollectionImport($branch, $date);
+                    Excel::import($cashierImport, $cashierFile);
+                } catch (\Throwable $e) {
+                    throw new \RuntimeException('Cashier collection import failed: ' . $e->getMessage(), 0, $e);
+                }
             }
 
             // ── Chromepet: package consumption ────────────────────────────────
@@ -138,18 +146,18 @@ class CsvProcessingService
 
             return [
                 // Row import counts
-                'bill_items'           => $billImport->rowCount,
-                'cashier_collections'  => $cashierImport->rowCount,
+                'bill_items'           => $billImport?->rowCount ?? 0,
+                'cashier_collections'  => $cashierImport?->rowCount ?? 0,
                 'package_consumptions' => $packageCount,
                 'er_admissions'        => $erImportCount,
                 'ip_admissions'        => $ipImportCount,
                 'surgeries'            => $surgeryCount,
 
-                // Which optional reports were part of this upload — persisted on the
+                // Which reports were part of this upload — persisted on the
                 // mis_reports row so DashboardKpiService can gate KPI availability later.
                 'sources' => [
-                    'bill'    => true,
-                    'cashier' => true,
+                    'bill'    => $billFile !== null,
+                    'cashier' => $cashierFile !== null,
                     'package' => $branch === Branch::CHROMEPET && $packageFile !== null,
                     'er'      => $erFile !== null,
                     'ip'      => $ipFile !== null,

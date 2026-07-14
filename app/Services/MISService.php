@@ -131,23 +131,28 @@ class MISService
         // Sum the overlap of each patient's stay with the MTD window, divided by
         // the number of days, gives the average daily bed census.
         // This works correctly for bulk imports where no mis_reports snapshots exist.
-        $bedCount = $branch->bedCount();
-        $days     = Carbon::parse($from)->diffInDays(Carbon::parse($date)) + 1;
+        $bedCount    = $branch->bedCount();
+        $days        = Carbon::parse($from)->diffInDays(Carbon::parse($date)) + 1;
+        // Use period_end + 1 day as the exclusive upper bound so that:
+        //   - admitted but not discharged → counted through the last day of period
+        //   - discharged patients         → discharge day itself is NOT counted
+        // This matches the standard hospital patient-days convention.
+        $periodNext  = Carbon::parse($date)->addDay()->toDateString();
 
         $patientDays = IpAdmission::where('branch', $branch->value)
             ->whereDate('admission_date', '<=', $date)
             ->where(function ($q) use ($from) {
                 $q->whereNull('discharge_date')
-                  ->orWhereDate('discharge_date', '>=', $from);
+                  ->orWhereDate('discharge_date', '>', $from);
             })
             ->selectRaw('
                 SUM(
                     DATEDIFF(
                         LEAST(COALESCE(DATE(discharge_date), ?), ?),
                         GREATEST(DATE(admission_date), ?)
-                    ) + 1
+                    )
                 ) as total_days
-            ', [$date, $date, $from])
+            ', [$periodNext, $periodNext, $from])
             ->value('total_days') ?? 0;
 
         $avgCensus  = $days > 0 ? round($patientDays / $days, 0) : 0;

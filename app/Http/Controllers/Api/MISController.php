@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\MISRequest;
 use App\Http\Resources\ImportLogResource;
 use App\Http\Requests\MISUploadRequest;
+use App\Http\Requests\MISUploadSingleRequest;
 use App\Services\CsvProcessingService;
 use App\Services\MISService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -38,6 +39,7 @@ class MISController extends Controller
      */
     public function upload(MISUploadRequest $request, string $branch): JsonResponse
     {
+        $startMs = (int) round(microtime(true) * 1000);
         try {
             $branchEnum = $request->branch();
             $date       = $request->reportDate();
@@ -84,6 +86,9 @@ class MISController extends Controller
                 'rows_imported'  => $totalImported,
                 'rows_skipped'   => $totalSkipped,
                 'rows_errored'   => $totalErrors,
+                'period_from'    => $request->input('period_from') ?: null,
+                'period_to'      => $request->input('period_to')   ?: null,
+                'duration_ms'    => (int) round(microtime(true) * 1000) - $startMs,
                 'status'         => $totalErrors > 0 ? 'partial' : 'success',
             ]);
 
@@ -99,6 +104,132 @@ class MISController extends Controller
                 'message' => 'Upload failed: ' . $e->getMessage(),
             ], 422);
         }
+    }
+
+    /**
+     * Upload a single report file.
+     * POST /api/mis/{branch}/upload-single
+     * Any one of the six file fields may be submitted; others are ignored.
+     */
+    public function uploadSingle(MISUploadSingleRequest $request, string $branch): JsonResponse
+    {
+        $startMs    = (int) round(microtime(true) * 1000);
+        $branchEnum = $request->branch();
+        $date       = $request->reportDate();
+
+        try {
+            $imported = $this->csvService->process(
+                $branchEnum, $date,
+                $request->file('bill_file'),
+                $request->file('cashier_file'),
+                $request->file('package_file'),
+                $request->file('er_file'),
+                $request->file('ip_file'),
+                $request->file('surgery_file')
+            );
+
+            $sources = $imported['sources'] ?? [];
+            $report  = $this->misService->generateMIS($branchEnum, $date, $sources);
+
+            // Determine which single type was uploaded
+            $typeMap = ['bill_items' => 'bill_file', 'cashier' => 'cashier_file',
+                        'package' => 'package_file', 'er' => 'er_file',
+                        'ip' => 'ip_file', 'surgery' => 'surgery_file'];
+            $uploadedType = null;
+            foreach ($typeMap as $type => $field) {
+                if ($request->hasFile($field)) { $uploadedType = $type; break; }
+            }
+
+            $filesUploaded = array_keys(array_filter($sources));
+            $totalImported = array_sum(array_map(fn($v) => is_array($v) ? ($v['count'] ?? $v['imported'] ?? 0) : (int)$v,
+                array_diff_key($imported, ['sources' => null])));
+            $totalSkipped  = array_sum(array_map(fn($v) => is_array($v) ? ($v['skipped'] ?? 0) : 0,
+                array_diff_key($imported, ['sources' => null])));
+            $totalErrors   = array_sum(array_map(fn($v) => is_array($v) ? ($v['errors'] ?? 0) : 0,
+                array_diff_key($imported, ['sources' => null])));
+            $durationMs    = (int) round(microtime(true) * 1000) - $startMs;
+
+            // Parse period from request (sent by frontend after CSV scanning)
+            $periodFrom = $request->input('period_from');
+            $periodTo   = $request->input('period_to');
+
+            \App\Models\ImportLog::create([
+                'branch'         => $branch,
+                'report_type'    => $uploadedType,
+                'report_date'    => $date,
+                'uploaded_by'    => $request->user()?->name ?? 'system',
+                'user_id'        => $request->user()?->id,
+                'files_uploaded' => $filesUploaded,
+                'rows_imported'  => $totalImported,
+                'rows_skipped'   => $totalSkipped,
+                'rows_errored'   => $totalErrors,
+                'period_from'    => $periodFrom ?: null,
+                'period_to'      => $periodTo   ?: null,
+                'duration_ms'    => $durationMs,
+                'status'         => $totalErrors > 0 ? 'partial' : 'success',
+            ]);
+
+            \App\Models\AuditLog::record('upload_single', [
+                'branch' => $branch, 'date' => $date, 'type' => $uploadedType,
+                'imported' => array_diff_key($imported, ['sources' => null]),
+            ], $branch, $date, $request);
+
+            return response()->json([
+                'success'     => true,
+                'message'     => 'File imported successfully.',
+                'imported'    => $imported,
+                'report_type' => $uploadedType,
+                'data'        => $report,
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Upload failed: ' . $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * Return the latest import status for every report type for a branch.
+     * GET /api/mis/{branch}/import-status
+     */
+    public function importStatus(Request $request, string $branch): JsonResponse
+    {
+        $types = ['bill_items', 'cashier', 'er', 'ip', 'surgery', 'package'];
+        $result = [];
+
+        foreach ($types as $type) {
+            $log = \App\Models\ImportLog::where('branch', $branch)
+                ->whereNull('rolled_back_at')
+                ->where(function ($q) use ($type) {
+                    $q->where('report_type', $type)
+                      ->orWhereJsonContains('files_uploaded', $type);
+                })
+                ->latest()
+                ->first();
+
+            $result[$type] = $log ? [
+                'status'      => $log->status,
+                'log_id'      => $log->id,
+                'imported_at' => $log->created_at?->toIso8601String(),
+                'rows'        => $log->rows_imported,
+                'skipped'     => $log->rows_skipped,
+                'errors'      => $log->rows_errored,
+                'period_from' => $log->period_from?->toDateString(),
+                'period_to'   => $log->period_to?->toDateString(),
+                'report_date' => $log->report_date?->toDateString(),
+                'uploaded_by' => $log->uploaded_by,
+                'duration_ms' => $log->duration_ms,
+            ] : ['status' => 'pending'];
+        }
+
+        // Compute overall period from all uploaded types
+        $froms = collect($result)->filter(fn($r) => !empty($r['period_from']))->pluck('period_from');
+        $tos   = collect($result)->filter(fn($r) => !empty($r['period_to']))->pluck('period_to');
+
+        return response()->json([
+            'success'      => true,
+            'data'         => $result,
+            'overall_from' => $froms->min(),
+            'overall_to'   => $tos->max(),
+        ]);
     }
 
     /**

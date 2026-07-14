@@ -232,6 +232,9 @@ class AnalyticsService
             'mlc_count'         => (clone $base)->where('mlc', true)->count(),
             'death_count'       => (clone $base)->where('discharge_type', 'like', '%Death%')->count(),
             'planned_discharge' => (clone $base)->where('discharge_type', 'like', '%Planned%')->count(),
+            'discharge_count'   => (clone $base)->whereNotNull('discharge_date')
+                                    ->whereDate('discharge_date', '>=', $from)
+                                    ->whereDate('discharge_date', '<=', $to)->count(),
             'avg_los_days'      => round((float) (clone $base)->whereNotNull('actual_los')->avg('actual_los'), 1),
             'by_gender'         => (clone $base)->select(DB::raw('IFNULL(gender, "Unknown") as gender'), DB::raw('COUNT(*) as count'))
                                     ->groupBy('gender')->orderByDesc('count')->get(),
@@ -240,10 +243,15 @@ class AnalyticsService
             'by_ward'           => (clone $base)->select('ward', DB::raw('COUNT(*) as count'))
                                     ->whereNotNull('ward')->where('ward', '!=', '')
                                     ->groupBy('ward')->orderByDesc('count')->limit(10)->get(),
+            'by_room'           => (clone $base)->select(DB::raw('IFNULL(room, "Unknown") as room'), DB::raw('COUNT(*) as count'))
+                                    ->whereNotNull('room')->where('room', '!=', '')
+                                    ->groupBy('room')->orderByDesc('count')->limit(10)->get(),
             'by_speciality'     => (clone $base)->select(DB::raw('IFNULL(treating_doctor_speciality, "Unknown") as speciality'), DB::raw('COUNT(*) as count'))
                                     ->groupBy('speciality')->orderByDesc('count')->limit(10)->get(),
             'by_source'         => (clone $base)->select(DB::raw('IFNULL(admission_source, "Unknown") as source'), DB::raw('COUNT(*) as count'))
                                     ->groupBy('source')->orderByDesc('count')->get(),
+            'by_discharge_type' => (clone $base)->select(DB::raw('IFNULL(discharge_type, "Unknown") as discharge_type'), DB::raw('COUNT(*) as count'))
+                                    ->whereNotNull('discharge_type')->groupBy('discharge_type')->orderByDesc('count')->get(),
             'top_doctors'       => (clone $base)->select(
                                     DB::raw('IFNULL(treating_doctor, "Unknown") as doctor'),
                                     DB::raw('IFNULL(treating_doctor_speciality, "") as speciality'),

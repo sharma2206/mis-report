@@ -175,10 +175,13 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
             Route::get('/mis/{branch}/{date}/export-csv', [MISController::class, 'exportCsv'])->middleware('throttle:10,1');
             Route::get('/mis/{branch}/export-brm',        [MISController::class, 'exportBrm'])->middleware('throttle:10,1');
 
+            Route::get('/mis/{branch}/import-status', [MISController::class, 'importStatus']);
+
             // Write operations — staff role or above (viewer cannot mutate data).
             Route::middleware('role:staff|manager|admin')->group(function () {
-                Route::post('/mis/{branch}/upload',           [MISController::class, 'upload']);
-                Route::post('/mis/{branch}/{date}/email',     [MISController::class, 'emailReport'])->middleware('throttle:5,1');
+                Route::post('/mis/{branch}/upload',        [MISController::class, 'upload']);
+                Route::post('/mis/{branch}/upload-single', [MISController::class, 'uploadSingle']);
+                Route::post('/mis/{branch}/{date}/email',  [MISController::class, 'emailReport'])->middleware('throttle:5,1');
             });
         });
 

@@ -204,16 +204,23 @@ const StatBox = ({ label, value, color = 'blue' }) => {
 const IPDemographics = ({ data, isLoading }) => {
     if (isLoading) return <TableSkeleton rows={5} cols={4} />;
     if (!data || data.total === 0) return <EmptyState title="No IP admission data" description="Upload the IP admission CSV file to see demographics." />;
-    const { by_gender = [], by_payer_type = [], by_ward = [], top_doctors = [] } = data;
+    const {
+        by_gender = [], by_payer_type = [], by_ward = [], by_room = [],
+        by_speciality = [], by_source = [], by_discharge_type = [], top_doctors = [],
+    } = data;
     return (
         <div className="space-y-4">
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                <StatBox label="Total IP"   value={data.total}          color="blue"   />
-                <StatBox label="Below 18"   value={data.age_below_18}   color="violet" />
-                <StatBox label="18+ Years"  value={data.age_18_plus}    color="slate"  />
-                <StatBox label="Avg LOS"    value={data.avg_los_days ? `${data.avg_los_days}d` : 0} color="cyan" />
-                <StatBox label="MLC"        value={data.mlc_count}      color="amber"  />
-                <StatBox label="Deaths"     value={data.death_count}    color="red"    />
+                <StatBox label="Total IP"    value={data.total}          color="blue"   />
+                <StatBox label="Discharged"  value={data.discharge_count} color="green" />
+                <StatBox label="Below 18"    value={data.age_below_18}   color="violet" />
+                <StatBox label="18+ Years"   value={data.age_18_plus}    color="slate"  />
+                <StatBox label="Avg LOS"     value={data.avg_los_days ? `${data.avg_los_days}d` : 0} color="cyan" />
+                <StatBox label="MLC"         value={data.mlc_count}      color="amber"  />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <StatBox label="Deaths"          value={data.death_count}     color="red"    />
+                <StatBox label="Planned Disch."  value={data.planned_discharge} color="teal" />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {by_gender.length > 0 && <div><p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Gender</p><RankedList items={by_gender} nameKey="gender" valueKey="count" barColor="#1d4ed8" /></div>}
@@ -221,6 +228,14 @@ const IPDemographics = ({ data, isLoading }) => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {by_ward.length > 0 && <div><p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Ward</p><RankedList items={by_ward.slice(0, 8)} nameKey="ward" valueKey="count" barColor="#059669" /></div>}
+                {by_speciality.length > 0 && <div><p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Speciality</p><RankedList items={by_speciality.slice(0, 8)} nameKey="speciality" valueKey="count" barColor="#0891b2" /></div>}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {by_source.length > 0 && <div><p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Source</p><RankedList items={by_source.slice(0, 8)} nameKey="source" valueKey="count" barColor="#d97706" /></div>}
+                {by_discharge_type.length > 0 && <div><p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Discharge Type</p><RankedList items={by_discharge_type.slice(0, 8)} nameKey="discharge_type" valueKey="count" barColor="#dc2626" /></div>}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {by_room.length > 0 && <div><p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">By Room</p><RankedList items={by_room.slice(0, 8)} nameKey="room" valueKey="count" barColor="#6d28d9" /></div>}
                 {top_doctors.length > 0 && <div><p className="text-[11px] font-700 uppercase tracking-wider text-slate-400 mb-2">Top Doctors</p><RankedList items={top_doctors.slice(0, 8)} nameKey="doctor" valueKey="count" barColor="#d97706" /></div>}
             </div>
         </div>

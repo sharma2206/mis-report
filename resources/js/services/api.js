@@ -39,17 +39,19 @@ export const authApi = {
 // ─── MIS Reports ─────────────────────────────────────────────────────────────
 
 export const misApi = {
-    upload:       (branch, fd)  => client.post(`/mis/${branch}/upload`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
-    show:         (branch, date) => client.get(`/mis/${branch}/${date}`),
-    exportExcel:  (branch, date) => client.get(`/mis/${branch}/${date}/export`,     { responseType: 'blob' }),
-    exportPdf:    (branch, date) => client.get(`/mis/${branch}/${date}/export-pdf`, { responseType: 'blob' }),
-    exportCsv:    (branch, date) => client.get(`/mis/${branch}/${date}/export-csv`, { responseType: 'blob' }),
-    exportBrm:    (branch, from, to) => client.get(`/mis/${branch}/export-brm`, { params: { from, to }, responseType: 'blob' }),
-    emailReport:  (branch, date, to) => client.post(`/mis/${branch}/${date}/email`, { to }),
-    dashboard:    (date)         => client.get(`/mis/dashboard/${date}`),
-    printPreview: (branch, date) => `/print/${branch}/${date}`,
-    importLogs:      (branch, limit = 20) => client.get('/mis/import-logs', { params: { branch, limit } }),
-    rollbackImport:  (id)               => client.delete(`/mis/import-logs/${id}`),
+    upload:         (branch, fd)        => client.post(`/mis/${branch}/upload`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    uploadSingle:   (branch, fd)        => client.post(`/mis/${branch}/upload-single`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    importStatus:   (branch)            => client.get(`/mis/${branch}/import-status`),
+    show:           (branch, date)      => client.get(`/mis/${branch}/${date}`),
+    exportExcel:    (branch, date)      => client.get(`/mis/${branch}/${date}/export`,     { responseType: 'blob' }),
+    exportPdf:      (branch, date)      => client.get(`/mis/${branch}/${date}/export-pdf`, { responseType: 'blob' }),
+    exportCsv:      (branch, date)      => client.get(`/mis/${branch}/${date}/export-csv`, { responseType: 'blob' }),
+    exportBrm:      (branch, from, to)  => client.get(`/mis/${branch}/export-brm`, { params: { from, to }, responseType: 'blob' }),
+    emailReport:    (branch, date, to)  => client.post(`/mis/${branch}/${date}/email`, { to }),
+    dashboard:      (date)              => client.get(`/mis/dashboard/${date}`),
+    printPreview:   (branch, date)      => `/print/${branch}/${date}`,
+    importLogs:     (branch, limit = 20) => client.get('/mis/import-logs', { params: { branch, limit } }),
+    rollbackImport: (id)                => client.delete(`/mis/import-logs/${id}`),
 };
 
 // ─── Analytics ───────────────────────────────────────────────────────────────

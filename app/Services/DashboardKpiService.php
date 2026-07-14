@@ -200,11 +200,11 @@ class DashboardKpiService
             return $branch === Branch::CHROMEPET;
         }
 
-        $to ??= $from;
-        if ($from === $to) {
-            $resolved = $sources !== null
-                ? array_merge(self::DEFAULT_SOURCES, $sources)
-                : $this->sourcesFor($branch, $from);
+        // ip/er data spans date ranges — if data exists in the DB for this branch,
+        // show the FTD count (may be 0) rather than N/A. Only gate on sources for
+        // a same-day upload when the caller explicitly passes $sources (batch upload path).
+        if ($sources !== null && $from === ($to ?? $from)) {
+            $resolved = array_merge(self::DEFAULT_SOURCES, $sources);
             return $resolved[$key] ?? false;
         }
 

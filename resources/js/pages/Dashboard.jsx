@@ -10,8 +10,8 @@ import {
 } from 'lucide-react';
 import { selectToken } from '../store/authSlice';
 import {
-    selectBranch as selBranch, selectDate as selDate, selectActiveTab,
-    selectPeriodMode, selectPeriodFrom, selectLastImportInfo, selectAutoFrom, setActiveTab,
+    selectBranch as selBranch, selectActiveTab,
+    selectGlobalFrom, selectGlobalTo, setActiveTab,
 } from '../store/reportSlice';
 import { useDashboard } from '../hooks/useDashboard';
 import { AppLayout } from '../components/layout/AppLayout';
@@ -680,20 +680,12 @@ const TabStrip = ({ tab, onChange }) => {
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 export default function Dashboard() {
-    const token      = useSelector(selectToken);
-    const branch     = useSelector(selBranch);
-    const date       = useSelector(selDate);
-    const tab        = useSelector(selectActiveTab);
-    const dispatch   = useDispatch();
-    const periodMode = useSelector(selectPeriodMode);
-    const periodFrom = useSelector(selectPeriodFrom);
-    const autoFrom   = useSelector(selectAutoFrom);
-
-    // In auto mode use the actual import period start so range queries (trend, payer, etc.)
-    // cover the full uploaded period rather than defaulting to the current month start.
-    const effectiveFrom = periodMode === 'auto'
-        ? autoFrom
-        : (periodMode === 'custom' ? periodFrom : null);
+    const token    = useSelector(selectToken);
+    const branch   = useSelector(selBranch);
+    const date     = useSelector(selectGlobalTo);
+    const tab      = useSelector(selectActiveTab);
+    const dispatch = useDispatch();
+    const effectiveFrom = useSelector(selectGlobalFrom);
 
     const {
         mis, kpi, trend, payer, mix, serviceRev, admissions,

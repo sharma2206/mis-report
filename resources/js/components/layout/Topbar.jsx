@@ -4,12 +4,12 @@ import {
     Download, RefreshCw, FileSpreadsheet, FileText, Table2, Printer, BarChart3, Clock,
 } from 'lucide-react';
 import {
-    selectBranch, selectDate,
-    setBranch, setDate,
+    selectBranch, selectGlobalTo,
+    setBranch,
 } from '../../store/reportSlice';
 import { misApi } from '../../services/api';
 import { cn } from '../../utils/cn';
-import { ReportPeriodSelector } from '../ui/ReportPeriodSelector';
+import { DateRangeFilter } from '../ui/DateRangeFilter';
 import { resolvePresetRange, today } from '../../utils/dateHelpers';
 import { triggerDownload } from '../../utils/download';
 import { useBranches } from '../../hooks/useBranches';
@@ -43,7 +43,7 @@ function useUpdatedAgo(dataUpdatedAt) {
 export const Topbar = ({ onPrint, isLoading, dataUpdatedAt }) => {
     const dispatch  = useDispatch();
     const branch    = useSelector(selectBranch);
-    const date      = useSelector(selectDate);
+    const date      = useSelector(selectGlobalTo);
     const todayStr  = today();
     const dropRef   = useRef(null);
 
@@ -97,9 +97,8 @@ export const Topbar = ({ onPrint, isLoading, dataUpdatedAt }) => {
         setShowBrmPicker(true);
     };
 
-    const handleBranch    = (b) => dispatch(setBranch(b));
-    const handlePeriodLoad = (from, to) => { if (to) dispatch(setDate(to)); };
-    const toggleDrop      = () => dropRef.current?.classList.toggle('hidden');
+    const handleBranch = (b) => dispatch(setBranch(b));
+    const toggleDrop   = () => dropRef.current?.classList.toggle('hidden');
 
     return (
         <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm flex-shrink-0 no-print">
@@ -124,8 +123,8 @@ export const Topbar = ({ onPrint, isLoading, dataUpdatedAt }) => {
 
                 <div className="w-px h-5 bg-slate-200 flex-shrink-0" />
 
-                {/* Period Selector */}
-                <ReportPeriodSelector onLoad={handlePeriodLoad} />
+                {/* Date Range Filter */}
+                <DateRangeFilter />
 
                 {/* Loading / stale indicator */}
                 <div className="flex items-center ml-2">

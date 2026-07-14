@@ -988,9 +988,9 @@ export default function Operational() {
         enabled:  !!(branch && date) && activeTab === 'census',
     });
     const { data: surgRaw,   isLoading: loadSurg    } = useQuery({
-        queryKey: ['op-surg',  branch, date, from],
-        queryFn:  () => operationalApi.surgery({ branch, date, from }).then(r => r.data),
-        enabled:  !!(branch && date) && activeTab === 'surgery',
+        queryKey: ['op-surg',  branch, from, to],
+        queryFn:  () => operationalApi.surgery({ branch, date: to, from, to }).then(r => r.data),
+        enabled:  !!(branch && (from || date)) && activeTab === 'surgery',
     });
     const { data: deptRaw,   isLoading: loadDept    } = useQuery({
         queryKey: ['op-dept',  branch, from, to],

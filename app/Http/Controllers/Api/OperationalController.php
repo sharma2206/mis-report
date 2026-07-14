@@ -100,10 +100,11 @@ class OperationalController extends Controller
         $branch = $this->branch($request);
         $date   = $this->date($request);
         $from   = $this->from($request, $date);
+        $to     = $this->to($request, $date);
 
         return response()->json([
             'success' => true,
-            'data'    => $this->service->getSurgeryStats($branch, $date, $from),
+            'data'    => $this->service->getSurgeryStats($branch, $to, $from),
         ]);
     }
 

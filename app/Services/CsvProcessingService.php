@@ -50,7 +50,7 @@ class CsvProcessingService
             // Use Admission Date Time as primary — IP Conversion Date Time is only
             // populated for ER→IP conversions (minority of rows) and would miss
             // the full date span of direct IP admissions.
-            $ipRange      = $ipFile  ? $this->csvDateRange($ipFile->getRealPath(),  'Admission Date Time') : null;
+            $ipRange      = $ipFile  ? $this->csvDateRange($ipFile->getRealPath(),  'Admission Date Time', 'IP Conversion Date Time', 'Admission Date & Time', 'Admission DateTime') : null;
             $surgRange    = $surgeryFile ? $this->csvDateRange($surgeryFile->getRealPath(), 'Surgery Start Date and Time', 'Surgery Scheduled Date Time') : null;
             // Package consumption: detect date range from bill date column so re-uploads
             // covering multi-day ranges delete+replace the full span, not just the fallback date.
@@ -201,16 +201,24 @@ class CsvProcessingService
     ): void {
         $b = $branch->value;
 
+        // Point-in-time files (bill, cashier): fall back to deleting just the report date.
+        // Bulk range files (IP, ER, surgery): if range detection fails delete ALL of the
+        // branch's records — safer than silently appending duplicates on re-import.
         $del = fn($model, $col, $range) =>
             $range
                 ? $model::where('branch', $b)->whereDate($col, '>=', $range[0])->whereDate($col, '<=', $range[1])->delete()
                 : $model::where('branch', $b)->whereDate($col, $fallbackDate)->delete();
 
+        $delBulk = fn($model, $col, $range) =>
+            $range
+                ? $model::where('branch', $b)->whereDate($col, '>=', $range[0])->whereDate($col, '<=', $range[1])->delete()
+                : $model::where('branch', $b)->delete();
+
         $del(BillItem::class,          'bill_date',       $billRange);
         $del(CashierCollection::class, 'collection_date', $cashierRange);
-        $del(ErAdmission::class,       'admission_date',  $erRange);
-        $del(IpAdmission::class,       'admission_date',  $ipRange);
-        $del(Surgery::class,           'surgery_date',    $surgRange);
+        $delBulk(ErAdmission::class,   'admission_date',  $erRange);
+        $delBulk(IpAdmission::class,   'admission_date',  $ipRange);
+        $delBulk(Surgery::class,       'surgery_date',    $surgRange);
 
         if ($branch === Branch::CHROMEPET) {
             $del(PackageConsumption::class, 'consumption_date', $pkgRange);

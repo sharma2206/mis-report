@@ -1,7 +1,18 @@
 import { createSlice } from '@reduxjs/toolkit';
 import { today, monthStart, resolvePresetRange } from '../utils/dateHelpers';
 
-const _initRange = resolvePresetRange('mtd');
+const _initRange = (() => {
+    try {
+        const preset = sessionStorage.getItem('mis_global_preset') || 'mtd';
+        const from   = sessionStorage.getItem('mis_global_from');
+        const to     = sessionStorage.getItem('mis_global_to');
+        // For dynamic presets (today/mtd/week) recompute so the range stays current across days.
+        // For custom ranges (no preset key) restore the exact saved from/to.
+        if (preset && preset !== 'custom') return resolvePresetRange(preset);
+        if (from && to) return { from, to, preset: '' };
+    } catch {}
+    return resolvePresetRange('mtd');
+})();
 
 const reportSlice = createSlice({
     name: 'report',
@@ -21,8 +32,10 @@ const reportSlice = createSlice({
         // Last Import Info
         lastImportInfo: (() => { try { const v = localStorage.getItem('mis_last_import'); return v ? JSON.parse(v) : null; } catch { return null; } })(),
 
-        // Global date filter — shared across all report pages
-        globalPreset: 'mtd',
+        // Global date filter — shared across all report pages.
+        // Restored from sessionStorage on load; dynamic presets (today/mtd) are re-resolved
+        // so the range stays accurate across midnight boundaries.
+        globalPreset: _initRange.preset ?? sessionStorage.getItem('mis_global_preset') ?? 'mtd',
         globalFrom:   _initRange.from,
         globalTo:     _initRange.to,
 
@@ -71,11 +84,26 @@ const reportSlice = createSlice({
             state.globalPreset = key;
             state.globalFrom   = r.from;
             state.globalTo     = r.to;
+            // Keep selectDate in sync so exports/print still reference the correct date.
+            state.date = r.to;
+            try {
+                sessionStorage.setItem('mis_global_preset', key);
+                sessionStorage.setItem('mis_global_from',   r.from);
+                sessionStorage.setItem('mis_global_to',     r.to);
+                sessionStorage.setItem('mis_last_date',     r.to);
+            } catch {}
         },
         setGlobalRange(state, { payload: { from, to } }) {
-            state.globalPreset = '';
+            state.globalPreset = 'custom';
             state.globalFrom   = from;
             state.globalTo     = to;
+            state.date         = to;
+            try {
+                sessionStorage.setItem('mis_global_preset', 'custom');
+                sessionStorage.setItem('mis_global_from',   from);
+                sessionStorage.setItem('mis_global_to',     to);
+                sessionStorage.setItem('mis_last_date',     to);
+            } catch {}
         },
 
         // Last Import

@@ -20,99 +20,106 @@ class CachedAnalyticsService extends AnalyticsService
 
     public function dailyTrend(string $branch, string $from, string $to): Collection
     {
-        return $this->rememberCollection("daily:{$branch}:{$from}:{$to}", fn() => $this->inner->dailyTrend($branch, $from, $to));
+        return $this->rememberCollection("daily:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->dailyTrend($branch, $from, $to));
     }
 
     public function monthlyTrend(string $branch, int $year): array
     {
-        return $this->rememberArray("monthly:{$branch}:{$year}", fn() => $this->inner->monthlyTrend($branch, $year));
+        return $this->rememberArray("monthly:{$branch}:{$year}", $branch, fn() => $this->inner->monthlyTrend($branch, $year));
     }
 
     public function deptRevenue(string $branch, string $from, string $to): Collection
     {
-        return $this->rememberCollection("dept:{$branch}:{$from}:{$to}", fn() => $this->inner->deptRevenue($branch, $from, $to));
+        return $this->rememberCollection("dept:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->deptRevenue($branch, $from, $to));
     }
 
     public function payerMix(string $branch, string $from, string $to): Collection
     {
-        return $this->rememberCollection("payer:{$branch}:{$from}:{$to}", fn() => $this->inner->payerMix($branch, $from, $to));
+        return $this->rememberCollection("payer:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->payerMix($branch, $from, $to));
     }
 
     public function patientMix(string $branch, string $from, string $to): Collection
     {
-        return $this->rememberCollection("patient-mix:{$branch}:{$from}:{$to}", fn() => $this->inner->patientMix($branch, $from, $to));
+        return $this->rememberCollection("patient-mix:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->patientMix($branch, $from, $to));
     }
 
     public function branchComparison(string $from, string $to): array
     {
-        return $this->rememberArray("branch-cmp:{$from}:{$to}", fn() => $this->inner->branchComparison($from, $to));
+        // Branch comparison spans all branches — bust when any branch is updated.
+        // Use a global generation key derived from all branches combined.
+        return $this->rememberArray("branch-cmp:{$from}:{$to}", 'all', fn() => $this->inner->branchComparison($from, $to));
     }
 
     public function doctorRevenue(string $branch, string $from, string $to): Collection
     {
-        return $this->rememberCollection("doc-rev:{$branch}:{$from}:{$to}", fn() => $this->inner->doctorRevenue($branch, $from, $to));
+        return $this->rememberCollection("doc-rev:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->doctorRevenue($branch, $from, $to));
     }
 
     public function surgeries(string $branch, string $from, string $to): array
     {
-        return $this->rememberArray("surgeries:{$branch}:{$from}:{$to}", fn() => $this->inner->surgeries($branch, $from, $to));
+        return $this->rememberArray("surgeries:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->surgeries($branch, $from, $to));
     }
 
     public function admissions(string $branch, string $from, string $to): array
     {
-        return $this->rememberArray("admissions:{$branch}:{$from}:{$to}", fn() => $this->inner->admissions($branch, $from, $to));
+        return $this->rememberArray("admissions:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->admissions($branch, $from, $to));
     }
 
     public function ipDemographics(string $branch, string $from, string $to): array
     {
-        return $this->rememberArray("ip-demo:{$branch}:{$from}:{$to}", fn() => $this->inner->ipDemographics($branch, $from, $to));
+        return $this->rememberArray("ip-demo:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->ipDemographics($branch, $from, $to));
     }
 
     public function surgeryDetail(string $branch, string $from, string $to): array
     {
-        return $this->rememberArray("surg-detail:{$branch}:{$from}:{$to}", fn() => $this->inner->surgeryDetail($branch, $from, $to));
+        return $this->rememberArray("surg-detail:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->surgeryDetail($branch, $from, $to));
     }
 
     public function collectionReport(string $branch, string $from, string $to): array
     {
-        return $this->rememberArray("collection:{$branch}:{$from}:{$to}", fn() => $this->inner->collectionReport($branch, $from, $to));
+        return $this->rememberArray("collection:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->collectionReport($branch, $from, $to));
     }
 
     public function serviceRevenue(string $branch, string $from, string $to): array
     {
-        return $this->rememberArray("svc-rev:{$branch}:{$from}:{$to}", fn() => $this->inner->serviceRevenue($branch, $from, $to));
+        return $this->rememberArray("svc-rev:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->serviceRevenue($branch, $from, $to));
     }
 
     public function doctorPerformance(string $branch, string $from, string $to): array
     {
-        return $this->rememberArray("doc-perf:{$branch}:{$from}:{$to}", fn() => $this->inner->doctorPerformance($branch, $from, $to));
+        return $this->rememberArray("doc-perf:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->doctorPerformance($branch, $from, $to));
     }
 
     public function opMetrics(string $branch, string $from, string $to): array
     {
-        return $this->rememberArray("op-metrics:{$branch}:{$from}:{$to}", fn() => $this->inner->opMetrics($branch, $from, $to));
+        return $this->rememberArray("op-metrics:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->opMetrics($branch, $from, $to));
     }
 
+    /**
+     * Invalidate every analytics cache entry for this branch by incrementing a
+     * per-branch generation counter. All cached keys include the generation number,
+     * so the next read automatically misses and recomputes from the database.
+     * Works with any cache driver (file, Redis, Memcached — no tag support needed).
+     */
     public static function bustForBranch(string $branch): void
     {
-        $today    = now()->format('Y-m-d');
-        $prefixes = [
-            'daily', 'dept', 'payer', 'patient-mix', 'doc-rev',
-            'surgeries', 'admissions', 'ip-demo', 'surg-detail',
-            'collection', 'svc-rev', 'doc-perf', 'op-metrics',
-        ];
-        foreach ($prefixes as $prefix) {
-            Cache::forget("analytics:{$prefix}:{$branch}:{$today}:{$today}");
-        }
+        Cache::increment("analytics:gen:{$branch}");
     }
 
-    private function rememberCollection(string $key, callable $cb): Collection
+    private static function generation(string $branch): int
     {
-        return Cache::remember("analytics:{$key}", self::ttl(), $cb);
+        return (int) Cache::get("analytics:gen:{$branch}", 0);
     }
 
-    private function rememberArray(string $key, callable $cb): array
+    private function rememberCollection(string $key, string $branch, callable $cb): Collection
     {
-        return Cache::remember("analytics:{$key}", self::ttl(), $cb);
+        $gen = self::generation($branch);
+        return Cache::remember("analytics:{$key}:g{$gen}", self::ttl(), $cb);
+    }
+
+    private function rememberArray(string $key, string $branch, callable $cb): array
+    {
+        $gen = self::generation($branch);
+        return Cache::remember("analytics:{$key}:g{$gen}", self::ttl(), $cb);
     }
 }

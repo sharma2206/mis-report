@@ -222,7 +222,7 @@ class AnalyticsService
             ->whereDate('admission_date', '<=', $to)
             ->where(function ($q) use ($from) {
                 $q->whereNull('discharge_date')
-                  ->orWhereDate('discharge_date', '>=', $from);
+                  ->orWhereDate('discharge_date', '>', $from);
             });
 
         return [

@@ -11,14 +11,42 @@ class Surgery extends Model
 {
     use SoftDeletes;
     protected $fillable = [
-        'branch', 'surgery_date', 'admission_no', 'uhid', 'patient_name',
-        'age', 'gender', 'patient_type', 'surgery_name', 'surgery_code',
-        'surgery_category', 'surgery_type', 'surgery_department', 'surgery_sub_department',
-        'ot_name', 'ot_surgery_type', 'performing_surgeon', 'component_doctor',
-        'surgeon_speciality', 'surgeon_department', 'anaesthesia_type',
-        'payer_type', 'payer_name', 'payer_group', 'billing_category', 'status',
-        'diagnosis_name', 'implant_required', 'surgery_contamination', 'pac_clearance',
-        'surgery_start', 'surgery_end', 'ot_checkin', 'ot_checkout', 'surgery_tat', 'ot_tat',
+        'branch',
+        'surgery_date',
+        'admission_no',
+        'uhid',
+        'patient_name',
+        'age',
+        'gender',
+        'patient_type',
+        'surgery_name',
+        'surgery_code',
+        'surgery_category',
+        'surgery_type',
+        'surgery_department',
+        'surgery_sub_department',
+        'ot_name',
+        'ot_surgery_type',
+        'performing_surgeon',
+        'component_doctor',
+        'surgeon_speciality',
+        'surgeon_department',
+        'anaesthesia_type',
+        'payer_type',
+        'payer_name',
+        'payer_group',
+        'billing_category',
+        'status',
+        'diagnosis_name',
+        'implant_required',
+        'surgery_contamination',
+        'pac_clearance',
+        'surgery_start',
+        'surgery_end',
+        'ot_checkin',
+        'ot_checkout',
+        'surgery_tat',
+        'ot_tat',
     ];
 
     protected function casts(): array
@@ -29,7 +57,7 @@ class Surgery extends Model
             'surgery_end'     => 'datetime',
             'ot_checkin'      => 'datetime',
             'ot_checkout'     => 'datetime',
-            'implant_required'=> 'boolean',
+            'implant_required' => 'boolean',
             'pac_clearance'   => 'boolean',
         ];
     }
@@ -48,6 +76,6 @@ class Surgery extends Model
     {
         $d = Carbon::parse($date);
         return $query->whereYear('surgery_date', $d->year)
-                     ->whereMonth('surgery_date', $d->month);
+            ->whereMonth('surgery_date', $d->month);
     }
 }

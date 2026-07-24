@@ -49,6 +49,8 @@ class SurgeryImport implements ToCollection, WithHeadingRow, WithChunkReading
                 'ot_name'              => trim($this->getValue($row, ['ot_cathlab_name', 'otcathlab_name', 'ot_name'], '')) ?: null,
                 'ot_surgery_type'      => trim($this->getValue($row, ['ot_cathlab_surgery_type', 'otcathlabsurgery_type'], '')) ?: null,
                 'performing_surgeon'   => trim($row['performing_surgeon'] ?? '') ?: null,
+                'requested_surgeon'    => trim($this->getValue($row, ['requested_surgeon', 'surgeon_requested'], '')) ?: null,
+                'scheduled_surgeon'    => trim($this->getValue($row, ['scheduled_surgeon', 'surgeon_scheduled'], '')) ?: null,
                 'component_doctor'     => trim($row['component_doctor'] ?? '') ?: null,
                 'surgeon_speciality'   => trim($row['performing_surgeon_speciality'] ?? '') ?: null,
                 'surgeon_department'   => trim($row['performing_surgeon_department'] ?? '') ?: null,
@@ -60,14 +62,34 @@ class SurgeryImport implements ToCollection, WithHeadingRow, WithChunkReading
                 'status'               => trim($row['status'] ?? '') ?: null,
                 'diagnosis_name'       => trim($row['diagnosis_name'] ?? '') ?: null,
                 'implant_required'     => strtolower(trim($row['implant_required'] ?? '')) === 'yes',
-                'surgery_contamination'=> trim($row['surgery_contamination'] ?? '') ?: null,
+                'surgery_contamination' => trim($row['surgery_contamination'] ?? '') ?: null,
                 'pac_clearance'        => strtolower(trim($row['pac_clearance'] ?? '')) === 'yes',
+                'pac_status'           => trim($this->getValue($row, ['pac_status', 'pac_clearance_status'], '')) ?: null,
+                'antibiotic_compliance' => trim($this->getValue($row, ['antibiotic_compliance', 'antibiotic_prophylaxis_compliance'], '')) ?: null,
+                'surgical_indicators'  => trim($this->getValue($row, ['surgical_indicators', 'surgical_indicator'], '')) ?: null,
+                'remarks'              => trim($row['remarks'] ?? '') ?: null,
+                'blood_required'       => strtolower(trim($this->getValue($row, ['blood_required', 'is_blood_required'], ''))) === 'yes',
+                'blood_group'          => trim($this->getValue($row, ['blood_group', 'patient_blood_group'], '')) ?: null,
+                'los'                  => $this->parseNumeric($this->getValue($row, ['los', 'length_of_stay'], null)),
+                'icu_los'              => $this->parseNumeric($this->getValue($row, ['icu_los', 'icu_length_of_stay'], null)),
+                'non_icu_los'          => $this->parseNumeric($this->getValue($row, ['non_icu_los', 'non_icu_length_of_stay'], null)),
+                'discharge_date'       => $this->parseDateOnly($this->getValue($row, ['discharge_date', 'patient_discharge_date'], null)),
+                'surgery_booking_datetime' => $this->parseDateOnly($this->getValue($row, ['surgery_booking_date_time', 'booking_date_time'], null)),
+                'expected_surgery_date' => $this->parseDateOnly($this->getValue($row, ['expected_surgery_date', 'surgery_expected_date'], null)),
                 'surgery_start'        => $this->parseDateTime($this->getValue($row, ['surgery_start_date_and_time', 'surgery_start_date_time', 'surgery_startdate_and_time'], null)),
                 'surgery_end'          => $this->parseDateTime($this->getValue($row, ['surgery_end_date_time', 'surgery_enddatetime', 'surgery_end_datetime'], null)),
                 'ot_checkin'           => $this->parseDateTime($this->getValue($row, ['ot_checkin_date_and_time', 'ot_checkindate_and_time'], null)),
                 'ot_checkout'          => $this->parseDateTime($this->getValue($row, ['ot_checkout_date_and_time', 'ot_checkoutdate_and_time'], null)),
                 'surgery_tat'          => trim($this->getValue($row, ['surgery_startend_tat', 'surgery_start_end_tat'], '')) ?: null,
                 'ot_tat'               => trim($this->getValue($row, ['ot_check_inout_tat', 'ot_checkinout_tat'], '')) ?: null,
+                'surgery_duration_min' => $this->computeMinutes(
+                    $this->parseDateTime($this->getValue($row, ['surgery_start_date_and_time', 'surgery_start_date_time', 'surgery_startdate_and_time'], null)),
+                    $this->parseDateTime($this->getValue($row, ['surgery_end_date_time', 'surgery_enddatetime', 'surgery_end_datetime'], null))
+                ),
+                'ot_duration_min'      => $this->computeMinutes(
+                    $this->parseDateTime($this->getValue($row, ['ot_checkin_date_and_time', 'ot_checkindate_and_time'], null)),
+                    $this->parseDateTime($this->getValue($row, ['ot_checkout_date_and_time', 'ot_checkoutdate_and_time'], null))
+                ),
                 'created_at'           => now(),
                 'updated_at'           => now(),
             ];
@@ -162,5 +184,23 @@ class SurgeryImport implements ToCollection, WithHeadingRow, WithChunkReading
             str_contains($t, 'ER'), str_contains($t, 'EMERGENCY')    => 'ER',
             default                                                   => $t,
         };
+    }
+
+    private function parseNumeric($value): ?float
+    {
+        if ($value === null || trim((string) $value) === '') return null;
+        $cleaned = preg_replace('/[^0-9.]/', '', (string) $value);
+        return is_numeric($cleaned) ? (float) $cleaned : null;
+    }
+
+    private function computeMinutes(?string $start, ?string $end): ?int
+    {
+        if (!$start || !$end) return null;
+        try {
+            $diff = \Carbon\Carbon::parse($start)->diffInMinutes(\Carbon\Carbon::parse($end));
+            return ($diff > 0 && $diff < 1440) ? (int) $diff : null; // ignore > 24h or negative
+        } catch (\Exception) {
+            return null;
+        }
     }
 }

@@ -75,6 +75,21 @@ export const analyticsApi = {
     doctorPerformance:(params)        => client.get('/analytics/doctor-performance', { params }),
 };
 
+// ─── Surgery Analytics ───────────────────────────────────────────────────────
+
+export const surgeryAnalyticsApi = {
+    kpis:              (params) => client.get('/analytics/surgery/kpis',              { params }),
+    trend:             (params) => client.get('/analytics/surgery/trend',             { params }),
+    distribution:      (params) => client.get('/analytics/surgery/distribution',      { params }),
+    surgeonPerformance:(params) => client.get('/analytics/surgery/surgeon-performance',{ params }),
+    otDashboard:       (params) => client.get('/analytics/surgery/ot-dashboard',      { params }),
+    anaesthesia:       (params) => client.get('/analytics/surgery/anaesthesia',       { params }),
+    patientProfile:    (params) => client.get('/analytics/surgery/patient-profile',   { params }),
+    quality:           (params) => client.get('/analytics/surgery/quality',           { params }),
+    payer:             (params) => client.get('/analytics/surgery/payer',             { params }),
+    insights:          (params) => client.get('/analytics/surgery/insights',          { params }),
+};
+
 // ─── Users ───────────────────────────────────────────────────────────────────
 
 export const usersApi = {

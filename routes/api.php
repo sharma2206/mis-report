@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OperationalController;
 use App\Http\Controllers\Api\RbacController;
 use App\Http\Controllers\Api\SchedulerController;
+use App\Http\Controllers\Api\SurgeryAnalyticsController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -88,6 +89,20 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
             Route::get('/analytics/collection',               [AnalyticsController::class, 'collectionReport']);
             Route::get('/analytics/service-revenue',          [AnalyticsController::class, 'serviceRevenue']);
             Route::get('/analytics/doctor-performance',       [AnalyticsController::class, 'doctorPerformance']);
+
+            // ── Surgery Analytics (dedicated service) ──────────────────────
+            Route::prefix('analytics/surgery')->group(function () {
+                Route::get('/kpis',             [SurgeryAnalyticsController::class, 'kpis']);
+                Route::get('/trend',            [SurgeryAnalyticsController::class, 'trend']);
+                Route::get('/distribution',     [SurgeryAnalyticsController::class, 'distribution']);
+                Route::get('/surgeon-performance', [SurgeryAnalyticsController::class, 'surgeonPerformance']);
+                Route::get('/ot-dashboard',     [SurgeryAnalyticsController::class, 'otDashboard']);
+                Route::get('/anaesthesia',      [SurgeryAnalyticsController::class, 'anaesthesia']);
+                Route::get('/patient-profile',  [SurgeryAnalyticsController::class, 'patientProfile']);
+                Route::get('/quality',          [SurgeryAnalyticsController::class, 'qualityMetrics']);
+                Route::get('/payer',            [SurgeryAnalyticsController::class, 'payerAnalytics']);
+                Route::get('/insights',         [SurgeryAnalyticsController::class, 'insights']);
+            });
         });
 
         // ─── Users ───────────────────────────────────────────────────────────

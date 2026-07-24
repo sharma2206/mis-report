@@ -7,23 +7,26 @@ import { selectToken, selectUser } from '../store/authSlice';
 import Login from '../pages/Login';
 
 // ── Lazy: every real page — split into its own chunk
-const Dashboard    = lazy(() => import('../pages/Dashboard'));
-const ImportCenter = lazy(() => import('../pages/ImportCenter'));
-const ReportCenter = lazy(() => import('../pages/ReportCenter'));
-const MISReport    = lazy(() => import('../pages/MISReport'));
-const BRMReport    = lazy(() => import('../pages/BRMReport'));
-const Financial    = lazy(() => import('../pages/Financial'));
-const Operational  = lazy(() => import('../pages/Operational'));
-const Doctors      = lazy(() => import('../pages/Doctors'));
-const Roles        = lazy(() => import('../pages/Roles'));
-const Users        = lazy(() => import('../pages/Users'));
-const Departments  = lazy(() => import('../pages/Departments'));
-const Surgery      = lazy(() => import('../pages/Surgery'));
-const Pharmacy     = lazy(() => import('../pages/Pharmacy'));
-const AuditLogs    = lazy(() => import('../pages/AuditLogs'));
-const Notifications= lazy(() => import('../pages/Notifications'));
-const Scheduler    = lazy(() => import('../pages/Scheduler'));
-const Settings     = lazy(() => import('../pages/Settings'));
+const Dashboard        = lazy(() => import('../pages/Dashboard'));
+const ImportCenter     = lazy(() => import('../pages/ImportCenter'));
+const ReportCenter     = lazy(() => import('../pages/ReportCenter'));
+const MISReport        = lazy(() => import('../pages/MISReport'));
+const BRMReport        = lazy(() => import('../pages/BRMReport'));
+const Financial        = lazy(() => import('../pages/Financial'));
+const Operational      = lazy(() => import('../pages/Operational'));
+const Doctors          = lazy(() => import('../pages/Doctors'));
+const Roles            = lazy(() => import('../pages/Roles'));
+const Users            = lazy(() => import('../pages/Users'));
+const Departments      = lazy(() => import('../pages/Departments'));
+const Surgery          = lazy(() => import('../pages/Surgery'));
+const Pharmacy         = lazy(() => import('../pages/Pharmacy'));
+const AuditLogs        = lazy(() => import('../pages/AuditLogs'));
+const Notifications    = lazy(() => import('../pages/Notifications'));
+const Scheduler        = lazy(() => import('../pages/Scheduler'));
+const Settings         = lazy(() => import('../pages/Settings'));
+const BranchComparison = lazy(() => import('../pages/BranchComparison'));
+const PatientAnalytics = lazy(() => import('../pages/PatientAnalytics'));
+const PaymentAnalytics = lazy(() => import('../pages/PaymentAnalytics'));
 
 // ── Shared page loader spinner shown while a chunk downloads
 const PageLoader = () => (
@@ -75,10 +78,13 @@ export const AppRoutes = () => (
         <Route path="/operational" element={<Wrap minRole="staff"><Operational /></Wrap>} />
 
         {/* Analytics */}
-        <Route path="/doctors"     element={<Wrap><Doctors /></Wrap>} />
-        <Route path="/departments" element={<Wrap><Departments /></Wrap>} />
-        <Route path="/surgery"     element={<Wrap><Surgery /></Wrap>} />
-        <Route path="/pharmacy"    element={<Wrap><Pharmacy /></Wrap>} />
+        <Route path="/doctors"             element={<Wrap><Doctors /></Wrap>} />
+        <Route path="/departments"         element={<Wrap><Departments /></Wrap>} />
+        <Route path="/surgery"             element={<Wrap><Surgery /></Wrap>} />
+        <Route path="/pharmacy"            element={<Wrap><Pharmacy /></Wrap>} />
+        <Route path="/branch-comparison"   element={<Wrap minRole="manager"><BranchComparison /></Wrap>} />
+        <Route path="/patient-analytics"   element={<Wrap><PatientAnalytics /></Wrap>} />
+        <Route path="/payment-analytics"   element={<Wrap><PaymentAnalytics /></Wrap>} />
 
         {/* Administration */}
         <Route path="/notifications" element={<Wrap><Notifications /></Wrap>} />

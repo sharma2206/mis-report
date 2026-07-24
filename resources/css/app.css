@@ -209,3 +209,81 @@
 .dot-bounce-1 { animation: dot-bounce 1.2s ease infinite 0s;    }
 .dot-bounce-2 { animation: dot-bounce 1.2s ease infinite 0.2s;  }
 .dot-bounce-3 { animation: dot-bounce 1.2s ease infinite 0.4s;  }
+
+/* ── Dark Mode Design Tokens ─────────────────────────────────────── */
+:root {
+    --color-bg-page:      #f8fafc;
+    --color-bg-card:      #ffffff;
+    --color-bg-topbar:    #ffffff;
+    --color-border:       #e2e8f0;
+    --color-text-primary: #1e293b;
+    --color-text-muted:   #64748b;
+    --color-text-faint:   #94a3b8;
+    --color-hover-bg:     #f1f5f9;
+}
+
+[data-theme="dark"] {
+    --color-bg-page:      #0f172a;
+    --color-bg-card:      #1e293b;
+    --color-bg-topbar:    #1e293b;
+    --color-border:       rgba(255,255,255,0.08);
+    --color-text-primary: #e2e8f0;
+    --color-text-muted:   #94a3b8;
+    --color-text-faint:   #64748b;
+    --color-hover-bg:     rgba(255,255,255,0.06);
+}
+
+[data-theme="dark"] body,
+[data-theme="dark"] #root {
+    background-color: var(--color-bg-page);
+    color: var(--color-text-primary);
+}
+
+/* Dark mode card surfaces */
+[data-theme="dark"] .bg-white {
+    background-color: var(--color-bg-card) !important;
+    border-color: var(--color-border) !important;
+}
+
+[data-theme="dark"] .bg-slate-50,
+[data-theme="dark"] .bg-slate-50\/80 {
+    background-color: #0f172a !important;
+}
+
+[data-theme="dark"] .bg-slate-100 {
+    background-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Dark mode text */
+[data-theme="dark"] .text-slate-800 { color: #e2e8f0 !important; }
+[data-theme="dark"] .text-slate-700 { color: #cbd5e1 !important; }
+[data-theme="dark"] .text-slate-600 { color: #94a3b8 !important; }
+[data-theme="dark"] .text-slate-500 { color: #64748b !important; }
+[data-theme="dark"] .text-slate-400 { color: #475569 !important; }
+
+/* Dark mode borders */
+[data-theme="dark"] .border-slate-200 { border-color: rgba(255,255,255,0.07) !important; }
+[data-theme="dark"] .border-slate-100 { border-color: rgba(255,255,255,0.04) !important; }
+
+/* Dark topbar */
+[data-theme="dark"] header.sticky { background-color: var(--color-bg-topbar) !important; border-color: rgba(255,255,255,0.06) !important; }
+
+/* Dark hover states */
+[data-theme="dark"] .hover\:bg-slate-50:hover { background-color: rgba(255,255,255,0.04) !important; }
+[data-theme="dark"] .hover\:bg-slate-100:hover { background-color: rgba(255,255,255,0.07) !important; }
+
+/* Dark input fields */
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="text"],
+[data-theme="dark"] input[type="search"] {
+    background-color: rgba(255,255,255,0.05) !important;
+    color: #e2e8f0 !important;
+    border-color: rgba(255,255,255,0.1) !important;
+}
+
+/* Dark scrollbars */
+[data-theme="dark"] * {
+    scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+
+/* ── End Dark Mode ───────────────────────────────────────────────── */

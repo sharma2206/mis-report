@@ -30,9 +30,35 @@ class IpAdmission extends Model
         ];
     }
 
-    public function scopeForBranch(Builder $query, string $branch): Builder
+    public function scopeForBranch(Builder $query, $branch): Builder
     {
-        return $query->where('branch', $branch);
+        if ($branch === 'all' || (is_array($branch) && in_array('all', $branch, true))) {
+            return $query;
+        }
+        if (is_array($branch)) return $query->whereIn('branch', $branch);
+        $val = $branch instanceof \BackedEnum ? $branch->value : $branch;
+        return $query->where('branch', $val);
+    }
+
+    public function scopeApplyFilters(Builder $query, array $filters): Builder
+    {
+        if (!empty($filters['departments']))  $query->whereIn('treating_department', $filters['departments']);
+        if (!empty($filters['doctors']))      $query->whereIn('treating_doctor', $filters['doctors']);
+        if (!empty($filters['genders']))      $query->whereIn('gender', $filters['genders']);
+        if (!empty($filters['age_groups'])) {
+            $query->where(function($q) use ($filters) {
+                foreach($filters['age_groups'] as $group) {
+                    if ($group === '0-18') $q->orWhereBetween('age', [0, 18]);
+                    elseif ($group === '19-40') $q->orWhereBetween('age', [19, 40]);
+                    elseif ($group === '41-60') $q->orWhereBetween('age', [41, 60]);
+                    elseif ($group === '61+') $q->orWhere('age', '>=', 61);
+                }
+            });
+        }
+        if (!empty($filters['specialties']))   $query->whereIn('treating_doctor_speciality', $filters['specialties']);
+        if (!empty($filters['wards']))         $query->whereIn('ward', $filters['wards']);
+        
+        return $query;
     }
 
     public function scopeForDate(Builder $query, string $date): Builder

@@ -2,35 +2,38 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSelector, useDispatch } from 'react-redux';
 import { useLocation, NavLink } from 'react-router-dom';
 import { ChevronRight, Home, Menu, Hospital } from 'lucide-react';
-import { selectSidebarOpen, setSidebarOpen, toggleSidebar } from '../../store/reportSlice';
+import { selectSidebarOpen, setSidebarOpen, toggleSidebar, selectDarkMode } from '../../store/reportSlice';
 import { Sidebar } from './Sidebar';
-import { DateRangeFilter } from '../ui/DateRangeFilter';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { useUrlFilters } from '../../hooks/useUrlFilters';
 
-// Pages that use the global date filter
+// Pages that use the global date filter (handled by each page's own GlobalFilterBar)
 const DATE_FILTER_ROUTES = new Set([
     '/brm', '/financial', '/operational', '/mis', '/surgery', '/pharmacy',
-    '/doctors', '/departments',
+    '/doctors', '/departments', '/branch-comparison', '/patient-analytics', '/payment-analytics',
 ]);
 
 const BREADCRUMB_MAP = {
-    '/dashboard':     ['Dashboard'],
-    '/import':        ['Data Management', 'Import Center'],
-    '/reports':       ['Reports', 'Report Center'],
-    '/mis':           ['Reports', 'MIS Reports'],
-    '/brm':           ['Reports', 'BRM Reports'],
-    '/financial':     ['Reports', 'Financial Reports'],
-    '/operational':   ['Reports', 'Operational Reports'],
-    '/doctors':       ['Analytics', 'Doctor Analytics'],
-    '/departments':   ['Analytics', 'Department Analytics'],
-    '/surgery':       ['Analytics', 'Surgery Analytics'],
-    '/pharmacy':      ['Analytics', 'Pharmacy Analytics'],
-    '/scheduler':     ['Administration', 'Scheduler'],
-    '/notifications': ['Administration', 'Notifications'],
-    '/users':         ['Administration', 'User Management'],
-    '/roles':         ['Administration', 'Role Management'],
-    '/audit-logs':    ['Administration', 'Audit Logs'],
-    '/settings':      ['Administration', 'Settings'],
+    '/dashboard':          ['Dashboard'],
+    '/import':             ['Data Management', 'Import Center'],
+    '/reports':            ['Reports', 'Report Center'],
+    '/mis':                ['Reports', 'MIS Reports'],
+    '/brm':                ['Reports', 'BRM Reports'],
+    '/financial':          ['Reports', 'Financial Reports'],
+    '/operational':        ['Reports', 'Operational Reports'],
+    '/branch-comparison':  ['Analytics', 'Branch Comparison'],
+    '/doctors':            ['Analytics', 'Doctor Analytics'],
+    '/departments':        ['Analytics', 'Department Analytics'],
+    '/surgery':            ['Analytics', 'Surgery Analytics'],
+    '/pharmacy':           ['Analytics', 'Pharmacy Analytics'],
+    '/patient-analytics':  ['Analytics', 'Patient Analytics'],
+    '/payment-analytics':  ['Analytics', 'Payment Analytics'],
+    '/scheduler':          ['Administration', 'Scheduler'],
+    '/notifications':      ['Administration', 'Notifications'],
+    '/users':              ['Administration', 'User Management'],
+    '/roles':              ['Administration', 'Role Management'],
+    '/audit-logs':         ['Administration', 'Audit Logs'],
+    '/settings':           ['Administration', 'Settings'],
 };
 
 const Breadcrumb = () => {
@@ -54,11 +57,21 @@ const Breadcrumb = () => {
 
 export const AppLayout = ({ children, topbar, onPrint }) => {
     const open     = useSelector(selectSidebarOpen);
+    const darkMode = useSelector(selectDarkMode);
     const dispatch = useDispatch();
     const isMobile = useIsMobile();
     const { pathname } = useLocation();
     const showBreadcrumb  = pathname !== '/dashboard' && BREADCRUMB_MAP[pathname];
-    const showDateFilter  = DATE_FILTER_ROUTES.has(pathname);
+
+    // Sync URL with Redux filters globally
+    useUrlFilters();
+
+    // Apply dark mode to document
+    if (darkMode) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+    }
 
     return (
         <div className="flex h-screen overflow-hidden bg-slate-50/80">
@@ -110,8 +123,6 @@ export const AppLayout = ({ children, topbar, onPrint }) => {
                         <Breadcrumb />
                     </div>
                 )}
-
-                {showDateFilter && <DateRangeFilter />}
 
                 {children}
             </motion.div>

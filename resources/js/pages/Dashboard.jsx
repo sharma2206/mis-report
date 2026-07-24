@@ -23,6 +23,8 @@ import { RankedList, PayerChips } from '../components/ui/RankedList';
 import { KPIStrip } from '../components/ui/KPIStrip';
 import { QuickActions } from '../components/ui/QuickActions';
 import { SmartAlerts } from '../components/ui/SmartAlerts';
+import { AIInsightsPanel } from '../components/ui/AIInsightsPanel';
+import { GlobalFilterBar } from '../components/ui/GlobalFilterBar';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import EChart from '../components/ui/EChart';
 import {
@@ -583,12 +585,15 @@ const AnalyticsTab = ({ payer, mix, isPayerLoading, isMixLoading }) => (
 
 // ── Overview Tab ───────────────────────────────────────────────────────────────
 const OverviewTab = ({
-    mis, kpi, trend, payer, mix, collection, serviceRev, admissions,
+    mis, kpi, trend, payer, mix, collection, serviceRev, admissions, branch,
     isLoading, isTrendLoading, isPayerLoading, isMixLoading, isAdmLoading,
 }) => {
     const ftdVol = mis?.volume?.ftd || {};
     return (
         <div className="space-y-4">
+            {/* AI Insights — above KPI strip */}
+            <AIInsightsPanel kpi={kpi} mis={mis} branch={branch} isLoading={isLoading} />
+
             <KPIStrip mis={mis} kpi={kpi} collection={collection} isLoading={isLoading} />
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
@@ -707,6 +712,7 @@ export default function Dashboard() {
                     <OverviewTab
                         mis={mis} kpi={kpi} trend={trend} payer={payer} mix={mix}
                         collection={collection} serviceRev={serviceRev} admissions={admissions}
+                        branch={branch}
                         isLoading={isLoading}
                         isTrendLoading={isTrendLoading}
                         isPayerLoading={isPayerLoading}
@@ -741,7 +747,10 @@ export default function Dashboard() {
 
     return (
         <AppLayout topbar={<Topbar isLoading={isLoading} onPrint={handlePrint} dataUpdatedAt={dataUpdatedAt} />}>
-            {/* Horizontal tab strip sticky below topbar */}
+            {/* Global filter bar — sticky below topbar */}
+            <GlobalFilterBar />
+
+            {/* Horizontal tab strip */}
             <TabStrip tab={tab} onChange={(key) => dispatch(setActiveTab(key))} />
 
             <main

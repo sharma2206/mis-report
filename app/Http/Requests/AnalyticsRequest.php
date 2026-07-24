@@ -33,7 +33,7 @@ class AnalyticsRequest extends FormRequest
         $maxYear  = now()->year + 1;
 
         return [
-            'branch' => "nullable|string|in:{$branches}",
+            'branch' => 'nullable', // Can be string, comma-separated string, or array
             'date'   => 'nullable|date_format:Y-m-d|before_or_equal:today',
             'from'   => 'nullable|date_format:Y-m-d|before_or_equal:today',
             'to'     => 'nullable|date_format:Y-m-d|after_or_equal:from|before_or_equal:today',
@@ -46,7 +46,7 @@ class AnalyticsRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'branch.in'        => 'Branch must be one of: chromepet, oragadam.',
+
             'from.before_or_equal' => 'The from date cannot be in the future.',
             'to.after_or_equal'    => 'The to date must be on or after the from date.',
         ];

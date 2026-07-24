@@ -52,8 +52,12 @@ export const Topbar = ({ onPrint, isLoading, dataUpdatedAt }) => {
 
     // M-8: auto-reset branch if the stored value is not in the user's allowed list
     useEffect(() => {
-        if (branches.length > 0 && branch && !branches.find(b => b.key === branch)) {
-            dispatch(setBranch(branches[0].key));
+        if (branches.length > 0 && branch) {
+            const branchArr = Array.isArray(branch) ? branch : [branch];
+            const hasValidBranch = branchArr.some(b => b === 'all' || branches.find(valid => valid.key === b));
+            if (!hasValidBranch) {
+                dispatch(setBranch([branches[0].key]));
+            }
         }
     }, [branches, branch, dispatch]);
 
@@ -64,7 +68,8 @@ export const Topbar = ({ onPrint, isLoading, dataUpdatedAt }) => {
 
     const handleExport = async (type, fetchFn, ext) => {
         setExporting(type);
-        const branchShort = branch?.slice(0, 3).toUpperCase() || 'RPT';
+        const branchStr   = Array.isArray(branch) ? (branch.length > 1 ? 'MULTI' : branch[0]) : branch;
+        const branchShort = branchStr?.slice(0, 5).toUpperCase() || 'RPT';
         const prefix      = type === 'brm' ? 'BRM' : 'MIS';
         await triggerDownload(fetchFn, `${prefix}-${branchShort}-${date}.${ext}`);
         setExporting(null);
@@ -76,11 +81,13 @@ export const Topbar = ({ onPrint, isLoading, dataUpdatedAt }) => {
         setExporting('brm');
         setShowBrmPicker(false);
         dropRef.current?.classList.add('hidden');
-        const branchShort = branch?.slice(0, 3).toUpperCase() || 'RPT';
+        const branchStr   = Array.isArray(branch) ? (branch.length > 1 ? 'MULTI' : branch[0]) : branch;
+        const branchShort = branchStr?.slice(0, 5).toUpperCase() || 'RPT';
         const fromFmt = from.replace(/-/g, '');
         const toFmt   = to.replace(/-/g, '');
+        const exportBranchStr = Array.isArray(branch) ? branch.join(',') : branch;
         await triggerDownload(
-            () => misApi.exportBrm(branch, from, to),
+            () => misApi.exportBrm(exportBranchStr, from, to),
             `BRM-${branchShort}-${fromFmt}-${toFmt}.xlsx`
         );
         setExporting(null);
@@ -105,20 +112,23 @@ export const Topbar = ({ onPrint, isLoading, dataUpdatedAt }) => {
             <div className="flex items-center gap-2.5 px-4 h-[54px]">
                 {/* Branch selector pills — rendered from API / fallback constant */}
                 <div className="flex gap-1.5 flex-shrink-0">
-                    {branches.map(({ key, label }) => (
-                        <button
-                            key={key}
-                            onClick={() => handleBranch(key)}
-                            className={cn(
-                                'px-3 py-1.5 rounded-full text-[12px] font-600 border-[1.5px] transition-all duration-150 cursor-pointer whitespace-nowrap',
-                                branch === key
-                                    ? 'bg-blue-700 border-blue-700 text-white shadow-sm shadow-blue-200'
-                                    : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-700',
-                            )}
-                        >
-                            {label}
-                        </button>
-                    ))}
+                    {branches.map(({ key, label }) => {
+                        const isSelected = Array.isArray(branch) ? branch.includes(key) : branch === key;
+                        return (
+                            <button
+                                key={key}
+                                onClick={() => handleBranch(key)}
+                                className={cn(
+                                    'px-3 py-1.5 rounded-full text-[12px] font-600 border-[1.5px] transition-all duration-150 cursor-pointer whitespace-nowrap',
+                                    isSelected
+                                        ? 'bg-blue-700 border-blue-700 text-white shadow-sm shadow-blue-200'
+                                        : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-700',
+                                )}
+                            >
+                                {label}
+                            </button>
+                        );
+                    })}
                 </div>
 
                 <div className="w-px h-5 bg-slate-200 flex-shrink-0" />

@@ -71,7 +71,7 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
                 ->where('date', $date);
 
             Route::get('/analytics/kpi/{branch}/{date}', [AnalyticsController::class, 'kpi'])
-                ->where('branch', 'chromepet|oragadam')->where('date', $date);
+                ->where('date', $date);
 
             Route::get('/analytics/charts/daily-trend',       [AnalyticsController::class, 'dailyTrend']);
             Route::get('/analytics/charts/monthly-trend',     [AnalyticsController::class, 'monthlyTrend']);

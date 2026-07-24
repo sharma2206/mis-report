@@ -21,38 +21,60 @@ class AnalyticsController extends Controller
         private AnalyticsService $analytics
     ) {}
 
+    private function parseBranches(string|array|null $branchParam): array|string
+    {
+        if (empty($branchParam) || $branchParam === 'all') return 'all';
+        if (is_array($branchParam)) {
+            return in_array('all', $branchParam, true) ? 'all' : $branchParam;
+        }
+        return explode(',', $branchParam);
+    }
+
     public function kpi(AnalyticsRequest $request, string $branch, string $date): JsonResponse
     {
         try {
-            $branchEnum = Branch::from($branch);
+            $branches = $this->parseBranches($branch);
+            $filters  = $request->except(['branch', 'date']);
+            
+            // Normalize to array if 'all' is passed
+            $branchList = $branches === 'all' ? array_column(Branch::cases(), 'value') : (array) $branches;
 
-            $totalRevenue = $this->kpi->calculateRevenue($branchEnum, $date);
+            $totalRevenue = 0; $totalPatients = 0; $opCount = 0; $ipCount = 0; $erCount = 0;
+            $discountAmount = 0; $netCollection = 0; $packageConsumption = 0; $pharmacySales = 0;
+            $bedOccupancyPct = 0; $bedOccupancy = 0; $bedCount = 0; $avgRevenuePerPatient = 0;
+            $surgeryCount = 0; $majorSurgeries = 0;
 
-            $totalPatients = BillItem::forBranch($branch)
-                ->forDate($date)
-                ->saleStatus()
-                ->whereNotNull('uhid')
-                ->distinct('uhid')
-                ->count('uhid');
+            foreach ($branchList as $bKey) {
+                $branchEnum = Branch::from($bKey);
+                
+                $totalRevenue += (float) $this->kpi->calculateRevenue($branchEnum, $date, null, $filters);
+                
+                $totalPatients += BillItem::forBranch($bKey)->forDate($date)
+                    ->applyFilters($filters)->saleStatus()->whereNotNull('uhid')->distinct('uhid')->count('uhid');
+                
+                $opCount += (int) $this->kpi->calculateOpCount($branchEnum, $date, null, $filters);
+                $ipCount += (int) $this->kpi->calculateIpCount($branchEnum, $date, null, null, $filters);
+                $erCount += (int) $this->kpi->calculateErCount($branchEnum, $date, null, $filters);
+                
+                $discountAmount += (float) BillItem::forBranch($bKey)->forDate($date)
+                    ->applyFilters($filters)->saleStatus()->sum('discount_amount');
+                
+                $netCollection      += (float) $this->kpi->calculateCashCollection($branchEnum, $date, null, $filters);
+                $packageConsumption += (float) $this->kpi->calculatePackageRevenue($branchEnum, $date, null, $filters);
+                $pharmacySales      += (float) $this->kpi->calculatePharmacyRevenue($branchEnum, $date, null, $filters);
+                $bedOccupancy       += (int) $this->kpi->calculateBedsOccupied($branchEnum, $date);
+                $bedCount           += $branchEnum->bedCount();
+                
+                $surgeryCount       += Surgery::forBranch($bKey)->forDate($date)->applyFilters($filters)->count();
+                $majorSurgeries     += Surgery::forBranch($bKey)->forDate($date)->applyFilters($filters)->where('surgery_category', 'Major')->count();
+            }
 
-            $opCount = $this->kpi->calculateOpCount($branchEnum, $date);
-            $ipCount = $this->kpi->calculateIpCount($branchEnum, $date);
-            $erCount = $this->kpi->calculateErCount($branchEnum, $date);
-
-            $discountAmount = (float) BillItem::forBranch($branch)->forDate($date)->saleStatus()->sum('discount_amount');
-
-            $netCollection      = $this->kpi->calculateCashCollection($branchEnum, $date);
-            $packageConsumption = $this->kpi->calculatePackageRevenue($branchEnum, $date);
-            $pharmacySales      = $this->kpi->calculatePharmacyRevenue($branchEnum, $date);
-            $occupancyPct       = $this->kpi->calculateOccupancy($branchEnum, $date);
-            $occupancy          = $this->kpi->calculateBedsOccupied($branchEnum, $date);
-            $bedCount           = $branchEnum->bedCount();
-
-            $avgRevenuePerPatient = ($totalPatients > 0 && $totalRevenue !== null)
-                ? round($totalRevenue / $totalPatients, 2) : 0;
-
-            $surgeryCount   = Surgery::forBranch($branch)->forDate($date)->count();
-            $majorSurgeries = Surgery::forBranch($branch)->forDate($date)->where('surgery_category', 'Major')->count();
+            if ($bedCount > 0) {
+                $bedOccupancyPct = round(($bedOccupancy / $bedCount) * 100, 2);
+            }
+            if ($totalPatients > 0) {
+                $avgRevenuePerPatient = round($totalRevenue / $totalPatients, 2);
+            }
 
             $dto = new KpiData(
                 totalRevenue:         $totalRevenue,
@@ -64,8 +86,8 @@ class AnalyticsController extends Controller
                 netCollection:        $netCollection,
                 packageConsumption:   $packageConsumption,
                 pharmacySales:        $pharmacySales,
-                bedOccupancyPct:      $occupancyPct,
-                bedOccupancy:         $occupancy,
+                bedOccupancyPct:      $bedOccupancyPct,
+                bedOccupancy:         $bedOccupancy,
                 bedCount:             $bedCount,
                 avgRevenuePerPatient: $avgRevenuePerPatient,
                 surgeryCount:         $surgeryCount,
@@ -84,10 +106,10 @@ class AnalyticsController extends Controller
     public function dailyTrend(AnalyticsRequest $request): JsonResponse
     {
         try {
-            $branch = $request->input('branch', 'chromepet');
+            $branch = $this->parseBranches($request->input('branch', 'chromepet'));
             $from   = $request->input('from', Carbon::now()->startOfMonth()->format('Y-m-d'));
             $to     = $request->input('to',   Carbon::now()->format('Y-m-d'));
-            return response()->json(['success' => true, 'data' => $this->analytics->dailyTrend($branch, $from, $to)]);
+            return response()->json(['success' => true, 'data' => $this->analytics->dailyTrend($branch, $from, $to, $request->except(['branch','from','to']))]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -96,9 +118,9 @@ class AnalyticsController extends Controller
     public function monthlyTrend(AnalyticsRequest $request): JsonResponse
     {
         try {
-            $branch = $request->input('branch', 'chromepet');
+            $branch = $this->parseBranches($request->input('branch', 'chromepet'));
             $year   = (int) $request->input('year', Carbon::now()->year);
-            return response()->json(['success' => true, 'data' => $this->analytics->monthlyTrend($branch, $year)]);
+            return response()->json(['success' => true, 'data' => $this->analytics->monthlyTrend($branch, $year, $request->except(['branch','year']))]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -107,10 +129,10 @@ class AnalyticsController extends Controller
     public function deptRevenue(AnalyticsRequest $request): JsonResponse
     {
         try {
-            $branch = $request->input('branch', 'chromepet');
+            $branch = $this->parseBranches($request->input('branch', 'chromepet'));
             $from   = $request->input('from', $request->input('date', Carbon::now()->format('Y-m-d')));
             $to     = $request->input('to', $from);
-            return response()->json(['success' => true, 'data' => $this->analytics->deptRevenue($branch, $from, $to)]);
+            return response()->json(['success' => true, 'data' => $this->analytics->deptRevenue($branch, $from, $to, $request->except(['branch','from','to','date']))]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -119,10 +141,10 @@ class AnalyticsController extends Controller
     public function payerMix(AnalyticsRequest $request): JsonResponse
     {
         try {
-            $branch = $request->input('branch', 'chromepet');
+            $branch = $this->parseBranches($request->input('branch', 'chromepet'));
             $from   = $request->input('from', $request->input('date', Carbon::now()->format('Y-m-d')));
             $to     = $request->input('to', $from);
-            return response()->json(['success' => true, 'data' => $this->analytics->payerMix($branch, $from, $to)]);
+            return response()->json(['success' => true, 'data' => $this->analytics->payerMix($branch, $from, $to, $request->except(['branch','from','to','date']))]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -131,10 +153,10 @@ class AnalyticsController extends Controller
     public function patientMix(AnalyticsRequest $request): JsonResponse
     {
         try {
-            $branch = $request->input('branch', 'chromepet');
+            $branch = $this->parseBranches($request->input('branch', 'chromepet'));
             $from   = $request->input('from', Carbon::now()->startOfMonth()->format('Y-m-d'));
             $to     = $request->input('to',   Carbon::now()->format('Y-m-d'));
-            return response()->json(['success' => true, 'data' => $this->analytics->patientMix($branch, $from, $to)]);
+            return response()->json(['success' => true, 'data' => $this->analytics->patientMix($branch, $from, $to, $request->except(['branch','from','to']))]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -154,10 +176,10 @@ class AnalyticsController extends Controller
     public function doctorRevenue(AnalyticsRequest $request): JsonResponse
     {
         try {
-            $branch = $request->input('branch', 'chromepet');
+            $branch = $this->parseBranches($request->input('branch', 'chromepet'));
             $from   = $request->input('from', Carbon::now()->startOfMonth()->format('Y-m-d'));
             $to     = $request->input('to',   Carbon::now()->format('Y-m-d'));
-            return response()->json(['success' => true, 'data' => $this->analytics->doctorRevenue($branch, $from, $to)]);
+            return response()->json(['success' => true, 'data' => $this->analytics->doctorRevenue($branch, $from, $to, $request->except(['branch','from','to']))]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -166,10 +188,10 @@ class AnalyticsController extends Controller
     public function surgeries(AnalyticsRequest $request): JsonResponse
     {
         try {
-            $branch = $request->input('branch', 'chromepet');
+            $branch = $this->parseBranches($request->input('branch', 'chromepet'));
             $from   = $request->input('from', Carbon::now()->startOfMonth()->format('Y-m-d'));
             $to     = $request->input('to',   Carbon::now()->format('Y-m-d'));
-            return response()->json(['success' => true, 'data' => $this->analytics->surgeries($branch, $from, $to)]);
+            return response()->json(['success' => true, 'data' => $this->analytics->surgeries($branch, $from, $to, $request->except(['branch','from','to']))]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -178,10 +200,10 @@ class AnalyticsController extends Controller
     public function admissions(AnalyticsRequest $request): JsonResponse
     {
         try {
-            $branch = $request->input('branch', 'chromepet');
+            $branch = $this->parseBranches($request->input('branch', 'chromepet'));
             $from   = $request->input('from', Carbon::now()->startOfMonth()->format('Y-m-d'));
             $to     = $request->input('to',   Carbon::now()->format('Y-m-d'));
-            return response()->json(['success' => true, 'data' => $this->analytics->admissions($branch, $from, $to)]);
+            return response()->json(['success' => true, 'data' => $this->analytics->admissions($branch, $from, $to, $request->except(['branch','from','to']))]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -190,10 +212,10 @@ class AnalyticsController extends Controller
     public function ipDemographics(AnalyticsRequest $request): JsonResponse
     {
         try {
-            $branch = $request->input('branch', 'chromepet');
+            $branch = $this->parseBranches($request->input('branch', 'chromepet'));
             $from   = $request->input('from', $request->input('date', Carbon::now()->format('Y-m-d')));
             $to     = $request->input('to', $from);
-            return response()->json(['success' => true, 'data' => $this->analytics->ipDemographics($branch, $from, $to)]);
+            return response()->json(['success' => true, 'data' => $this->analytics->ipDemographics($branch, $from, $to, $request->except(['branch','from','to','date']))]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -202,10 +224,10 @@ class AnalyticsController extends Controller
     public function surgeryDetail(AnalyticsRequest $request): JsonResponse
     {
         try {
-            $branch = $request->input('branch', 'chromepet');
+            $branch = $this->parseBranches($request->input('branch', 'chromepet'));
             $from   = $request->input('from', $request->input('date', Carbon::now()->format('Y-m-d')));
             $to     = $request->input('to', $from);
-            return response()->json(['success' => true, 'data' => $this->analytics->surgeryDetail($branch, $from, $to)]);
+            return response()->json(['success' => true, 'data' => $this->analytics->surgeryDetail($branch, $from, $to, $request->except(['branch','from','to','date']))]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -214,10 +236,10 @@ class AnalyticsController extends Controller
     public function collectionReport(AnalyticsRequest $request): JsonResponse
     {
         try {
-            $branch = $request->input('branch', 'chromepet');
+            $branch = $this->parseBranches($request->input('branch', 'chromepet'));
             $from   = $request->input('from', Carbon::now()->startOfMonth()->format('Y-m-d'));
             $to     = $request->input('to',   Carbon::now()->format('Y-m-d'));
-            return response()->json(['success' => true, 'data' => $this->analytics->collectionReport($branch, $from, $to)]);
+            return response()->json(['success' => true, 'data' => $this->analytics->collectionReport($branch, $from, $to, $request->except(['branch','from','to']))]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -226,10 +248,10 @@ class AnalyticsController extends Controller
     public function serviceRevenue(AnalyticsRequest $request): JsonResponse
     {
         try {
-            $branch = $request->input('branch', 'chromepet');
+            $branch = $this->parseBranches($request->input('branch', 'chromepet'));
             $from   = $request->input('from', Carbon::now()->startOfMonth()->format('Y-m-d'));
             $to     = $request->input('to',   Carbon::now()->format('Y-m-d'));
-            return response()->json(['success' => true, 'data' => $this->analytics->serviceRevenue($branch, $from, $to)]);
+            return response()->json(['success' => true, 'data' => $this->analytics->serviceRevenue($branch, $from, $to, $request->except(['branch','from','to']))]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -238,10 +260,10 @@ class AnalyticsController extends Controller
     public function doctorPerformance(AnalyticsRequest $request): JsonResponse
     {
         try {
-            $branch = $request->input('branch', 'chromepet');
+            $branch = $this->parseBranches($request->input('branch', 'chromepet'));
             $from   = $request->input('from', Carbon::now()->startOfMonth()->format('Y-m-d'));
             $to     = $request->input('to',   Carbon::now()->format('Y-m-d'));
-            return response()->json(['success' => true, 'data' => $this->analytics->doctorPerformance($branch, $from, $to)]);
+            return response()->json(['success' => true, 'data' => $this->analytics->doctorPerformance($branch, $from, $to, $request->except(['branch','from','to']))]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -250,10 +272,10 @@ class AnalyticsController extends Controller
     public function opMetrics(AnalyticsRequest $request): JsonResponse
     {
         try {
-            $branch = $request->input('branch', 'chromepet');
+            $branch = $this->parseBranches($request->input('branch', 'chromepet'));
             $from   = $request->input('from', $request->input('date', Carbon::now()->format('Y-m-d')));
             $to     = $request->input('to', $from);
-            return response()->json(['success' => true, 'data' => $this->analytics->opMetrics($branch, $from, $to)]);
+            return response()->json(['success' => true, 'data' => $this->analytics->opMetrics($branch, $from, $to, $request->except(['branch','from','to','date']))]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }

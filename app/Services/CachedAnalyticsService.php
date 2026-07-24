@@ -18,29 +18,39 @@ class CachedAnalyticsService extends AnalyticsService
         return (int) config('cache.analytics_ttl', 900);
     }
 
-    public function dailyTrend(string $branch, string $from, string $to): Collection
+    public function dailyTrend($branch, string $from, string $to, array $filters = []): Collection
     {
-        return $this->rememberCollection("daily:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->dailyTrend($branch, $from, $to));
+        $bKey = $this->resolveBranchKey($branch);
+        $fKey = $this->resolveFilterKey($filters);
+        return $this->rememberCollection("daily:{$bKey}:{$from}:{$to}{$fKey}", $branch, fn() => $this->inner->dailyTrend($branch, $from, $to, $filters));
     }
 
-    public function monthlyTrend(string $branch, int $year): array
+    public function monthlyTrend($branch, int $year, array $filters = []): array
     {
-        return $this->rememberArray("monthly:{$branch}:{$year}", $branch, fn() => $this->inner->monthlyTrend($branch, $year));
+        $bKey = $this->resolveBranchKey($branch);
+        $fKey = $this->resolveFilterKey($filters);
+        return $this->rememberArray("monthly:{$bKey}:{$year}{$fKey}", $branch, fn() => $this->inner->monthlyTrend($branch, $year, $filters));
     }
 
-    public function deptRevenue(string $branch, string $from, string $to): Collection
+    public function deptRevenue($branch, string $from, string $to, array $filters = []): Collection
     {
-        return $this->rememberCollection("dept:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->deptRevenue($branch, $from, $to));
+        $bKey = $this->resolveBranchKey($branch);
+        $fKey = $this->resolveFilterKey($filters);
+        return $this->rememberCollection("dept:{$bKey}:{$from}:{$to}{$fKey}", $branch, fn() => $this->inner->deptRevenue($branch, $from, $to, $filters));
     }
 
-    public function payerMix(string $branch, string $from, string $to): Collection
+    public function payerMix($branch, string $from, string $to, array $filters = []): Collection
     {
-        return $this->rememberCollection("payer:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->payerMix($branch, $from, $to));
+        $bKey = $this->resolveBranchKey($branch);
+        $fKey = $this->resolveFilterKey($filters);
+        return $this->rememberCollection("payer:{$bKey}:{$from}:{$to}{$fKey}", $branch, fn() => $this->inner->payerMix($branch, $from, $to, $filters));
     }
 
-    public function patientMix(string $branch, string $from, string $to): Collection
+    public function patientMix($branch, string $from, string $to, array $filters = []): Collection
     {
-        return $this->rememberCollection("patient-mix:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->patientMix($branch, $from, $to));
+        $bKey = $this->resolveBranchKey($branch);
+        $fKey = $this->resolveFilterKey($filters);
+        return $this->rememberCollection("patient-mix:{$bKey}:{$from}:{$to}{$fKey}", $branch, fn() => $this->inner->patientMix($branch, $from, $to, $filters));
     }
 
     public function branchComparison(string $from, string $to): array
@@ -50,49 +60,67 @@ class CachedAnalyticsService extends AnalyticsService
         return $this->rememberArray("branch-cmp:{$from}:{$to}", 'all', fn() => $this->inner->branchComparison($from, $to));
     }
 
-    public function doctorRevenue(string $branch, string $from, string $to): Collection
+    public function doctorRevenue($branch, string $from, string $to, array $filters = []): Collection
     {
-        return $this->rememberCollection("doc-rev:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->doctorRevenue($branch, $from, $to));
+        $bKey = $this->resolveBranchKey($branch);
+        $fKey = $this->resolveFilterKey($filters);
+        return $this->rememberCollection("doc-rev:{$bKey}:{$from}:{$to}{$fKey}", $branch, fn() => $this->inner->doctorRevenue($branch, $from, $to, $filters));
     }
 
-    public function surgeries(string $branch, string $from, string $to): array
+    public function surgeries($branch, string $from, string $to, array $filters = []): array
     {
-        return $this->rememberArray("surgeries:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->surgeries($branch, $from, $to));
+        $bKey = $this->resolveBranchKey($branch);
+        $fKey = $this->resolveFilterKey($filters);
+        return $this->rememberArray("surgeries:{$bKey}:{$from}:{$to}{$fKey}", $branch, fn() => $this->inner->surgeries($branch, $from, $to, $filters));
     }
 
-    public function admissions(string $branch, string $from, string $to): array
+    public function admissions($branch, string $from, string $to, array $filters = []): array
     {
-        return $this->rememberArray("admissions:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->admissions($branch, $from, $to));
+        $bKey = $this->resolveBranchKey($branch);
+        $fKey = $this->resolveFilterKey($filters);
+        return $this->rememberArray("admissions:{$bKey}:{$from}:{$to}{$fKey}", $branch, fn() => $this->inner->admissions($branch, $from, $to, $filters));
     }
 
-    public function ipDemographics(string $branch, string $from, string $to): array
+    public function ipDemographics($branch, string $from, string $to, array $filters = []): array
     {
-        return $this->rememberArray("ip-demo:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->ipDemographics($branch, $from, $to));
+        $bKey = $this->resolveBranchKey($branch);
+        $fKey = $this->resolveFilterKey($filters);
+        return $this->rememberArray("ip-demo:{$bKey}:{$from}:{$to}{$fKey}", $branch, fn() => $this->inner->ipDemographics($branch, $from, $to, $filters));
     }
 
-    public function surgeryDetail(string $branch, string $from, string $to): array
+    public function surgeryDetail($branch, string $from, string $to, array $filters = []): array
     {
-        return $this->rememberArray("surg-detail:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->surgeryDetail($branch, $from, $to));
+        $bKey = $this->resolveBranchKey($branch);
+        $fKey = $this->resolveFilterKey($filters);
+        return $this->rememberArray("surg-detail:{$bKey}:{$from}:{$to}{$fKey}", $branch, fn() => $this->inner->surgeryDetail($branch, $from, $to, $filters));
     }
 
-    public function collectionReport(string $branch, string $from, string $to): array
+    public function collectionReport($branch, string $from, string $to, array $filters = []): array
     {
-        return $this->rememberArray("collection:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->collectionReport($branch, $from, $to));
+        $bKey = $this->resolveBranchKey($branch);
+        $fKey = $this->resolveFilterKey($filters);
+        return $this->rememberArray("collection:{$bKey}:{$from}:{$to}{$fKey}", $branch, fn() => $this->inner->collectionReport($branch, $from, $to, $filters));
     }
 
-    public function serviceRevenue(string $branch, string $from, string $to): array
+    public function serviceRevenue($branch, string $from, string $to, array $filters = []): array
     {
-        return $this->rememberArray("svc-rev:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->serviceRevenue($branch, $from, $to));
+        $bKey = $this->resolveBranchKey($branch);
+        $fKey = $this->resolveFilterKey($filters);
+        return $this->rememberArray("svc-rev:{$bKey}:{$from}:{$to}{$fKey}", $branch, fn() => $this->inner->serviceRevenue($branch, $from, $to, $filters));
     }
 
-    public function doctorPerformance(string $branch, string $from, string $to): array
+    public function doctorPerformance($branch, string $from, string $to, array $filters = []): array
     {
-        return $this->rememberArray("doc-perf:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->doctorPerformance($branch, $from, $to));
+        $bKey = $this->resolveBranchKey($branch);
+        $fKey = $this->resolveFilterKey($filters);
+        return $this->rememberArray("doc-perf:{$bKey}:{$from}:{$to}{$fKey}", $branch, fn() => $this->inner->doctorPerformance($branch, $from, $to, $filters));
     }
 
-    public function opMetrics(string $branch, string $from, string $to): array
+    public function opMetrics($branch, string $from, string $to, array $filters = []): array
     {
-        return $this->rememberArray("op-metrics:{$branch}:{$from}:{$to}", $branch, fn() => $this->inner->opMetrics($branch, $from, $to));
+        $bKey = $this->resolveBranchKey($branch);
+        $fKey = $this->resolveFilterKey($filters);
+        return $this->rememberArray("op-metrics:{$bKey}:{$from}:{$to}{$fKey}", $branch, fn() => $this->inner->opMetrics($branch, $from, $to, $filters));
     }
 
     /**
@@ -106,18 +134,33 @@ class CachedAnalyticsService extends AnalyticsService
         Cache::increment("analytics:gen:{$branch}");
     }
 
-    private static function generation(string $branch): int
+    private static function generation($branch): int
     {
-        return (int) Cache::get("analytics:gen:{$branch}", 0);
+        $branches = is_array($branch) ? $branch : explode(',', $branch);
+        $gen = 0;
+        foreach ($branches as $b) {
+            $gen += (int) Cache::get("analytics:gen:{$b}", 0);
+        }
+        return $gen;
     }
 
-    private function rememberCollection(string $key, string $branch, callable $cb): Collection
+    private function resolveBranchKey($branch): string
+    {
+        return is_array($branch) ? implode(',', $branch) : $branch;
+    }
+
+    private function resolveFilterKey(array $filters): string
+    {
+        return empty($filters) ? '' : ':' . md5(json_encode($filters));
+    }
+
+    private function rememberCollection(string $key, $branch, callable $cb): Collection
     {
         $gen = self::generation($branch);
         return Cache::remember("analytics:{$key}:g{$gen}", self::ttl(), $cb);
     }
 
-    private function rememberArray(string $key, string $branch, callable $cb): array
+    private function rememberArray(string $key, $branch, callable $cb): array
     {
         $gen = self::generation($branch);
         return Cache::remember("analytics:{$key}:g{$gen}", self::ttl(), $cb);

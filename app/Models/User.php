@@ -91,18 +91,30 @@ class User extends Authenticatable
     public function isManager(): bool { return in_array($this->role, ['admin', 'manager']); }
     public function isLocked(): bool  { return $this->locked_at !== null; }
 
-    public function canAccessBranch(string $branch): bool
+    public function canAccessBranch(string|array $branch): bool
     {
-        // Null branch on user = no restriction
-        if ($this->branch === null) {
-            // Check user_branches table for explicit multi-branch access
-            if ($this->userBranches()->count() === 0) return true;
-            return $this->userBranches()->where('branch', $branch)->exists();
+        $branchesToCheck = is_array($branch) ? $branch : explode(',', $branch);
+
+        // Null branch on user and 0 user_branches = unrestricted admin access
+        if ($this->branch === null && $this->userBranches()->count() === 0) {
+            return true;
         }
-        // Legacy single-branch check
-        if ($this->branch === $branch) return true;
-        // Also check multi-branch table
-        return $this->userBranches()->where('branch', $branch)->exists();
+
+        // If user is restricted but requests "all", deny access
+        // (Unless frontend logic handles "all" by passing specific branches, but if literal "all" reaches here)
+        if (in_array('all', $branchesToCheck, true)) {
+            return false;
+        }
+
+        $allowedBranches = $this->branch_list;
+
+        foreach ($branchesToCheck as $b) {
+            if (!in_array($b, $allowedBranches)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public function getBranchListAttribute(): array

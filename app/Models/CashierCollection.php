@@ -45,9 +45,23 @@ class CashierCollection extends Model
      * @param string $branch
      * @return Builder
      */
-    public function scopeForBranch(Builder $query, string $branch): Builder
+    public function scopeForBranch(Builder $query, $branch): Builder
     {
-        return $query->where('branch', $branch);
+        if ($branch === 'all' || (is_array($branch) && in_array('all', $branch, true))) {
+            return $query;
+        }
+        if (is_array($branch)) return $query->whereIn('branch', $branch);
+        $val = $branch instanceof \BackedEnum ? $branch->value : $branch;
+        return $query->where('branch', $val);
+    }
+
+    public function scopeApplyFilters(Builder $query, array $filters): Builder
+    {
+        if (!empty($filters['departments']))  $query->whereIn('user_department', $filters['departments']);
+        if (!empty($filters['patient_types'])) $query->whereIn('patient_type', $filters['patient_types']);
+        if (!empty($filters['payment_types'])) $query->whereIn('payment_mode', $filters['payment_types']);
+        
+        return $query;
     }
 
     /**

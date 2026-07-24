@@ -5,10 +5,10 @@ import {
     Stethoscope, DollarSign, Activity, Scissors,
     Pill, Clock, Bell, Users, ShieldCheck, ClipboardList,
     Settings, ChevronLeft, Hospital, ChevronDown,
-    Banknote, LogOut, X,
+    Banknote, LogOut, X, GitCompare, UserSearch, CreditCard, Moon, Sun,
 } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
-import { selectSidebarOpen, toggleSidebar, setSidebarOpen } from '../../store/reportSlice';
+import { selectSidebarOpen, toggleSidebar, setSidebarOpen, selectDarkMode, toggleDarkMode } from '../../store/reportSlice';
 import { selectUser } from '../../store/authSlice';
 import { useAuth } from '../../hooks/useAuth';
 import { cn } from '../../utils/cn';
@@ -27,20 +27,23 @@ const NAV_GROUPS = [
     {
         label: 'Reports',
         items: [
-            { path: '/mis',         label: 'MIS Reports', Icon: TrendingUp },
-            { path: '/brm',         label: 'BRM Reports', Icon: Banknote,    minRole: 'staff'   },
-            { path: '/financial',   label: 'Financial',   Icon: DollarSign,  minRole: 'manager' },
-            { path: '/operational', label: 'Operational', Icon: Activity },
+            { path: '/mis',               label: 'MIS Reports',      Icon: TrendingUp },
+            { path: '/brm',               label: 'BRM Reports',      Icon: Banknote,    minRole: 'staff'   },
+            { path: '/financial',         label: 'Financial',        Icon: DollarSign,  minRole: 'manager' },
+            { path: '/operational',       label: 'Operational',      Icon: Activity },
+            { path: '/branch-comparison', label: 'Branch Comparison',Icon: GitCompare,  minRole: 'manager', badge: 'New' },
         ],
     },
     {
         label: 'Analytics',
         items: [
-            { path: '/doctors',       label: 'Doctors',       Icon: Stethoscope },
-            { path: '/departments',   label: 'Departments',   Icon: Building2 },
-            { path: '/surgery',       label: 'Surgery',       Icon: Scissors },
-            { path: '/pharmacy',      label: 'Pharmacy',      Icon: Pill },
-            { path: '/notifications', label: 'Notifications', Icon: Bell },
+            { path: '/doctors',          label: 'Doctors',           Icon: Stethoscope },
+            { path: '/departments',      label: 'Departments',       Icon: Building2 },
+            { path: '/surgery',          label: 'Surgery',           Icon: Scissors },
+            { path: '/pharmacy',         label: 'Pharmacy',          Icon: Pill },
+            { path: '/patient-analytics',label: 'Patient Analytics', Icon: UserSearch, badge: 'New' },
+            { path: '/payment-analytics',label: 'Payment Analytics', Icon: CreditCard, badge: 'New' },
+            { path: '/notifications',    label: 'Notifications',     Icon: Bell },
         ],
     },
     {
@@ -58,6 +61,7 @@ const NAV_GROUPS = [
 
 export const Sidebar = ({ isMobile = false }) => {
     const open       = useSelector(selectSidebarOpen);
+    const darkMode   = useSelector(selectDarkMode);
     const user       = useSelector(selectUser);
     const dispatch   = useDispatch();
     const { logout } = useAuth();
@@ -198,6 +202,32 @@ export const Sidebar = ({ isMobile = false }) => {
                     })}
 
                     <div className="my-2 h-px mx-1" style={{ background: 'rgba(255,255,255,0.06)' }} />
+
+                    {/* Dark mode toggle */}
+                    <button
+                        onClick={() => dispatch(toggleDarkMode())}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 font-500 text-[13px] whitespace-nowrap w-full border-0 text-left cursor-pointer mb-0.5"
+                        style={{ color: 'rgba(255,255,255,0.5)' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = 'rgba(255,255,255,0.85)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.5)'; }}
+                    >
+                        {darkMode
+                            ? <Sun  className="w-4 h-4 flex-shrink-0" />
+                            : <Moon className="w-4 h-4 flex-shrink-0" />}
+                        <AnimatePresence>
+                            {(open || isMobile) && (
+                                <motion.span
+                                    initial={{ opacity: 0, width: 0 }}
+                                    animate={{ opacity: 1, width: 'auto' }}
+                                    exit={{ opacity: 0, width: 0 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="overflow-hidden"
+                                >
+                                    {darkMode ? 'Light Mode' : 'Dark Mode'}
+                                </motion.span>
+                            )}
+                        </AnimatePresence>
+                    </button>
 
                     <button
                         onClick={logout}

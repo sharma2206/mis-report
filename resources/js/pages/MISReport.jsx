@@ -276,7 +276,7 @@ const TrendSection = ({ data, isLoading }) => {
     if (isLoading) return <ChartSkeleton height={220} />;
     if (!data?.length) return <EmptyState title="No trend data for this period" />;
 
-    const dates   = data.map(d => d.date?.slice(5) || d.date);
+    const dates   = data.map(d => d.day?.slice(5) || d.day);
     const revenue = data.map(d => toLakhs(d.total_revenue ?? d.revenue ?? d.total));
     const coll    = data.map(d => toLakhs(d.total_collection ?? d.collection));
 

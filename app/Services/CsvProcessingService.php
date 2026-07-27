@@ -58,7 +58,15 @@ class CsvProcessingService
                 ? $this->csvDateRange($packageFile->getRealPath(), 'Bill Date Time', 'Consumption Date Time', 'Order Date Time')
                 : null;
 
-            $this->deleteForBranchRange($branch, $billRange, $cashierRange, $erRange, $ipRange, $surgRange, $pkgRange, $date);
+            $this->deleteForBranchRange(
+                $branch, $billRange, $cashierRange, $erRange, $ipRange, $surgRange, $pkgRange, $date,
+                $billFile !== null,
+                $cashierFile !== null,
+                $erFile !== null,
+                $ipFile !== null,
+                $surgeryFile !== null,
+                $packageFile !== null
+            );
 
             // Bust cache for every date in the range covered by the bill CSV (or cashier
             // range for single-file uploads that don't include a bill file).
@@ -197,7 +205,13 @@ class CsvProcessingService
         ?array $ipRange,
         ?array $surgRange,
         ?array $pkgRange,
-        string $fallbackDate
+        string $fallbackDate,
+        bool $hasBill = true,
+        bool $hasCashier = true,
+        bool $hasEr = true,
+        bool $hasIp = true,
+        bool $hasSurgery = true,
+        bool $hasPackage = true
     ): void {
         $b = $branch->value;
 
@@ -214,13 +228,23 @@ class CsvProcessingService
                 ? $model::where('branch', $b)->whereDate($col, '>=', $range[0])->whereDate($col, '<=', $range[1])->delete()
                 : $model::where('branch', $b)->delete();
 
-        $del(BillItem::class,          'bill_date',       $billRange);
-        $del(CashierCollection::class, 'collection_date', $cashierRange);
-        $delBulk(ErAdmission::class,   'admission_date',  $erRange);
-        $delBulk(IpAdmission::class,   'admission_date',  $ipRange);
-        $delBulk(Surgery::class,       'surgery_date',    $surgRange);
+        if ($hasBill) {
+            $del(BillItem::class,          'bill_date',       $billRange);
+        }
+        if ($hasCashier) {
+            $del(CashierCollection::class, 'collection_date', $cashierRange);
+        }
+        if ($hasEr) {
+            $delBulk(ErAdmission::class,   'admission_date',  $erRange);
+        }
+        if ($hasIp) {
+            $delBulk(IpAdmission::class,   'admission_date',  $ipRange);
+        }
+        if ($hasSurgery) {
+            $delBulk(Surgery::class,       'surgery_date',    $surgRange);
+        }
 
-        if ($branch === Branch::CHROMEPET) {
+        if ($branch === Branch::CHROMEPET && $hasPackage) {
             $del(PackageConsumption::class, 'consumption_date', $pkgRange);
         }
     }

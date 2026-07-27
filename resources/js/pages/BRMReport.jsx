@@ -49,9 +49,10 @@ const TOOLTIP_STYLE = {
 
 export default function BRMReport() {
     const dispatch = useDispatch();
-    const token  = useSelector(selectToken);
-    const branch = useSelector(selectBranch);
-    const date   = useSelector(selectDate);
+    const token     = useSelector(selectToken);
+    const branchRaw = useSelector(selectBranch);
+    const branch    = Array.isArray(branchRaw) ? (branchRaw[0] || 'chromepet') : (branchRaw || 'chromepet');
+    const date      = useSelector(selectDate);
     const from   = useSelector(selectGlobalFrom);
     const to     = useSelector(selectGlobalTo);
     const { branches } = useBranches();
@@ -82,7 +83,7 @@ export default function BRMReport() {
     const totalPts   = doctors.reduce((s, d) => s + (Number(d.unique_patients) || 0), 0);
 
     const handleDownload = async () => {
-        const branchShort = branch?.slice(0, 3).toUpperCase() || 'BRM';
+        const branchShort = (typeof branch === 'string' ? branch : 'BRM').slice(0, 3).toUpperCase() || 'BRM';
         const f = from.replace(/-/g, ''); const t = to.replace(/-/g, '');
         setDlErr(null);
         await triggerDownload(

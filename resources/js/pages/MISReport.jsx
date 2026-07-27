@@ -356,12 +356,13 @@ const Section = ({ title, subtitle, children, action }) => (
 
 // ─── Export Panel ─────────────────────────────────────────────────────────────
 const ExportPanel = ({ branch, date, enabled, mis }) => {
+    const branchStr = Array.isArray(branch) ? (branch[0] || 'chromepet') : (branch || 'chromepet');
     const [exporting, setExporting] = useState(null);
     const [emailOpen, setEmailOpen] = useState(false);
     const [emailTo, setEmailTo]     = useState('');
     const [emailSent, setEmailSent] = useState(false);
 
-    const branchShort = branch?.slice(0, 3).toUpperCase() || 'RPT';
+    const branchShort = (typeof branchStr === 'string' ? branchStr : 'RPT').slice(0, 3).toUpperCase() || 'RPT';
     const dateLabel   = date?.replace(/-/g, '') || '';
     const fname       = (ext) => `MIS-${branchShort}-${dateLabel}.${ext}`;
 
@@ -374,7 +375,7 @@ const ExportPanel = ({ branch, date, enabled, mis }) => {
         if (!emailTo) return;
         setExporting('email');
         try {
-            await misApi.emailReport(branch, date, emailTo);
+            await misApi.emailReport(branchStr, date, emailTo);
             setEmailSent(true);
             setTimeout(() => { setEmailOpen(false); setEmailSent(false); setEmailTo(''); }, 2000);
         } catch {
@@ -385,9 +386,9 @@ const ExportPanel = ({ branch, date, enabled, mis }) => {
     };
 
     const btns = [
-        { id: 'excel', icon: FileSpreadsheet, label: 'Export Excel',     sub: '.xlsx',     color: 'text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300', fn: () => misApi.exportExcel(branch, date), ext: 'xlsx' },
-        { id: 'pdf',   icon: FileText,        label: 'Export PDF',       sub: 'A4 landscape', color: 'text-red-600 hover:bg-red-50 hover:border-red-300',           fn: () => misApi.exportPdf(branch, date),   ext: 'pdf'  },
-        { id: 'csv',   icon: Table2,          label: 'Export CSV',       sub: 'Flat rows', color: 'text-amber-600 hover:bg-amber-50 hover:border-amber-300',        fn: () => misApi.exportCsv(branch, date),   ext: 'csv'  },
+        { id: 'excel', icon: FileSpreadsheet, label: 'Export Excel',     sub: '.xlsx',     color: 'text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300', fn: () => misApi.exportExcel(branchStr, date), ext: 'xlsx' },
+        { id: 'pdf',   icon: FileText,        label: 'Export PDF',       sub: 'A4 landscape', color: 'text-red-600 hover:bg-red-50 hover:border-red-300',           fn: () => misApi.exportPdf(branchStr, date),   ext: 'pdf'  },
+        { id: 'csv',   icon: Table2,          label: 'Export CSV',       sub: 'Flat rows', color: 'text-amber-600 hover:bg-amber-50 hover:border-amber-300',        fn: () => misApi.exportCsv(branchStr, date),   ext: 'csv'  },
         { id: 'print', icon: Printer,         label: 'Print Preview',    sub: 'New tab',   color: 'text-violet-600 hover:bg-violet-50 hover:border-violet-300', fn: null, ext: null },
     ];
 
@@ -579,10 +580,11 @@ const FilterBar = ({ branch, date, onBranch, onDate, onGenerate, isLoading }) =>
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function MISReport() {
-    const token    = useSelector(selectToken);
-    const branch   = useSelector(selBranch);
-    const date     = useSelector(selDate);
-    const dispatch = useDispatch();
+    const token     = useSelector(selectToken);
+    const branchRaw = useSelector(selBranch);
+    const branch    = Array.isArray(branchRaw) ? (branchRaw[0] || 'chromepet') : (branchRaw || 'chromepet');
+    const date      = useSelector(selDate);
+    const dispatch  = useDispatch();
 
     const [enabled, setEnabled] = useState(false);
 

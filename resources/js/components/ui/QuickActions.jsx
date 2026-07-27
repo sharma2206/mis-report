@@ -15,7 +15,8 @@ import { triggerDownload } from '../../utils/download';
 
 export const QuickActions = ({ onGenerateMIS, onUpload }) => {
     const navigate  = useNavigate();
-    const branch    = useSelector(selectBranch);
+    const branchRaw = useSelector(selectBranch);
+    const branch    = Array.isArray(branchRaw) ? (branchRaw[0] || 'chromepet') : (branchRaw || 'chromepet');
     const date      = useSelector(selectDate);
     const todayStr  = today();
 
@@ -29,7 +30,7 @@ export const QuickActions = ({ onGenerateMIS, onUpload }) => {
         setExporting(type);
         setShowExport(false);
         try {
-            const branchShort = branch?.slice(0, 3).toUpperCase() || 'RPT';
+            const branchShort = (typeof branch === 'string' ? branch : 'RPT').slice(0, 3).toUpperCase() || 'RPT';
             await triggerDownload(fn, `MIS-${branchShort}-${date}.${ext}`);
         } catch {
             // silent
@@ -43,7 +44,7 @@ export const QuickActions = ({ onGenerateMIS, onUpload }) => {
         setExporting('brm');
         setShowBrm(false);
         try {
-            const branchShort = branch?.slice(0, 3).toUpperCase() || 'RPT';
+            const branchShort = (typeof branch === 'string' ? branch : 'RPT').slice(0, 3).toUpperCase() || 'RPT';
             await triggerDownload(
                 () => misApi.exportBrm(branch, brmFrom, brmTo),
                 `BRM-${branchShort}-${brmFrom}-${brmTo}.xlsx`

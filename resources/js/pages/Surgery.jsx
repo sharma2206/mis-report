@@ -152,15 +152,15 @@ export default function SurgeryDashboard() {
     const enabled = !!(p.branch && p.from && p.to);
 
     const kpiQ  = useQuery({ queryKey: ['sx-kpis',  p], queryFn: () => surgeryAnalyticsApi.kpis(p).then(r => r.data.data),  enabled, staleTime: 300000 });
-    const distQ = useQuery({ queryKey: ['sx-dist',  p], queryFn: () => surgeryAnalyticsApi.distribution(p).then(r => r.data.data), enabled, staleTime: 300000, enabled: enabled && activeTab === 'overview' });
-    const trendQ= useQuery({ queryKey: ['sx-trend', p], queryFn: () => surgeryAnalyticsApi.trend(p).then(r => r.data.data), enabled, staleTime: 300000, enabled: enabled && activeTab === 'overview' });
-    const insQ  = useQuery({ queryKey: ['sx-ins',   p], queryFn: () => surgeryAnalyticsApi.insights(p).then(r => r.data.data), enabled, staleTime: 300000, enabled: enabled && activeTab === 'overview' });
-    const surgQ = useQuery({ queryKey: ['sx-surg',  p], queryFn: () => surgeryAnalyticsApi.surgeonPerformance(p).then(r => r.data.data), enabled, staleTime: 300000, enabled: enabled && activeTab === 'surgeons' });
-    const otQ   = useQuery({ queryKey: ['sx-ot',    p], queryFn: () => surgeryAnalyticsApi.otDashboard(p).then(r => r.data.data), enabled, staleTime: 300000, enabled: enabled && activeTab === 'ot' });
-    const anaQ  = useQuery({ queryKey: ['sx-ana',   p], queryFn: () => surgeryAnalyticsApi.anaesthesia(p).then(r => r.data.data), enabled, staleTime: 300000, enabled: enabled && activeTab === 'anaes' });
-    const patQ  = useQuery({ queryKey: ['sx-pat',   p], queryFn: () => surgeryAnalyticsApi.patientProfile(p).then(r => r.data.data), enabled, staleTime: 300000, enabled: enabled && activeTab === 'patient' });
-    const qualQ = useQuery({ queryKey: ['sx-qual',  p], queryFn: () => surgeryAnalyticsApi.quality(p).then(r => r.data.data), enabled, staleTime: 300000, enabled: enabled && activeTab === 'patient' });
-    const payQ  = useQuery({ queryKey: ['sx-pay',   p], queryFn: () => surgeryAnalyticsApi.payer(p).then(r => r.data.data), enabled, staleTime: 300000, enabled: enabled && activeTab === 'payer' });
+    const distQ = useQuery({ queryKey: ['sx-dist',  p], queryFn: () => surgeryAnalyticsApi.distribution(p).then(r => r.data.data), staleTime: 300000, enabled: enabled && activeTab === 'overview' });
+    const trendQ= useQuery({ queryKey: ['sx-trend', p], queryFn: () => surgeryAnalyticsApi.trend(p).then(r => r.data.data), staleTime: 300000, enabled: enabled && activeTab === 'overview' });
+    const insQ  = useQuery({ queryKey: ['sx-ins',   p], queryFn: () => surgeryAnalyticsApi.insights(p).then(r => r.data.data), staleTime: 300000, enabled: enabled && activeTab === 'overview' });
+    const surgQ = useQuery({ queryKey: ['sx-surg',  p], queryFn: () => surgeryAnalyticsApi.surgeonPerformance(p).then(r => r.data.data), staleTime: 300000, enabled: enabled && activeTab === 'surgeons' });
+    const otQ   = useQuery({ queryKey: ['sx-ot',    p], queryFn: () => surgeryAnalyticsApi.otDashboard(p).then(r => r.data.data), staleTime: 300000, enabled: enabled && activeTab === 'ot' });
+    const anaQ  = useQuery({ queryKey: ['sx-ana',   p], queryFn: () => surgeryAnalyticsApi.anaesthesia(p).then(r => r.data.data), staleTime: 300000, enabled: enabled && activeTab === 'anaes' });
+    const patQ  = useQuery({ queryKey: ['sx-pat',   p], queryFn: () => surgeryAnalyticsApi.patientProfile(p).then(r => r.data.data), staleTime: 300000, enabled: enabled && activeTab === 'patient' });
+    const qualQ = useQuery({ queryKey: ['sx-qual',  p], queryFn: () => surgeryAnalyticsApi.quality(p).then(r => r.data.data), staleTime: 300000, enabled: enabled && activeTab === 'patient' });
+    const payQ  = useQuery({ queryKey: ['sx-pay',   p], queryFn: () => surgeryAnalyticsApi.payer(p).then(r => r.data.data), staleTime: 300000, enabled: enabled && activeTab === 'payer' });
 
     if (!token) return <Navigate to="/login" replace />;
 

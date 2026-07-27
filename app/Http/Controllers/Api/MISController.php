@@ -7,6 +7,7 @@ use App\Http\Requests\MISRequest;
 use App\Http\Resources\ImportLogResource;
 use App\Http\Requests\MISUploadRequest;
 use App\Http\Requests\MISUploadSingleRequest;
+use App\Models\AuditLog;
 use App\Services\CsvProcessingService;
 use App\Services\MISService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -71,12 +72,18 @@ class MISController extends Controller
 
             // Record import log
             $filesUploaded = array_keys(array_filter($sources));
-            $totalImported = array_sum(array_map(fn($v) => is_array($v) ? ($v['count'] ?? $v['imported'] ?? 0) : (int)$v,
-                array_diff_key($imported, ['sources' => null])));
-            $totalSkipped  = array_sum(array_map(fn($v) => is_array($v) ? ($v['skipped'] ?? 0) : 0,
-                array_diff_key($imported, ['sources' => null])));
-            $totalErrors   = array_sum(array_map(fn($v) => is_array($v) ? ($v['errors'] ?? 0) : 0,
-                array_diff_key($imported, ['sources' => null])));
+            $totalImported = array_sum(array_map(
+                fn($v) => is_array($v) ? ($v['count'] ?? $v['imported'] ?? 0) : (int)$v,
+                array_diff_key($imported, ['sources' => null])
+            ));
+            $totalSkipped  = array_sum(array_map(
+                fn($v) => is_array($v) ? ($v['skipped'] ?? 0) : 0,
+                array_diff_key($imported, ['sources' => null])
+            ));
+            $totalErrors   = array_sum(array_map(
+                fn($v) => is_array($v) ? ($v['errors'] ?? 0) : 0,
+                array_diff_key($imported, ['sources' => null])
+            ));
             \App\Models\ImportLog::create([
                 'branch'         => $branch,
                 'report_date'    => $date,
@@ -119,7 +126,8 @@ class MISController extends Controller
 
         try {
             $imported = $this->csvService->process(
-                $branchEnum, $date,
+                $branchEnum,
+                $date,
                 $request->file('bill_file'),
                 $request->file('cashier_file'),
                 $request->file('package_file'),
@@ -132,21 +140,35 @@ class MISController extends Controller
             $report  = $this->misService->generateMIS($branchEnum, $date, $sources);
 
             // Determine which single type was uploaded
-            $typeMap = ['bill_items' => 'bill_file', 'cashier' => 'cashier_file',
-                        'package' => 'package_file', 'er' => 'er_file',
-                        'ip' => 'ip_file', 'surgery' => 'surgery_file'];
+            $typeMap = [
+                'bill_items' => 'bill_file',
+                'cashier' => 'cashier_file',
+                'package' => 'package_file',
+                'er' => 'er_file',
+                'ip' => 'ip_file',
+                'surgery' => 'surgery_file'
+            ];
             $uploadedType = null;
             foreach ($typeMap as $type => $field) {
-                if ($request->hasFile($field)) { $uploadedType = $type; break; }
+                if ($request->hasFile($field)) {
+                    $uploadedType = $type;
+                    break;
+                }
             }
 
             $filesUploaded = array_keys(array_filter($sources));
-            $totalImported = array_sum(array_map(fn($v) => is_array($v) ? ($v['count'] ?? $v['imported'] ?? 0) : (int)$v,
-                array_diff_key($imported, ['sources' => null])));
-            $totalSkipped  = array_sum(array_map(fn($v) => is_array($v) ? ($v['skipped'] ?? 0) : 0,
-                array_diff_key($imported, ['sources' => null])));
-            $totalErrors   = array_sum(array_map(fn($v) => is_array($v) ? ($v['errors'] ?? 0) : 0,
-                array_diff_key($imported, ['sources' => null])));
+            $totalImported = array_sum(array_map(
+                fn($v) => is_array($v) ? ($v['count'] ?? $v['imported'] ?? 0) : (int)$v,
+                array_diff_key($imported, ['sources' => null])
+            ));
+            $totalSkipped  = array_sum(array_map(
+                fn($v) => is_array($v) ? ($v['skipped'] ?? 0) : 0,
+                array_diff_key($imported, ['sources' => null])
+            ));
+            $totalErrors   = array_sum(array_map(
+                fn($v) => is_array($v) ? ($v['errors'] ?? 0) : 0,
+                array_diff_key($imported, ['sources' => null])
+            ));
             $durationMs    = (int) round(microtime(true) * 1000) - $startMs;
 
             // Parse period from request (sent by frontend after CSV scanning)
@@ -170,7 +192,9 @@ class MISController extends Controller
             ]);
 
             \App\Models\AuditLog::record('upload_single', [
-                'branch' => $branch, 'date' => $date, 'type' => $uploadedType,
+                'branch' => $branch,
+                'date' => $date,
+                'type' => $uploadedType,
                 'imported' => array_diff_key($imported, ['sources' => null]),
             ], $branch, $date, $request);
 
@@ -200,7 +224,7 @@ class MISController extends Controller
                 ->whereNull('rolled_back_at')
                 ->where(function ($q) use ($type) {
                     $q->where('report_type', $type)
-                      ->orWhereJsonContains('files_uploaded', $type);
+                        ->orWhereJsonContains('files_uploaded', $type);
                 })
                 ->latest()
                 ->first();
@@ -328,7 +352,7 @@ class MISController extends Controller
 
             $data = $this->misService->generateMIS($request->branch(), $request->reportDate());
 
-            \App\Models\AuditLog::record('report_viewed', ['branch' => $branch, 'date' => $date], $branch, $date, $request);
+            AuditLog::record('report_viewed', ['branch' => $branch, 'date' => $date], $branch, $date, $request);
 
             return response()->json([
                 'success' => true,
@@ -497,7 +521,9 @@ class MISController extends Controller
             $filename    = "BRM-{$branchShort}-{$fromDt->format('dMY')}-{$toDt->format('dMY')}";
 
             \App\Models\AuditLog::record('export_brm', [
-                'branch' => $branch, 'from' => $from, 'to' => $to,
+                'branch' => $branch,
+                'from' => $from,
+                'to' => $to,
             ], $branch, $from, $request);
 
             return \Maatwebsite\Excel\Facades\Excel::download(

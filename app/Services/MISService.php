@@ -3,8 +3,6 @@
 namespace App\Services;
 
 use App\Enums\Branch;
-use App\Models\BillItem;
-use App\Models\CashierCollection;
 use App\Models\ErAdmission;
 use App\Models\IpAdmission;
 use App\Models\MisReport;

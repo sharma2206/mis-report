@@ -5,12 +5,20 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class AuditLog extends Model
 {
     protected $fillable = [
-        'user_id', 'event', 'auditable_type', 'auditable_id',
-        'branch', 'report_date', 'payload', 'ip_address', 'user_agent',
+        'user_id',
+        'event',
+        'auditable_type',
+        'auditable_id',
+        'branch',
+        'report_date',
+        'payload',
+        'ip_address',
+        'user_agent',
     ];
 
     protected $casts = ['payload' => 'array'];
@@ -28,7 +36,7 @@ class AuditLog extends Model
         ?Request $request = null
     ): self {
         return static::create([
-            'user_id'      => auth()->id(),
+            'user_id'      => Auth::id(),
             'event'        => $event,
             'branch'       => $branch,
             'report_date'  => $date,

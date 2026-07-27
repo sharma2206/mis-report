@@ -21,7 +21,7 @@ class MisRepository implements MisRepositoryInterface
             SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as ip_total,
             SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' THEN net_amount ELSE 0 END) as er_total
         ";
-        $base = BillItem::where('branch', $branch->value)->whereIn('status', ['Sale', 'Active', 'Refund']);
+        $base = BillItem::where('branch', $branch->value)->whereIn('status', ['Sale', 'Refund']);
         $ftd  = $this->period(clone $base, $date, 'ftd')->selectRaw($sql)->first();
         $mtd  = $this->period(clone $base, $date, 'mtd')->selectRaw($sql)->first();
 

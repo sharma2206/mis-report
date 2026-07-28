@@ -32,7 +32,14 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
             }
 
             $amount    = (float) $this->getValue($row, ['amount', 'amt', 'total_amount']);
-            $discount  = (float) $this->getValue($row, ['discount_amount', 'discount', 'disc'], 0);
+            $discount = (float) $this->getValue($row, [
+                'discount_amount',
+                'discount amount',
+                'discount amt',
+                'discount_amt',
+                'discount',
+                'disc'
+            ], 0);
 
             $netAmountRaw = $this->getValue($row, ['net_amount', 'net amount', 'netamount', 'net-amount'], null);
             if ($netAmountRaw !== null && trim((string) $netAmountRaw) !== '') {

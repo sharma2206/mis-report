@@ -126,8 +126,8 @@ class DashboardKpiService
 
         return ErAdmission::where('branch', $branch->value)
             ->applyFilters($filters)
-            ->whereDate('admission_date', '>=', $from)
-            ->whereDate('admission_date', '<=', $to)
+            ->whereDate('discharge_date', '>=', $from)
+            ->whereDate('discharge_date', '<=', $to)
             ->count();
     }
 

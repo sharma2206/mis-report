@@ -10,6 +10,7 @@ use App\Models\PackageConsumption;
 use App\Repositories\Contracts\MisRepositoryInterface;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Log;
 
 class MisRepository implements MisRepositoryInterface
 {
@@ -143,14 +144,14 @@ class MisRepository implements MisRepositoryInterface
     {
         // Count distinct UHID (patient visits) from OP bill rows — avoids dependency on
         // the exact service_type label KareXpert exports for consultations.
-        $opBase = BillItem::where('branch', $branch->value)
+        $opBase = BillItem::query()
+            ->where('branch', $branch->value)
             ->where('patient_type', 'OP')
-            ->where('service_type', 'OP Consultation')
-            ->whereNotNull('uhid');
+            ->where('service_type', 'OP Consultation');
 
         return [
-            'ftd_op' => (int) $this->period(clone $opBase, $date, 'ftd')->count('uhid'),
-            'mtd_op' => (int) $this->period(clone $opBase, $date, 'mtd')->count('uhid'),
+            'ftd_op' => (int) $this->period(clone $opBase, $date, 'ftd')->sum('quantity'),
+            'mtd_op' => (int) $this->period(clone $opBase, $date, 'mtd')->sum('quantity'),
         ];
     }
 
@@ -168,10 +169,10 @@ class MisRepository implements MisRepositoryInterface
     protected function period(Builder $q, string $date, string $period): Builder
     {
         $col = match (get_class($q->getModel())) {
-            BillItem::class          => 'bill_date',
-            CashierCollection::class => 'collection_date',
-            PackageConsumption::class => 'consumption_date',
-            default                  => 'created_at',
+            BillItem::class             => 'bill_date',
+            CashierCollection::class    => 'collection_date',
+            PackageConsumption::class   => 'consumption_date',
+            default                     => 'created_at',
         };
 
         if ($period === 'ftd') {

@@ -145,12 +145,12 @@ class MisRepository implements MisRepositoryInterface
         // the exact service_type label KareXpert exports for consultations.
         $opBase = BillItem::where('branch', $branch->value)
             ->where('patient_type', 'OP')
-            ->whereIn('status', ['Sale', 'Active'])
+            ->where('service_type', 'OP Consultation')
             ->whereNotNull('uhid');
 
         return [
-            'ftd_op' => (int) $this->period(clone $opBase, $date, 'ftd')->distinct('uhid')->count('uhid'),
-            'mtd_op' => (int) $this->period(clone $opBase, $date, 'mtd')->distinct('uhid')->count('uhid'),
+            'ftd_op' => (int) $this->period(clone $opBase, $date, 'ftd')->count('uhid'),
+            'mtd_op' => (int) $this->period(clone $opBase, $date, 'mtd')->count('uhid'),
         ];
     }
 
@@ -170,7 +170,7 @@ class MisRepository implements MisRepositoryInterface
         $col = match (get_class($q->getModel())) {
             BillItem::class          => 'bill_date',
             CashierCollection::class => 'collection_date',
-            PackageConsumption::class=> 'consumption_date',
+            PackageConsumption::class => 'consumption_date',
             default                  => 'created_at',
         };
 

@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\Branch;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\MISRequest;
 use App\Http\Resources\ImportLogResource;
 use App\Http\Requests\MISUploadRequest;
 use App\Http\Requests\MISUploadSingleRequest;
 use App\Models\AuditLog;
+use App\Models\ImportLog;
+use App\Models\MisReport;
+use App\Repositories\CachedMisRepository;
 use App\Services\CsvProcessingService;
 use App\Services\MISService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -63,7 +67,7 @@ class MISController extends Controller
             $sources = $imported['sources'] ?? [];
             $report  = $this->misService->generateMIS($branchEnum, $date, $sources);
 
-            \App\Models\AuditLog::record('upload', [
+            AuditLog::record('upload', [
                 'branch'   => $branch,
                 'date'     => $date,
                 'imported' => array_diff_key($imported, ['sources' => null]),
@@ -84,7 +88,7 @@ class MISController extends Controller
                 fn($v) => is_array($v) ? ($v['errors'] ?? 0) : 0,
                 array_diff_key($imported, ['sources' => null])
             ));
-            \App\Models\ImportLog::create([
+            ImportLog::create([
                 'branch'         => $branch,
                 'report_date'    => $date,
                 'uploaded_by'    => $request->user()?->name ?? 'system',
@@ -175,7 +179,7 @@ class MISController extends Controller
             $periodFrom = $request->input('period_from');
             $periodTo   = $request->input('period_to');
 
-            \App\Models\ImportLog::create([
+            ImportLog::create([
                 'branch'         => $branch,
                 'report_type'    => $uploadedType,
                 'report_date'    => $date,
@@ -191,7 +195,7 @@ class MISController extends Controller
                 'status'         => $totalErrors > 0 ? 'partial' : 'success',
             ]);
 
-            \App\Models\AuditLog::record('upload_single', [
+            AuditLog::record('upload_single', [
                 'branch' => $branch,
                 'date' => $date,
                 'type' => $uploadedType,
@@ -220,7 +224,7 @@ class MISController extends Controller
         $result = [];
 
         foreach ($types as $type) {
-            $log = \App\Models\ImportLog::where('branch', $branch)
+            $log = ImportLog::where('branch', $branch)
                 ->whereNull('rolled_back_at')
                 ->where(function ($q) use ($type) {
                     $q->where('report_type', $type)
@@ -265,7 +269,7 @@ class MISController extends Controller
         $branch = $request->input('branch');
         $limit  = min((int) $request->input('limit', 20), 100);
 
-        $query = \App\Models\ImportLog::orderByDesc('created_at');
+        $query = ImportLog::orderByDesc('created_at');
         if ($branch) $query->where('branch', $branch);
 
         $logs = $query->paginate($limit);
@@ -288,7 +292,7 @@ class MISController extends Controller
      */
     public function rollbackImport(\Illuminate\Http\Request $request, int $id): JsonResponse
     {
-        $log = \App\Models\ImportLog::findOrFail($id);
+        $log = ImportLog::findOrFail($id);
 
         // Prevent double-rollback
         if ($log->rolled_back_at) {
@@ -301,7 +305,7 @@ class MISController extends Controller
         }
 
         try {
-            $branchEnum = \App\Enums\Branch::from($log->branch);
+            $branchEnum = Branch::from($log->branch);
             $date       = $log->report_date->toDateString();
 
             // Delete via the single canonical method — do NOT duplicate this logic here
@@ -309,11 +313,11 @@ class MISController extends Controller
 
             // Remove the materialized MIS snapshot so the dashboard does not
             // serve aggregated figures from data that no longer exists
-            \App\Models\MisReport::where('branch', $log->branch)
+            MisReport::where('branch', $log->branch)
                 ->whereDate('report_date', $date)
                 ->delete();
 
-            \App\Repositories\CachedMisRepository::bustFor($log->branch, $date);
+            CachedMisRepository::bustFor($log->branch, $date);
 
             // Mark log
             $log->update([
@@ -322,7 +326,7 @@ class MISController extends Controller
                 'status'         => 'rolled_back',
             ]);
 
-            \App\Models\AuditLog::record('import_rollback', [
+            AuditLog::record('import_rollback', [
                 'import_log_id' => $id,
                 'branch'        => $log->branch,
                 'date'          => $date,
@@ -383,7 +387,7 @@ class MISController extends Controller
 
             $filename = $this->formatReportFilename($request->branch(), $request->reportDate());
 
-            \App\Models\AuditLog::record('export_excel', ['branch' => $branch, 'date' => $date], $branch, $date, $request);
+            AuditLog::record('export_excel', ['branch' => $branch, 'date' => $date], $branch, $date, $request);
 
             return \Maatwebsite\Excel\Facades\Excel::download(
                 new \App\Exports\MISExport($data),
@@ -417,7 +421,7 @@ class MISController extends Controller
 
             $filename = $this->formatReportFilename($request->branch(), $request->reportDate());
 
-            \App\Models\AuditLog::record('export_pdf', ['branch' => $branch, 'date' => $date], $branch, $date, $request);
+            AuditLog::record('export_pdf', ['branch' => $branch, 'date' => $date], $branch, $date, $request);
 
             return $pdf->download("{$filename}.pdf");
         } catch (Exception $e) {
@@ -437,7 +441,7 @@ class MISController extends Controller
             $request->merge(['branch' => $branch, 'date' => $date]);
             $data     = $this->misService->generateMIS($request->branch(), $request->reportDate());
             $filename = $this->formatReportFilename($request->branch(), $request->reportDate(), 'MIS');
-            \App\Models\AuditLog::record('export_csv', ['branch' => $branch, 'date' => $date], $branch, $date, $request);
+            AuditLog::record('export_csv', ['branch' => $branch, 'date' => $date], $branch, $date, $request);
             return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\MisCsvExport($data), "{$filename}.csv", \Maatwebsite\Excel\Excel::CSV);
         } catch (Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
@@ -456,7 +460,7 @@ class MISController extends Controller
             $data = $this->misService->generateMIS($request->branch(), $request->reportDate());
 
             \App\Jobs\EmailReportJob::dispatch($data, $request->input('to'), $branch, $date);
-            \App\Models\AuditLog::record('email_queued', ['to' => $request->input('to'), 'branch' => $branch, 'date' => $date], $branch, $date, $request);
+            AuditLog::record('email_queued', ['to' => $request->input('to'), 'branch' => $branch, 'date' => $date], $branch, $date, $request);
 
             return response()->json(['success' => true, 'message' => 'Report email queued successfully.']);
         } catch (Exception $e) {
@@ -520,7 +524,7 @@ class MISController extends Controller
             $branchShort = strtoupper(substr($branch, 0, 3));
             $filename    = "BRM-{$branchShort}-{$fromDt->format('dMY')}-{$toDt->format('dMY')}";
 
-            \App\Models\AuditLog::record('export_brm', [
+            AuditLog::record('export_brm', [
                 'branch' => $branch,
                 'from' => $from,
                 'to' => $to,

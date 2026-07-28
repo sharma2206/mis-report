@@ -52,15 +52,17 @@ class MisRepository implements MisRepositoryInterface
 
     public function getDiscountData(Branch $branch, string $date): array
     {
+        // Discount 99% (partial) uses net_amount
+        // Discount 100% (full)   uses amount
         $sql = "
-            SUM(CASE WHEN service_type = 'Pharmacy' AND net_amount != 0 THEN COALESCE(NULLIF(amount, 0), 0) ELSE 0 END) as partial_ph,
-            SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' AND net_amount != 0 THEN COALESCE(NULLIF(amount, 0), 0) ELSE 0 END) as partial_op,
-            SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' AND net_amount != 0 THEN COALESCE(NULLIF(amount, 0), 0) ELSE 0 END) as partial_ip,
-            SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' AND net_amount != 0 THEN COALESCE(NULLIF(amount, 0), 0) ELSE 0 END) as partial_er,
-            SUM(CASE WHEN service_type = 'Pharmacy' AND net_amount = 0 THEN COALESCE(NULLIF(amount, 0), 0) ELSE 0 END) as full_ph,
-            SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' AND net_amount = 0 THEN COALESCE(NULLIF(amount, 0), 0) ELSE 0 END) as full_op,
-            SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' AND net_amount = 0 THEN COALESCE(NULLIF(amount, 0), 0) ELSE 0 END) as full_ip,
-            SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' AND net_amount = 0 THEN COALESCE(NULLIF(amount, 0), 0) ELSE 0 END) as full_er
+            SUM(CASE WHEN service_type = 'Pharmacy' AND net_amount != 0 THEN COALESCE(net_amount, 0) ELSE 0 END) as partial_ph,
+            SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' AND net_amount != 0 THEN COALESCE(net_amount, 0) ELSE 0 END) as partial_op,
+            SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' AND net_amount != 0 THEN COALESCE(net_amount, 0) ELSE 0 END) as partial_ip,
+            SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' AND net_amount != 0 THEN COALESCE(net_amount, 0) ELSE 0 END) as partial_er,
+            SUM(CASE WHEN service_type = 'Pharmacy' AND net_amount = 0 THEN COALESCE(amount, 0) ELSE 0 END) as full_ph,
+            SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' AND net_amount = 0 THEN COALESCE(amount, 0) ELSE 0 END) as full_op,
+            SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' AND net_amount = 0 THEN COALESCE(amount, 0) ELSE 0 END) as full_ip,
+            SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' AND net_amount = 0 THEN COALESCE(amount, 0) ELSE 0 END) as full_er
         ";
         $base = BillItem::where('branch', $branch->value)->whereIn('status', ['Sale', 'Active', 'Refund']);
         $ftd  = $this->period(clone $base, $date, 'ftd')->selectRaw($sql)->first();

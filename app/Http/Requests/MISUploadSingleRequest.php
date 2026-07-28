@@ -13,7 +13,10 @@ use Illuminate\Validation\Validator;
  */
 class MISUploadSingleRequest extends FormRequest
 {
-    public function authorize(): bool { return true; }
+    public function authorize(): bool
+    {
+        return true;
+    }
 
     protected function prepareForValidation(): void
     {
@@ -25,7 +28,7 @@ class MISUploadSingleRequest extends FormRequest
     public function rules(): array
     {
         $branches = implode(',', array_column(Branch::cases(), 'value'));
-        $csv      = ['nullable', 'file', 'max:20480', 'mimetypes:text/plain,text/csv,application/csv,application/octet-stream'];
+        $csv      = ['nullable', 'file', 'max:30720', 'mimetypes:text/plain,text/csv,application/csv,application/octet-stream'];
 
         return [
             'branch'       => "required|string|in:{$branches}",
@@ -42,7 +45,7 @@ class MISUploadSingleRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $v) {
-            $files = ['bill_file','cashier_file','package_file','er_file','ip_file','surgery_file'];
+            $files = ['bill_file', 'cashier_file', 'package_file', 'er_file', 'ip_file', 'surgery_file'];
             $hasAny = collect($files)->some(fn($f) => $this->hasFile($f));
             if (! $hasAny) {
                 $v->errors()->add('file', 'At least one CSV file must be uploaded.');

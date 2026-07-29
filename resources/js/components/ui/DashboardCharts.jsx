@@ -176,7 +176,7 @@ export const PayerChartE = ({ data, isLoading, height = 180 }) => {
 
     const rows = data.slice(0, 8).map((d, i) => ({
         name:  d.payer_type || d.payer_name || d.payer || 'Unknown',
-        value: toLakhs(d.amount || d.total_amount),
+        value: toLakhs(d.revenue),
         itemStyle: { color: CHART_PALETTE[i % CHART_PALETTE.length] },
     }));
 

@@ -134,10 +134,10 @@ class MisRepository implements MisRepositoryInterface
     public function getRefundData(Branch $branch, string $date): array
     {
         $sql = "
-            SUM(CASE WHEN service_type = 'Pharmacy' THEN COALESCE(NULLIF(ABS(amount), 0), 0) ELSE 0 END) as ph_total,
-            SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' THEN COALESCE(NULLIF(ABS(amount), 0), 0) ELSE 0 END) as op_total,
-            SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' THEN COALESCE(NULLIF(ABS(amount), 0), 0) ELSE 0 END) as ip_total,
-            SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' THEN COALESCE(NULLIF(ABS(amount), 0), 0) ELSE 0 END) as er_total
+            SUM(CASE WHEN service_type = 'Pharmacy' THEN COALESCE(NULLIF(ABS(net_amount), 0), 0) ELSE 0 END) as ph_total,
+            SUM(CASE WHEN patient_type = 'OP' AND service_type != 'Pharmacy' THEN COALESCE(NULLIF(ABS(net_amount), 0), 0) ELSE 0 END) as op_total,
+            SUM(CASE WHEN patient_type = 'IP' AND service_type != 'Pharmacy' THEN COALESCE(NULLIF(ABS(net_amount), 0), 0) ELSE 0 END) as ip_total,
+            SUM(CASE WHEN patient_type = 'ER' AND service_type != 'Pharmacy' THEN COALESCE(NULLIF(ABS(net_amount), 0), 0) ELSE 0 END) as er_total
         ";
         $base = BillItem::where('branch', $branch->value)->where('status', 'Refund');
         $ftd  = $this->period(clone $base, $date, 'ftd')->selectRaw($sql)->first();

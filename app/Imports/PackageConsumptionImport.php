@@ -6,6 +6,7 @@ use App\Enums\Branch;
 use App\Models\PackageConsumption;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
@@ -25,7 +26,7 @@ class PackageConsumptionImport implements ToCollection, WithHeadingRow, WithChun
 
         foreach ($rows as $index => $row) {
             if ($index === 0 && $this->rowCount === 0) {
-                \Log::info('PackageConsumptionImport first row keys:', array_keys($row->toArray()));
+                Log::info('PackageConsumptionImport first row keys:', array_keys($row->toArray()));
             }
 
             $serviceType = strtolower(trim($row['package_service_type'] ?? ''));
@@ -36,9 +37,6 @@ class PackageConsumptionImport implements ToCollection, WithHeadingRow, WithChun
             $rawAmount = str_replace(',', '', $row['service_item_amount'] ?? '0');
             $amount    = (float) trim($rawAmount);
 
-            if ($amount <= 0) {
-                continue;
-            }
 
             // Package amount is the overall package price (used for adjustment calculation)
             $packageAmountRaw = str_replace(',', '', $row['package_amount'] ?? '0');
@@ -94,8 +92,11 @@ class PackageConsumptionImport implements ToCollection, WithHeadingRow, WithChun
         try {
             return Carbon::createFromFormat('d/m/Y, h:i a', trim($value))->format('Y-m-d');
         } catch (\Exception) {
-            try { return Carbon::parse(trim($value))->format('Y-m-d'); }
-            catch (\Exception) { return null; }
+            try {
+                return Carbon::parse(trim($value))->format('Y-m-d');
+            } catch (\Exception) {
+                return null;
+            }
         }
     }
 

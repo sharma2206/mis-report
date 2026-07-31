@@ -57,7 +57,7 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
 
             $insert[] = [
                 'branch'                   => $this->branch->value,
-                'bill_date'                => $this->parseDateOnly($this->getValue($row, ['bill_date_time', 'bill_date'], null)) ?? $this->date,
+                'bill_date'                => $this->parseDateOnly($this->getValue($row, ['bill_refund_creation_date_time'], null)) ?? $this->date,
                 'bill_no'                  => $billNo ?: null,
                 'uhid'                     => $uhid ?: null,
                 'patient_id'               => $uhid ?: trim($this->getValue($row, ['patient_id'], '')),

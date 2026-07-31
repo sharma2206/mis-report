@@ -5,6 +5,7 @@ namespace App\Imports;
 use App\Enums\Branch;
 use App\Models\PackageConsumption;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
@@ -25,8 +26,8 @@ class PackageConsumptionImport implements ToCollection, WithHeadingRow, WithChun
         foreach ($rows as $index => $row) {
             // Debug first row INSIDE the loop
             if ($index === 0 && $this->rowCount === 0) {
-                \Log::info('First row keys:', array_keys($row->toArray()));
-                \Log::info('First row data:', $row->toArray());
+                Log::info('First row keys:', array_keys($row->toArray()));
+                Log::info('First row data:', $row->toArray());
             }
 
             $serviceType = strtolower(trim($row['package_service_type'] ?? ''));
@@ -37,10 +38,6 @@ class PackageConsumptionImport implements ToCollection, WithHeadingRow, WithChun
             // Clean and convert amount
             $amount = str_replace(',', '', $row['service_item_amount'] ?? '0');
             $amount = (float) trim($amount);
-
-            if ($amount <= 0) {
-                continue;
-            }
 
             $insert[] = [
                 'branch'           => $this->branch->value,

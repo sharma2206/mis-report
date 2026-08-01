@@ -22,9 +22,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { RankedList, PayerChips } from '../components/ui/RankedList';
 import { KPIStrip } from '../components/ui/KPIStrip';
 import { QuickActions } from '../components/ui/QuickActions';
-import { SmartAlerts } from '../components/ui/SmartAlerts';
 import { AIInsightsPanel } from '../components/ui/AIInsightsPanel';
-import { GlobalFilterBar } from '../components/ui/GlobalFilterBar';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import EChart from '../components/ui/EChart';
 import {
@@ -759,7 +757,6 @@ export default function Dashboard() {
                 aria-labelledby={`tab-${tab}`}
                 className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4"
             >
-                {!isLoading && <SmartAlerts mis={mis} kpi={kpi} />}
 
                 <AnimatePresence mode="wait">
                     {isError ? (

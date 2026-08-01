@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { Section } from '../components/ui/Section';
+import { PageDateBar } from '../components/ui/PageDateBar';
 import { selectToken } from '../store/authSlice';
 import { selectBranch, selectDate, selectGlobalFrom, selectGlobalTo } from '../store/reportSlice';
 import { operationalApi } from '../services/api';
@@ -950,8 +951,11 @@ export default function Operational() {
     const date   = useSelector(selectDate);
 
     const [activeTab, setActiveTab] = useState('overview');
-    const from = useSelector(selectGlobalFrom);
-    const to   = useSelector(selectGlobalTo);
+    const gFrom = useSelector(selectGlobalFrom);
+    const gTo   = useSelector(selectGlobalTo);
+
+    const [from, setFrom] = useState(gFrom);
+    const [to,   setTo]   = useState(gTo);
 
     if (!token) return <Navigate to="/login" replace />;
 
@@ -1050,7 +1054,13 @@ export default function Operational() {
             </div>
         }>
             <main className="flex-1 overflow-y-auto flex flex-col min-h-0">
-
+                <PageDateBar
+                    from={from} to={to}
+                    accentColor="emerald"
+                    onRange={({ from: f, to: t }) => { setFrom(f); setTo(t); }}
+                    onRefresh={() => { }}
+                    isRefreshing={false}
+                />
                 {/* Tab navigation */}
                 <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
                     <div className="flex items-center gap-0.5 px-4 overflow-x-auto scrollbar-hide">

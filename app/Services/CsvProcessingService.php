@@ -189,9 +189,10 @@ class CsvProcessingService
      *   1. Validate the CSV has at least 1 data row.
      *   2. Acquire a MySQL advisory lock (prevents concurrent re-upload collision).
      *   3. BEGIN TRANSACTION
-     *       a. Soft-delete rows WHERE branch=$branch AND DATE(date_col)=$date (exact match).
+     *       a. Force-delete (permanent) rows WHERE branch=$branch AND DATE(date_col)=$date.
+     *          forceDelete() bypasses SoftDeletes so rows are physically removed.
      *       b. Import rows via Laravel Excel (chunk-read + batch-insert).
-     *   4. COMMIT (or ROLLBACK on exception — previous data for that date is restored).
+     *   4. COMMIT (or ROLLBACK on exception — no data is lost on failure).
      *   5. RELEASE advisory lock.
      *   6. Write one ImportLog row with full statistics.
      *
@@ -249,11 +250,12 @@ class CsvProcessingService
                 DB::transaction(function () use (
                     $branch, $date, $file, $model, $dateCol, $importClass, &$log
                 ) {
-                    // Soft-delete ONLY rows matching exact branch + exact billing date.
-                    // DO NOT derive a date range from CSV content.
+                    // Force-delete (permanent) rows matching exact branch + exact billing date.
+                    // Using forceDelete() instead of delete() so rows are physically removed
+                    // and can never appear as ghost/duplicate entries in queries.
                     $deleted = $model::where('branch', $branch->value)
                         ->whereDate($dateCol, $date)
-                        ->delete();   // SoftDeletes trait → sets deleted_at
+                        ->forceDelete();   // hard delete — bypasses SoftDeletes
 
                     $log['deleted'] = (int) $deleted;
 
@@ -329,21 +331,22 @@ class CsvProcessingService
     }
 
     /**
-     * Delete rows for a specific date only.
+     * Force-delete (permanent) rows for a specific date only.
      * Used by the rollback endpoint where no CSV is available to scan.
+     * forceDelete() bypasses SoftDeletes so rows are physically removed.
      */
     public function deleteForBranchDate(Branch $branch, string $date): void
     {
         $b = $branch->value;
 
-        BillItem::where('branch', $b)->whereDate('bill_date', $date)->delete();
-        CashierCollection::where('branch', $b)->whereDate('collection_date', $date)->delete();
-        ErAdmission::where('branch', $b)->whereDate('admission_date', $date)->delete();
-        IpAdmission::where('branch', $b)->whereDate('admission_date', $date)->delete();
-        Surgery::where('branch', $b)->whereDate('surgery_date', $date)->delete();
+        BillItem::where('branch', $b)->whereDate('bill_date', $date)->forceDelete();
+        CashierCollection::where('branch', $b)->whereDate('collection_date', $date)->forceDelete();
+        ErAdmission::where('branch', $b)->whereDate('admission_date', $date)->forceDelete();
+        IpAdmission::where('branch', $b)->whereDate('admission_date', $date)->forceDelete();
+        Surgery::where('branch', $b)->whereDate('surgery_date', $date)->forceDelete();
 
         if ($branch === Branch::CHROMEPET) {
-            PackageConsumption::where('branch', $b)->whereDate('consumption_date', $date)->delete();
+            PackageConsumption::where('branch', $b)->whereDate('consumption_date', $date)->forceDelete();
         }
     }
 

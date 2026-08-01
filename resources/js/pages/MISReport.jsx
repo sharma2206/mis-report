@@ -323,9 +323,9 @@ const TrendSection = ({ data, isLoading }) => {
 const SummaryMiniCards = ({ discount, refund, mri, isLoading }) => {
     if (isLoading) return <div className="grid grid-cols-3 gap-3"><div className="h-16 bg-slate-100 rounded-xl animate-pulse" /><div className="h-16 bg-slate-100 rounded-xl animate-pulse" /><div className="h-16 bg-slate-100 rounded-xl animate-pulse" /></div>;
     const cards = [
-        { label: 'Discount (FTD)', value: discount?.ftd?.total,  color: 'text-red-600',   bg: 'bg-red-50 border-red-100' },
-        { label: 'Refund (FTD)',   value: refund?.ftd?.total,    color: 'text-amber-600', bg: 'bg-amber-50 border-amber-100' },
-        { label: 'MRI / Scan',     value: mri?.ftd?.total,       color: 'text-violet-700',bg: 'bg-violet-50 border-violet-100' },
+        { label: 'Discount (FTD)', value: getTotal(discount?.ftd?.full),  color: 'text-red-600',   bg: 'bg-red-50 border-red-100' },
+        { label: 'Refund (FTD)',   value: getTotal(refund?.ftd),    color: 'text-amber-600', bg: 'bg-amber-50 border-amber-100' },
+        { label: 'MRI / Scan',     value: getTotal(mri?.ftd),       color: 'text-violet-700',bg: 'bg-violet-50 border-violet-100' },
     ];
     return (
         <div className="grid grid-cols-3 gap-3">
@@ -333,7 +333,7 @@ const SummaryMiniCards = ({ discount, refund, mri, isLoading }) => {
                 <div key={label} className={`border rounded-xl p-3 ${bg}`}>
                     <div className="text-[9px] font-700 uppercase tracking-wider text-slate-400 mb-1">{label}</div>
                     <div className={`text-[16px] font-800 tabular-nums ${color}`}>{fmtL(value)}</div>
-                    <div className="text-[10px] text-slate-400 tabular-nums mt-0.5">MTD {fmtL(value === discount?.ftd?.total ? discount?.mtd?.total : value === refund?.ftd?.total ? refund?.mtd?.total : mri?.mtd?.total)}</div>
+                    <div className="text-[10px] text-slate-400 tabular-nums mt-0.5">MTD {fmtL(value === getTotal(discount?.mtd?.full) ? discount?.mtd?.total : value === getTotal(refund?.mtd?.full) ? refund?.mtd?.total : mri?.mtd?.total)}</div>
                 </div>
             ))}
         </div>
@@ -487,6 +487,7 @@ const QuickSummary = ({ mis }) => {
     const totalRev  = Object.values(ftdRev).reduce((s, v) => s + (Number(v) || 0), 0);
     const totalColl = Object.values(ftdColl).reduce((s, v) => s + (Number(v) || 0), 0);
     const diff      = totalRev - totalColl;
+
     return (
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-100">
@@ -496,8 +497,8 @@ const QuickSummary = ({ mis }) => {
                 {[
                     { label: 'Total Revenue', value: fmtL(totalRev),  color: 'text-blue-700 font-800' },
                     { label: 'Total Collection', value: fmtL(totalColl), color: 'text-green-700 font-800' },
-                    { label: 'Discount', value: fmtL(mis.discount?.ftd?.total), color: 'text-red-600 font-700' },
-                    { label: 'Refund',   value: fmtL(mis.refund?.ftd?.total),   color: 'text-amber-600 font-700' },
+                    { label: 'Discount', value: fmtL(getTotal(mis.discount?.ftd?.full)), color: 'text-red-600 font-700' },
+                    { label: 'Refund',   value: fmtL(getTotal(mis.refund?.ftd)),   color: 'text-amber-600 font-700' },
                     { label: 'Outstanding', value: fmtL(Math.max(0, diff)), color: diff > 0 ? 'text-red-600 font-700' : 'text-slate-500' },
                 ].map(({ label, value, color }) => (
                     <div key={label} className="flex items-center justify-between py-1.5 border-b border-slate-50 last:border-0">
@@ -509,7 +510,11 @@ const QuickSummary = ({ mis }) => {
         </div>
     );
 };
-
+const getTotal = (obj) =>
+  Object.values(obj || {}).reduce(
+    (sum, value) => sum + Number(value || 0),
+    0
+  );
 // ─── Filter Bar ───────────────────────────────────────────────────────────────
 const FilterBar = ({ branch, date, onBranch, onDate, onGenerate, isLoading }) => {
     const { branches } = useBranches();

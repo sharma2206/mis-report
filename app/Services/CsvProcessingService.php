@@ -13,11 +13,14 @@ use App\Models\BillItem;
 use App\Models\CashierCollection;
 use App\Models\ErAdmission;
 use App\Models\IpAdmission;
+use App\Models\ImportLog;
 use App\Models\PackageConsumption;
 use App\Models\Surgery;
+use App\Repositories\CachedMisRepository;
 use App\Services\CachedAnalyticsService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 
 class CsvProcessingService
@@ -25,154 +28,304 @@ class CsvProcessingService
     /**
      * Process uploaded CSV files for a given branch and date.
      *
-     * Returns import row counts plus a `sources` map recording which optional
-     * report types were included in this upload. DashboardKpiService reads
-     * `sources` (persisted on the mis_reports row) to decide whether a KPI can
-     * be calculated or must show "N/A (Source report not uploaded)".
+     * Key guarantee: each file is imported in its own independent transaction.
+     * A failure in one file rolls back only that file; others are unaffected.
+     *
+     * Soft-delete condition: ONLY `branch = $branch AND DATE(date_col) = $date`.
+     * We NEVER derive a delete range from CSV content — the billing date comes
+     * exclusively from the user-submitted request field.
+     *
+     * @return array{
+     *   bill_items:int, cashier_collections:int, package_consumptions:int,
+     *   er_admissions:int, ip_admissions:int, surgeries:int,
+     *   sources:array<string,bool>, logs:array<string,array>
+     * }
      */
     public function process(
-        Branch $branch,
-        string $date,
-        ?UploadedFile $billFile = null,
+        Branch        $branch,
+        string        $date,
+        ?UploadedFile $billFile    = null,
         ?UploadedFile $cashierFile = null,
         ?UploadedFile $packageFile = null,
-        ?UploadedFile $erFile = null,
-        ?UploadedFile $ipFile = null,
-        ?UploadedFile $surgeryFile = null
+        ?UploadedFile $erFile      = null,
+        ?UploadedFile $ipFile      = null,
+        ?UploadedFile $surgeryFile = null,
+        ?int          $userId      = null,
+        ?string       $uploadedBy  = null,
     ): array {
-        return DB::transaction(function () use ($branch, $date, $billFile, $cashierFile, $packageFile, $erFile, $ipFile, $surgeryFile) {
+        $results = [
+            'bill_items'           => 0,
+            'cashier_collections'  => 0,
+            'package_consumptions' => 0,
+            'er_admissions'        => 0,
+            'ip_admissions'        => 0,
+            'surgeries'            => 0,
+            'sources' => [
+                'bill'    => false,
+                'cashier' => false,
+                'package' => false,
+                'er'      => false,
+                'ip'      => false,
+                'surgery' => false,
+            ],
+            'logs' => [],
+        ];
 
-            // Detect the actual date range inside each CSV so we can wipe the full
-            // range before re-importing, not just the single upload date.
-            $billRange    = $billFile    ? $this->csvDateRange($billFile->getRealPath(), 'Bill Date Time') : null;
-            $cashierRange = $cashierFile ? $this->csvDateRange($cashierFile->getRealPath(), 'Receipt/Refund Date Time') : null;
-            $erRange      = $erFile  ? $this->csvDateRange($erFile->getRealPath(),  'Admission Date Time') : null;
-            // Use Admission Date Time as primary — IP Conversion Date Time is only
-            // populated for ER→IP conversions (minority of rows) and would miss
-            // the full date span of direct IP admissions.
-            $ipRange      = $ipFile  ? $this->csvDateRange($ipFile->getRealPath(),  'Admission Date Time', 'IP Conversion Date Time', 'Admission Date & Time', 'Admission DateTime') : null;
-            $surgRange    = $surgeryFile ? $this->csvDateRange($surgeryFile->getRealPath(), 'Surgery Start Date and Time', 'Surgery Scheduled Date Time') : null;
-            // Package consumption: detect date range from bill date column so re-uploads
-            // covering multi-day ranges delete+replace the full span, not just the fallback date.
-            $pkgRange     = ($branch === Branch::CHROMEPET && $packageFile)
-                ? $this->csvDateRange($packageFile->getRealPath(), 'Bill Date Time', 'Consumption Date Time', 'Order Date Time')
-                : null;
+        // ── Each file is processed independently ─────────────────────────────
 
-            $this->deleteForBranchRange(
-                $branch, $billRange, $cashierRange, $erRange, $ipRange, $surgRange, $pkgRange, $date,
-                $billFile !== null,
-                $cashierFile !== null,
-                $erFile !== null,
-                $ipFile !== null,
-                $surgeryFile !== null,
-                $packageFile !== null
+        if ($billFile) {
+            $r = $this->importFile(
+                key:         'bill',
+                branch:      $branch,
+                date:        $date,
+                file:        $billFile,
+                model:       BillItem::class,
+                dateCol:     'bill_date',
+                importClass: BillItemImport::class,
+                userId:      $userId,
+                uploadedBy:  $uploadedBy,
             );
+            $results['bill_items']      = $r['inserted'];
+            $results['sources']['bill'] = $r['success'];
+            $results['logs']['bill']    = $r;
+        }
 
-            // Bust cache for every date in the range covered by the bill CSV (or cashier
-            // range for single-file uploads that don't include a bill file).
-            $primaryRange = $billRange ?? $cashierRange;
-            if ($primaryRange) {
-                $cur = \Carbon\Carbon::parse($primaryRange[0]);
-                $end = \Carbon\Carbon::parse($primaryRange[1]);
-                while ($cur->lte($end)) {
-                    \App\Repositories\CachedMisRepository::bustFor($branch->value, $cur->toDateString());
-                    $cur->addDay();
-                }
-            } else {
-                \App\Repositories\CachedMisRepository::bustFor($branch->value, $date);
+        if ($cashierFile) {
+            $r = $this->importFile(
+                key:         'cashier',
+                branch:      $branch,
+                date:        $date,
+                file:        $cashierFile,
+                model:       CashierCollection::class,
+                dateCol:     'collection_date',
+                importClass: CashierCollectionImport::class,
+                userId:      $userId,
+                uploadedBy:  $uploadedBy,
+            );
+            $results['cashier_collections'] = $r['inserted'];
+            $results['sources']['cashier']  = $r['success'];
+            $results['logs']['cashier']     = $r;
+        }
+
+        if ($branch === Branch::CHROMEPET && $packageFile) {
+            $r = $this->importFile(
+                key:         'package',
+                branch:      $branch,
+                date:        $date,
+                file:        $packageFile,
+                model:       PackageConsumption::class,
+                dateCol:     'consumption_date',
+                importClass: PackageConsumptionImport::class,
+                userId:      $userId,
+                uploadedBy:  $uploadedBy,
+            );
+            $results['package_consumptions'] = $r['inserted'];
+            $results['sources']['package']   = $r['success'];
+            $results['logs']['package']      = $r;
+        }
+
+        if ($erFile) {
+            $r = $this->importFile(
+                key:         'er',
+                branch:      $branch,
+                date:        $date,
+                file:        $erFile,
+                model:       ErAdmission::class,
+                dateCol:     'admission_date',
+                importClass: ErAdmissionImport::class,
+                userId:      $userId,
+                uploadedBy:  $uploadedBy,
+            );
+            $results['er_admissions']  = $r['inserted'];
+            $results['sources']['er']  = $r['success'];
+            $results['logs']['er']     = $r;
+        }
+
+        if ($ipFile) {
+            $r = $this->importFile(
+                key:         'ip',
+                branch:      $branch,
+                date:        $date,
+                file:        $ipFile,
+                model:       IpAdmission::class,
+                dateCol:     'admission_date',
+                importClass: IpAdmissionImport::class,
+                userId:      $userId,
+                uploadedBy:  $uploadedBy,
+            );
+            $results['ip_admissions'] = $r['inserted'];
+            $results['sources']['ip'] = $r['success'];
+            $results['logs']['ip']    = $r;
+        }
+
+        if ($surgeryFile) {
+            $r = $this->importFile(
+                key:         'surgery',
+                branch:      $branch,
+                date:        $date,
+                file:        $surgeryFile,
+                model:       Surgery::class,
+                dateCol:     'surgery_date',
+                importClass: SurgeryImport::class,
+                userId:      $userId,
+                uploadedBy:  $uploadedBy,
+            );
+            $results['surgeries']          = $r['inserted'];
+            $results['sources']['surgery'] = $r['success'];
+            $results['logs']['surgery']    = $r;
+        }
+
+        // Bust caches after all files are processed
+        CachedMisRepository::bustFor($branch->value, $date);
+        CachedAnalyticsService::bustForBranch($branch->value);
+
+        return $results;
+    }
+
+    /**
+     * Import a single CSV file in its own isolated transaction.
+     *
+     * Flow:
+     *   1. Validate the CSV has at least 1 data row.
+     *   2. Acquire a MySQL advisory lock (prevents concurrent re-upload collision).
+     *   3. BEGIN TRANSACTION
+     *       a. Soft-delete rows WHERE branch=$branch AND DATE(date_col)=$date (exact match).
+     *       b. Import rows via Laravel Excel (chunk-read + batch-insert).
+     *   4. COMMIT (or ROLLBACK on exception — previous data for that date is restored).
+     *   5. RELEASE advisory lock.
+     *   6. Write one ImportLog row with full statistics.
+     *
+     * @return array{key:string, success:bool, inserted:int, deleted:int, skipped:int,
+     *               rows_read:int, errors:int, duration_ms:int, error_message:string|null,
+     *               file_name:string, billing_date:string, branch:string}
+     */
+    private function importFile(
+        string       $key,
+        Branch       $branch,
+        string       $date,
+        UploadedFile $file,
+        string       $model,
+        string       $dateCol,
+        string       $importClass,
+        ?int         $userId,
+        ?string      $uploadedBy,
+    ): array {
+        $startMs  = (int) round(microtime(true) * 1000);
+        $lockName = "mis_import:{$branch->value}:{$date}:{$key}";
+
+        $log = [
+            'key'           => $key,
+            'file_name'     => $file->getClientOriginalName(),
+            'billing_date'  => $date,
+            'branch'        => $branch->value,
+            'success'       => false,
+            'rows_read'     => 0,
+            'deleted'       => 0,
+            'inserted'      => 0,
+            'skipped'       => 0,
+            'duplicates'    => 0,
+            'errors'        => 0,
+            'duration_ms'   => 0,
+            'error_message' => null,
+        ];
+
+        try {
+            // ── Step 1: Validate CSV has data before doing anything destructive ─
+            $rowsRead       = $this->countCsvRows($file->getRealPath());
+            $log['rows_read'] = $rowsRead;
+
+            if ($rowsRead === 0) {
+                $log['error_message'] = 'CSV file is empty or contains only a header row.';
+                $log['duration_ms']   = (int) round(microtime(true) * 1000) - $startMs;
+                $this->writeImportLog($log, $userId, $uploadedBy, $date);
+                return $log;
             }
-            CachedAnalyticsService::bustForBranch($branch->value);
 
-            // ── Core files (nullable for single-file imports) ─────────────────
-            $billImport = null;
-            if ($billFile) {
-                try {
-                    $billImport = new BillItemImport($branch, $date);
-                    Excel::import($billImport, $billFile);
-                } catch (\Throwable $e) {
-                    throw new \RuntimeException('Bill item import failed: ' . $e->getMessage(), 0, $e);
-                }
+            // ── Step 2: Advisory lock — serialise concurrent uploads for same key ─
+            DB::statement('SELECT GET_LOCK(?, 30)', [$lockName]);
+
+            try {
+                // ── Steps 3-4: Per-file transaction ───────────────────────────
+                DB::transaction(function () use (
+                    $branch, $date, $file, $model, $dateCol, $importClass, &$log
+                ) {
+                    // Soft-delete ONLY rows matching exact branch + exact billing date.
+                    // DO NOT derive a date range from CSV content.
+                    $deleted = $model::where('branch', $branch->value)
+                        ->whereDate($dateCol, $date)
+                        ->delete();   // SoftDeletes trait → sets deleted_at
+
+                    $log['deleted'] = (int) $deleted;
+
+                    // Import new rows (chunk-read + batch-insert inside the importer)
+                    $importer = new $importClass($branch, $date);
+                    Excel::import($importer, $file);
+
+                    $log['inserted'] = $importer->rowCount ?? 0;
+                    $log['skipped']  = max(0, $log['rows_read'] - $log['inserted']);
+                    $log['success']  = true;
+                });
+
+            } finally {
+                // Always release advisory lock regardless of success/failure
+                DB::statement('SELECT RELEASE_LOCK(?)', [$lockName]);
             }
 
-            $cashierImport = null;
-            if ($cashierFile) {
-                try {
-                    $cashierImport = new CashierCollectionImport($branch, $date);
-                    Excel::import($cashierImport, $cashierFile);
-                } catch (\Throwable $e) {
-                    throw new \RuntimeException('Cashier collection import failed: ' . $e->getMessage(), 0, $e);
-                }
-            }
+        } catch (\Throwable $e) {
+            $log['success']       = false;
+            $log['errors']        = 1;
+            $log['error_message'] = $e->getMessage();
 
-            // ── Chromepet: package consumption ────────────────────────────────
-            $packageCount = 0;
-            if ($branch === Branch::CHROMEPET && $packageFile) {
-                try {
-                    $packageImport = new PackageConsumptionImport($branch, $date);
-                    Excel::import($packageImport, $packageFile);
-                    $packageCount = $packageImport->rowCount;
-                } catch (\Throwable $e) {
-                    throw new \RuntimeException('Package consumption import failed: ' . $e->getMessage(), 0, $e);
-                }
-            }
+            Log::error("CSV import failed [{$key}]", [
+                'branch'    => $branch->value,
+                'date'      => $date,
+                'file'      => $file->getClientOriginalName(),
+                'exception' => $e->getMessage(),
+                'trace'     => $e->getTraceAsString(),
+            ]);
+        }
 
-            // ── ER admissions ─────────────────────────────────────────────────
-            $erImportCount = 0;
-            if ($erFile) {
-                try {
-                    $erImport = new ErAdmissionImport($branch, $date);
-                    Excel::import($erImport, $erFile);
-                    $erImportCount = $erImport->rowCount;
-                } catch (\Throwable $e) {
-                    throw new \RuntimeException('ER admission import failed: ' . $e->getMessage(), 0, $e);
-                }
-            }
+        $log['duration_ms'] = (int) round(microtime(true) * 1000) - $startMs;
 
-            // ── IP admissions ─────────────────────────────────────────────────
-            $ipImportCount = 0;
-            if ($ipFile) {
-                try {
-                    $ipImport = new IpAdmissionImport($branch, $date);
-                    Excel::import($ipImport, $ipFile);
-                    $ipImportCount = $ipImport->rowCount;
-                } catch (\Throwable $e) {
-                    throw new \RuntimeException('IP admission import failed: ' . $e->getMessage(), 0, $e);
-                }
-            }
+        $this->writeImportLog($log, $userId, $uploadedBy, $date);
 
-            // ── Surgeries ─────────────────────────────────────────────────────
-            $surgeryCount = 0;
-            if ($surgeryFile) {
-                try {
-                    $surgImport = new SurgeryImport($branch, $date);
-                    Excel::import($surgImport, $surgeryFile);
-                    $surgeryCount = $surgImport->rowCount;
-                } catch (\Throwable $e) {
-                    throw new \RuntimeException('Surgery import failed: ' . $e->getMessage(), 0, $e);
-                }
-            }
+        return $log;
+    }
 
-            return [
-                // Row import counts
-                'bill_items'           => $billImport?->rowCount ?? 0,
-                'cashier_collections'  => $cashierImport?->rowCount ?? 0,
-                'package_consumptions' => $packageCount,
-                'er_admissions'        => $erImportCount,
-                'ip_admissions'        => $ipImportCount,
-                'surgeries'            => $surgeryCount,
-
-                // Which reports were part of this upload — persisted on the
-                // mis_reports row so DashboardKpiService can gate KPI availability later.
-                'sources' => [
-                    'bill'    => $billFile !== null,
-                    'cashier' => $cashierFile !== null,
-                    'package' => $branch === Branch::CHROMEPET && $packageFile !== null,
-                    'er'      => $erFile !== null,
-                    'ip'      => $ipFile !== null,
-                    'surgery' => $surgeryFile !== null,
-                ],
-            ];
-        });
+    /**
+     * Write a per-file ImportLog record.
+     * Wrapped in its own try/catch so a logging failure never breaks the import response.
+     */
+    private function writeImportLog(array $log, ?int $userId, ?string $uploadedBy, string $date): void
+    {
+        try {
+            ImportLog::create([
+                'branch'         => $log['branch'],
+                'report_type'    => $log['key'],
+                'report_date'    => $date,
+                'uploaded_by'    => $uploadedBy ?? 'system',
+                'user_id'        => $userId,
+                'files_uploaded' => [$log['key']],
+                'rows_imported'  => $log['inserted'],
+                'rows_skipped'   => $log['skipped'],
+                'rows_errored'   => $log['errors'],
+                'period_from'    => $date,
+                'period_to'      => $date,
+                'duration_ms'    => $log['duration_ms'],
+                'status'         => $log['success'] ? 'success' : ($log['rows_read'] === 0 ? 'skipped' : 'failed'),
+                'notes'          => json_encode([
+                    'file_name'    => $log['file_name'],
+                    'billing_date' => $log['billing_date'],
+                    'rows_read'    => $log['rows_read'],
+                    'rows_deleted' => $log['deleted'],
+                    'rows_inserted'=> $log['inserted'],
+                    'rows_skipped' => $log['skipped'],
+                    'error'        => $log['error_message'],
+                ], JSON_UNESCAPED_UNICODE),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to write ImportLog', ['error' => $e->getMessage(), 'log' => $log]);
+        }
     }
 
     /**
@@ -181,120 +334,38 @@ class CsvProcessingService
      */
     public function deleteForBranchDate(Branch $branch, string $date): void
     {
-        BillItem::where('branch', $branch->value)->whereDate('bill_date', $date)->delete();
-        CashierCollection::where('branch', $branch->value)->whereDate('collection_date', $date)->delete();
-        ErAdmission::where('branch', $branch->value)->whereDate('admission_date', $date)->delete();
-        IpAdmission::where('branch', $branch->value)->whereDate('admission_date', $date)->delete();
-        Surgery::where('branch', $branch->value)->whereDate('surgery_date', $date)->delete();
-
-        if ($branch === Branch::CHROMEPET) {
-            PackageConsumption::where('branch', $branch->value)->whereDate('consumption_date', $date)->delete();
-        }
-    }
-
-    /**
-     * Delete rows across the full date range detected inside each CSV.
-     * Called before every import so that re-uploading a monthly CSV fully
-     * replaces the old data instead of leaving stale rows from prior uploads.
-     */
-    private function deleteForBranchRange(
-        Branch $branch,
-        ?array $billRange,
-        ?array $cashierRange,
-        ?array $erRange,
-        ?array $ipRange,
-        ?array $surgRange,
-        ?array $pkgRange,
-        string $fallbackDate,
-        bool $hasBill = true,
-        bool $hasCashier = true,
-        bool $hasEr = true,
-        bool $hasIp = true,
-        bool $hasSurgery = true,
-        bool $hasPackage = true
-    ): void {
         $b = $branch->value;
 
-        // Point-in-time files (bill, cashier): fall back to deleting just the report date.
-        // Bulk range files (IP, ER, surgery): if range detection fails delete ALL of the
-        // branch's records — safer than silently appending duplicates on re-import.
-        $del = fn($model, $col, $range) =>
-            $range
-                ? $model::where('branch', $b)->whereDate($col, '>=', $range[0])->whereDate($col, '<=', $range[1])->delete()
-                : $model::where('branch', $b)->whereDate($col, $fallbackDate)->delete();
+        BillItem::where('branch', $b)->whereDate('bill_date', $date)->delete();
+        CashierCollection::where('branch', $b)->whereDate('collection_date', $date)->delete();
+        ErAdmission::where('branch', $b)->whereDate('admission_date', $date)->delete();
+        IpAdmission::where('branch', $b)->whereDate('admission_date', $date)->delete();
+        Surgery::where('branch', $b)->whereDate('surgery_date', $date)->delete();
 
-        $delBulk = fn($model, $col, $range) =>
-            $range
-                ? $model::where('branch', $b)->whereDate($col, '>=', $range[0])->whereDate($col, '<=', $range[1])->delete()
-                : $model::where('branch', $b)->delete();
-
-        if ($hasBill) {
-            $del(BillItem::class,          'bill_date',       $billRange);
-        }
-        if ($hasCashier) {
-            $del(CashierCollection::class, 'collection_date', $cashierRange);
-        }
-        if ($hasEr) {
-            $delBulk(ErAdmission::class,   'admission_date',  $erRange);
-        }
-        if ($hasIp) {
-            $delBulk(IpAdmission::class,   'admission_date',  $ipRange);
-        }
-        if ($hasSurgery) {
-            $delBulk(Surgery::class,       'surgery_date',    $surgRange);
-        }
-
-        if ($branch === Branch::CHROMEPET && $hasPackage) {
-            $del(PackageConsumption::class, 'consumption_date', $pkgRange);
+        if ($branch === Branch::CHROMEPET) {
+            PackageConsumption::where('branch', $b)->whereDate('consumption_date', $date)->delete();
         }
     }
 
     /**
-     * Scan the first few thousand rows of a CSV to find the earliest and latest
-     * dates in the given column(s). Returns [minDate, maxDate] as Y-m-d strings,
-     * or null if no parseable dates are found.
+     * Count data rows in a CSV file (header excluded).
+     * Returns 0 if the file cannot be opened or has no data rows.
      */
-    private function csvDateRange(string $path, string ...$columnNames): ?array
+    private function countCsvRows(string $path): int
     {
         $handle = @fopen($path, 'r');
-        if (!$handle) return null;
+        if (!$handle) return 0;
 
-        $rawHeaders = fgetcsv($handle);
-        if (!$rawHeaders) { fclose($handle); return null; }
+        fgetcsv($handle); // skip header
 
-        // Build a normalised header → index map
-        $normalize = fn($s) => strtolower(preg_replace('/[^a-z0-9]+/i', '_', trim($s)));
-        $hmap = [];
-        foreach ($rawHeaders as $i => $h) {
-            $hmap[$normalize($h)] = $i;
-        }
-
-        // Resolve column indices (try each candidate column name in order)
-        $colIdx = null;
-        foreach ($columnNames as $name) {
-            $key = $normalize($name);
-            if (isset($hmap[$key])) { $colIdx = $hmap[$key]; break; }
-        }
-        if ($colIdx === null) { fclose($handle); return null; }
-
-        $min = null; $max = null; $scanned = 0;
-        while (($row = fgetcsv($handle)) !== false && $scanned < 50000) {
-            $scanned++;
-            $raw = trim($row[$colIdx] ?? '');
-            if (!$raw) continue;
-
-            try {
-                $d = \Carbon\Carbon::createFromFormat('d/m/Y, h:i a', $raw)->format('Y-m-d');
-            } catch (\Exception) {
-                try { $d = \Carbon\Carbon::parse($raw)->format('Y-m-d'); }
-                catch (\Exception) { continue; }
+        $count = 0;
+        while (($row = fgetcsv($handle)) !== false) {
+            if (array_filter($row, fn($v) => trim((string) $v) !== '')) {
+                $count++;
             }
-
-            if ($min === null || $d < $min) $min = $d;
-            if ($max === null || $d > $max) $max = $d;
         }
-        fclose($handle);
 
-        return ($min && $max) ? [$min, $max] : null;
+        fclose($handle);
+        return $count;
     }
 }

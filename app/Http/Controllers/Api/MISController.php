@@ -49,64 +49,37 @@ class MISController extends Controller
             $branchEnum = $request->branch();
             $date       = $request->reportDate();
 
-            // 1. Process CSV files → import into DB
+            // 1. Process CSV files → each file gets its own transaction + ImportLog row.
+            //    Soft-delete is scoped to exact (branch, billing_date) only.
             $imported = $this->csvService->process(
-                $branchEnum,
-                $date,
-                $request->file('bill_file'),
-                $request->file('cashier_file'),
-                $request->file('package_file'),
-                $request->file('er_file'),
-                $request->file('ip_file'),
-                $request->file('surgery_file')
+                branch:      $branchEnum,
+                date:        $date,
+                billFile:    $request->file('bill_file'),
+                cashierFile: $request->file('cashier_file'),
+                packageFile: $request->file('package_file'),
+                erFile:      $request->file('er_file'),
+                ipFile:      $request->file('ip_file'),
+                surgeryFile: $request->file('surgery_file'),
+                userId:      $request->user()?->id,
+                uploadedBy:  $request->user()?->name ?? 'system',
             );
 
-            // 2. Generate MIS report — every KPI is calculated automatically from the
-            //    freshly imported data; $sources records which optional files were
-            //    included so future dashboard loads know which KPIs are available.
+            // 2. Generate MIS report from freshly imported data
             $sources = $imported['sources'] ?? [];
             $report  = $this->misService->generateMIS($branchEnum, $date, $sources);
 
             AuditLog::record('upload', [
                 'branch'   => $branch,
                 'date'     => $date,
-                'imported' => array_diff_key($imported, ['sources' => null]),
+                'imported' => array_diff_key($imported, ['sources' => null, 'logs' => null]),
                 'sources'  => $sources,
             ], $branch, $date, $request);
-
-            // Record import log
-            $filesUploaded = array_keys(array_filter($sources));
-            $totalImported = array_sum(array_map(
-                fn($v) => is_array($v) ? ($v['count'] ?? $v['imported'] ?? 0) : (int)$v,
-                array_diff_key($imported, ['sources' => null])
-            ));
-            $totalSkipped  = array_sum(array_map(
-                fn($v) => is_array($v) ? ($v['skipped'] ?? 0) : 0,
-                array_diff_key($imported, ['sources' => null])
-            ));
-            $totalErrors   = array_sum(array_map(
-                fn($v) => is_array($v) ? ($v['errors'] ?? 0) : 0,
-                array_diff_key($imported, ['sources' => null])
-            ));
-            ImportLog::create([
-                'branch'         => $branch,
-                'report_date'    => $date,
-                'uploaded_by'    => $request->user()?->name ?? 'system',
-                'user_id'        => $request->user()?->id,
-                'files_uploaded' => $filesUploaded,
-                'rows_imported'  => $totalImported,
-                'rows_skipped'   => $totalSkipped,
-                'rows_errored'   => $totalErrors,
-                'period_from'    => $request->input('period_from') ?: null,
-                'period_to'      => $request->input('period_to')   ?: null,
-                'duration_ms'    => (int) round(microtime(true) * 1000) - $startMs,
-                'status'         => $totalErrors > 0 ? 'partial' : 'success',
-            ]);
 
             return response()->json([
                 'success'  => true,
                 'message'  => 'Files processed and MIS report generated successfully.',
-                'imported' => $imported,
+                'imported' => array_diff_key($imported, ['logs' => null]),
+                'logs'     => $imported['logs'] ?? [],
                 'data'     => $report,
             ]);
         } catch (Exception $e) {
@@ -129,28 +102,31 @@ class MISController extends Controller
         $date       = $request->reportDate();
 
         try {
+            // Each file gets its own transaction + ImportLog. Soft-delete is exact-date only.
             $imported = $this->csvService->process(
-                $branchEnum,
-                $date,
-                $request->file('bill_file'),
-                $request->file('cashier_file'),
-                $request->file('package_file'),
-                $request->file('er_file'),
-                $request->file('ip_file'),
-                $request->file('surgery_file')
+                branch:      $branchEnum,
+                date:        $date,
+                billFile:    $request->file('bill_file'),
+                cashierFile: $request->file('cashier_file'),
+                packageFile: $request->file('package_file'),
+                erFile:      $request->file('er_file'),
+                ipFile:      $request->file('ip_file'),
+                surgeryFile: $request->file('surgery_file'),
+                userId:      $request->user()?->id,
+                uploadedBy:  $request->user()?->name ?? 'system',
             );
 
             $sources = $imported['sources'] ?? [];
             $report  = $this->misService->generateMIS($branchEnum, $date, $sources);
 
-            // Determine which single type was uploaded
+            // Determine which single type was uploaded (for audit log)
             $typeMap = [
-                'bill_items' => 'bill_file',
+                'bill'    => 'bill_file',
                 'cashier' => 'cashier_file',
                 'package' => 'package_file',
-                'er' => 'er_file',
-                'ip' => 'ip_file',
-                'surgery' => 'surgery_file'
+                'er'      => 'er_file',
+                'ip'      => 'ip_file',
+                'surgery' => 'surgery_file',
             ];
             $uploadedType = null;
             foreach ($typeMap as $type => $field) {
@@ -160,52 +136,18 @@ class MISController extends Controller
                 }
             }
 
-            $filesUploaded = array_keys(array_filter($sources));
-            $totalImported = array_sum(array_map(
-                fn($v) => is_array($v) ? ($v['count'] ?? $v['imported'] ?? 0) : (int)$v,
-                array_diff_key($imported, ['sources' => null])
-            ));
-            $totalSkipped  = array_sum(array_map(
-                fn($v) => is_array($v) ? ($v['skipped'] ?? 0) : 0,
-                array_diff_key($imported, ['sources' => null])
-            ));
-            $totalErrors   = array_sum(array_map(
-                fn($v) => is_array($v) ? ($v['errors'] ?? 0) : 0,
-                array_diff_key($imported, ['sources' => null])
-            ));
-            $durationMs    = (int) round(microtime(true) * 1000) - $startMs;
-
-            // Parse period from request (sent by frontend after CSV scanning)
-            $periodFrom = $request->input('period_from');
-            $periodTo   = $request->input('period_to');
-
-            ImportLog::create([
-                'branch'         => $branch,
-                'report_type'    => $uploadedType,
-                'report_date'    => $date,
-                'uploaded_by'    => $request->user()?->name ?? 'system',
-                'user_id'        => $request->user()?->id,
-                'files_uploaded' => $filesUploaded,
-                'rows_imported'  => $totalImported,
-                'rows_skipped'   => $totalSkipped,
-                'rows_errored'   => $totalErrors,
-                'period_from'    => $periodFrom ?: null,
-                'period_to'      => $periodTo   ?: null,
-                'duration_ms'    => $durationMs,
-                'status'         => $totalErrors > 0 ? 'partial' : 'success',
-            ]);
-
             AuditLog::record('upload_single', [
-                'branch' => $branch,
-                'date' => $date,
-                'type' => $uploadedType,
-                'imported' => array_diff_key($imported, ['sources' => null]),
+                'branch'   => $branch,
+                'date'     => $date,
+                'type'     => $uploadedType,
+                'imported' => array_diff_key($imported, ['sources' => null, 'logs' => null]),
             ], $branch, $date, $request);
 
             return response()->json([
                 'success'     => true,
                 'message'     => 'File imported successfully.',
-                'imported'    => $imported,
+                'imported'    => array_diff_key($imported, ['logs' => null]),
+                'logs'        => $imported['logs'] ?? [],
                 'report_type' => $uploadedType,
                 'data'        => $report,
             ]);

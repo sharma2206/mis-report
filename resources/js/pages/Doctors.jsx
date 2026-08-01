@@ -7,10 +7,11 @@ import { motion } from 'framer-motion';
 import EChart from '../components/ui/EChart';
 import DataTable from '../components/ui/DataTable';
 import {
-    Stethoscope, TrendingUp, Users, BedDouble, Filter, X,
+    Stethoscope, TrendingUp, Users, BedDouble, Filter, X, RefreshCw,
 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { Section } from '../components/ui/Section';
+import { PageDateBar } from '../components/ui/PageDateBar';
 import { selectToken } from '../store/authSlice';
 import { selectBranch, selectDate } from '../store/reportSlice';
 import { analyticsApi } from '../services/api';
@@ -48,15 +49,17 @@ export default function Doctors() {
     const token  = useSelector(selectToken);
     const branch = useSelector(selectBranch);
     const date   = useSelector(selectDate);
-    const from   = monthStart(date) || date;
+
+    const [from, setFrom] = useState(() => monthStart(date) || date);
+    const [to,   setTo]   = useState(date);
 
     const [selectedSpecialities, setSelectedSpecialities] = useState([]);
     const [minRevenue, setMinRevenue] = useState('');
 
-    const { data: raw, isLoading } = useQuery({
-        queryKey: ['doctorPerf', branch, from, date],
-        queryFn:  () => analyticsApi.doctorPerformance({ branch, from, to: date }).then(r => r.data),
-        enabled:  !!(branch && date),
+    const { data: raw, isLoading, refetch, isFetching } = useQuery({
+        queryKey: ['doctorPerf', branch, from, to],
+        queryFn:  () => analyticsApi.doctorPerformance({ branch, from, to }).then(r => r.data),
+        enabled:  !!(branch && from && to),
     });
 
     const perf    = raw?.success ? raw.data : null;
@@ -111,13 +114,26 @@ export default function Doctors() {
                 <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center flex-shrink-0">
                     <Stethoscope className="w-3.5 h-3.5 text-violet-600" />
                 </div>
-                <div>
+                <div className="flex-1">
                     <h1 className="text-[15px] font-700 text-slate-800">Doctor Analytics</h1>
-                    <p className="text-[11px] text-slate-400">{branchLabel} · MTD {from} – {date}</p>
+                    <p className="text-[11px] text-slate-400">{branchLabel} · {from} – {to}</p>
                 </div>
+                <button onClick={() => refetch()}
+                    className="w-8 h-8 flex items-center justify-center border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+                    <RefreshCw className={cn('w-3.5 h-3.5', isFetching && 'animate-spin text-violet-600')} />
+                </button>
             </div>
         }>
             <main className="flex-1 overflow-y-auto p-4 space-y-4">
+
+                {/* Date range filter */}
+                <PageDateBar
+                    from={from} to={to}
+                    accentColor="violet"
+                    onRange={({ from: f, to: t }) => { setFrom(f); setTo(t); }}
+                    onRefresh={refetch}
+                    isRefreshing={isFetching}
+                />
 
                 {/* Summary KPIs */}
                 {!isLoading && (

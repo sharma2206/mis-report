@@ -1,7 +1,7 @@
 /**
  * PatientAnalytics — Demographics, repeat vs new, retention, age/gender breakdown.
  */
-import { useMemo } from 'react';
+import { useState } from 'react';
 import { useSelector } from 'react-redux';
 import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -14,6 +14,7 @@ import {
 import { AppLayout } from '../components/layout/AppLayout';
 import { Section } from '../components/ui/Section';
 import { GlobalFilterBar } from '../components/ui/GlobalFilterBar';
+import { PageDateBar } from '../components/ui/PageDateBar';
 import { selectToken } from '../store/authSlice';
 import { selectBranch, selectGlobalFrom, selectGlobalTo } from '../store/reportSlice';
 import { analyticsApi } from '../services/api';
@@ -58,26 +59,30 @@ const TOOLTIP = { backgroundColor: '#fff', borderColor: '#e2e8f0', borderWidth: 
 export default function PatientAnalytics() {
     const token  = useSelector(selectToken);
     const branch = useSelector(selectBranch);
-    const from   = useSelector(selectGlobalFrom);
-    const to     = useSelector(selectGlobalTo);
+    const gFrom  = useSelector(selectGlobalFrom);
+    const gTo    = useSelector(selectGlobalTo);
+
+    // Local date state — independent from global bar
+    const [from, setFrom] = useState(gFrom);
+    const [to,   setTo]   = useState(gTo);
 
     if (!token) return <Navigate to="/login" replace />;
 
     const params = { branch, from, to };
 
-    const { data: ipRaw, isLoading: loadIp } = useQuery({
+    const { data: ipRaw, isLoading: loadIp, refetch: rIp } = useQuery({
         queryKey: ['pat-ip', branch, from, to],
         queryFn:  () => analyticsApi.ipDemographics(params).then(r => r.data),
         enabled:  !!(branch && from && to),
     });
 
-    const { data: opRaw, isLoading: loadOp } = useQuery({
+    const { data: opRaw, isLoading: loadOp, refetch: rOp } = useQuery({
         queryKey: ['pat-op', branch, from, to],
         queryFn:  () => analyticsApi.opMetrics(params).then(r => r.data),
         enabled:  !!(branch && from && to),
     });
 
-    const { data: admRaw, isLoading: loadAdm } = useQuery({
+    const { data: admRaw, isLoading: loadAdm, refetch: rAdm } = useQuery({
         queryKey: ['pat-adm', branch, from, to],
         queryFn:  () => analyticsApi.admissions(params).then(r => r.data),
         enabled:  !!(branch && from && to),
@@ -108,6 +113,14 @@ export default function PatientAnalytics() {
         }>
             <GlobalFilterBar />
             <main className="flex-1 overflow-y-auto p-4 space-y-4">
+
+                {/* Date range filter */}
+                <PageDateBar
+                    from={from} to={to}
+                    accentColor="blue"
+                    onRange={({ from: f, to: t }) => { setFrom(f); setTo(t); }}
+                    onRefresh={() => { rIp(); rOp(); rAdm(); }}
+                />
 
                 {/* KPI Row */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

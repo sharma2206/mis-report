@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -7,10 +7,11 @@ import { motion } from 'framer-motion';
 import EChart from '../components/ui/EChart';
 import DataTable from '../components/ui/DataTable';
 import {
-    Wallet, TrendingUp, CreditCard, Users, BarChart3, PieChart as PieIcon,
+    Wallet, TrendingUp, CreditCard, Users, BarChart3, PieChart as PieIcon, RefreshCw,
 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { Section } from '../components/ui/Section';
+import { PageDateBar } from '../components/ui/PageDateBar';
 import { selectToken } from '../store/authSlice';
 import { selectBranch, setBranch, selectGlobalFrom, selectGlobalTo } from '../store/reportSlice';
 import { analyticsApi } from '../services/api';
@@ -96,25 +97,29 @@ export default function Financial() {
     const dispatch = useDispatch();
     const token  = useSelector(selectToken);
     const branch = useSelector(selectBranch);
-    const from   = useSelector(selectGlobalFrom);
-    const to     = useSelector(selectGlobalTo);
+    const gFrom  = useSelector(selectGlobalFrom);
+    const gTo    = useSelector(selectGlobalTo);
     const { branches } = useBranches();
+
+    // Local date state — initialised from global, overridable per-page
+    const [from, setFrom] = useState(gFrom);
+    const [to,   setTo]   = useState(gTo);
 
     const params = { branch, from, to };
 
-    const { data: collRaw,  isLoading: loadColl }    = useQuery({
+    const { data: collRaw,  isLoading: loadColl,  refetch: rColl,  isFetching: fColl  } = useQuery({
         queryKey: ['fin-collection', branch, from, to],
         queryFn:  () => analyticsApi.collection(params).then(r => r.data),
         enabled:  !!(branch && from && to),
     });
 
-    const { data: payerRaw, isLoading: loadPayer }   = useQuery({
+    const { data: payerRaw, isLoading: loadPayer, refetch: rPayer, isFetching: fPayer } = useQuery({
         queryKey: ['fin-payer', branch, from, to],
         queryFn:  () => analyticsApi.payerMix(params).then(r => r.data),
         enabled:  !!(branch && from && to),
     });
 
-    const { data: svcRaw,   isLoading: loadSvc }     = useQuery({
+    const { data: svcRaw,   isLoading: loadSvc,   refetch: rSvc,   isFetching: fSvc   } = useQuery({
         queryKey: ['fin-service', branch, from, to],
         queryFn:  () => analyticsApi.serviceRevenue(params).then(r => r.data),
         enabled:  !!(branch && from && to),
@@ -173,6 +178,14 @@ export default function Financial() {
         }>
             <main className="flex-1 overflow-y-auto p-4 space-y-4">
 
+                {/* Date range filter */}
+                <PageDateBar
+                    from={from} to={to}
+                    accentColor="emerald"
+                    onRange={({ from: f, to: t }) => { setFrom(f); setTo(t); }}
+                    onRefresh={() => { rColl(); rPayer(); rSvc(); }}
+                    isRefreshing={fColl || fPayer || fSvc}
+                />
 
                 {/* KPI Strip */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

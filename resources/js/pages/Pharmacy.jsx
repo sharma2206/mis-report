@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -9,6 +9,7 @@ import DataTable from '../components/ui/DataTable';
 import { Pill, TrendingUp, ShoppingCart, Users, RefreshCw } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { Section } from '../components/ui/Section';
+import { PageDateBar } from '../components/ui/PageDateBar';
 import { selectToken } from '../store/authSlice';
 import { selectBranch, selectDate, selectGlobalFrom, selectGlobalTo } from '../store/reportSlice';
 import { analyticsApi } from '../services/api';
@@ -42,12 +43,16 @@ export default function Pharmacy() {
     const token  = useSelector(selectToken);
     const branch = useSelector(selectBranch);
     const date   = useSelector(selectDate);
-    const from   = useSelector(selectGlobalFrom);
-    const to     = useSelector(selectGlobalTo);
+    const gFrom  = useSelector(selectGlobalFrom);
+    const gTo    = useSelector(selectGlobalTo);
+
+    // Local date state — independent from global bar
+    const [from, setFrom] = useState(gFrom);
+    const [to,   setTo]   = useState(gTo);
 
     const enabled = !!(branch && from && to);
 
-    const svcQ = useQuery({
+    const { data: svcQ, isLoading, refetch, isFetching } = useQuery({
         queryKey: ['service-revenue', branch, from, to],
         queryFn:  () => analyticsApi.serviceRevenue({ branch, from, to }).then(r => r.data),
         enabled,
@@ -55,8 +60,7 @@ export default function Pharmacy() {
 
     if (!token) return <Navigate to="/login" replace />;
 
-    const svcData    = svcQ.data?.success ? (svcQ.data.data ?? {}) : {};
-    const isLoading  = svcQ.isLoading;
+    const svcData    = svcQ?.success ? (svcQ?.data ?? {}) : {};
     const branchLabel = BRANCHES[branch]?.label || branch;
 
     // Pharmacy items: from top_items filtered by pharmacy service types, or all if no filter matches
@@ -108,14 +112,22 @@ export default function Pharmacy() {
                     <h1 className="text-[15px] font-700 text-slate-800">Pharmacy Analytics</h1>
                     <p className="text-[11px] text-slate-400">{branchLabel} · {from} – {to}</p>
                 </div>
-                <button onClick={() => svcQ.refetch()}
+                <button onClick={refetch}
                     className="w-8 h-8 flex items-center justify-center border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
-                    <RefreshCw className={cn('w-3.5 h-3.5', svcQ.isFetching && 'animate-spin text-green-600')} />
+                    <RefreshCw className={cn('w-3.5 h-3.5', isFetching && 'animate-spin text-green-600')} />
                 </button>
             </div>
         }>
             <main className="flex-1 overflow-y-auto p-4 space-y-4">
 
+                {/* Date range filter */}
+                <PageDateBar
+                    from={from} to={to}
+                    accentColor="green"
+                    onRange={({ from: f, to: t }) => { setFrom(f); setTo(t); }}
+                    onRefresh={refetch}
+                    isRefreshing={isFetching}
+                />
 
                 {/* KPI cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">

@@ -748,7 +748,7 @@ export default function Dashboard() {
     return (
         <AppLayout topbar={<Topbar isLoading={isLoading} onPrint={handlePrint} dataUpdatedAt={dataUpdatedAt} />}>
             {/* Global filter bar — sticky below topbar */}
-            <GlobalFilterBar />
+            {/* <GlobalFilterBar /> */}
 
             {/* Horizontal tab strip */}
             <TabStrip tab={tab} onChange={(key) => dispatch(setActiveTab(key))} />

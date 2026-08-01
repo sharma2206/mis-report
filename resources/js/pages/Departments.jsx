@@ -9,14 +9,15 @@ import DataTable from '../components/ui/DataTable';
 import { Building2, TrendingUp, Users, Activity, Calendar, RefreshCw } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { Section } from '../components/ui/Section';
+import { PageDateBar } from '../components/ui/PageDateBar';
 import { selectToken } from '../store/authSlice';
 import { selectBranch, selectDate } from '../store/reportSlice';
 import { analyticsApi } from '../services/api';
 import { TableSkeleton, ChartSkeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
-import { BRANCHES, CHART_PALETTE, DATE_PRESETS } from '../constants';
+import { BRANCHES, CHART_PALETTE } from '../constants';
 import { fmtL } from '../utils/formatters';
-import { monthStart, resolvePresetRange, today } from '../utils/dateHelpers';
+import { monthStart, today } from '../utils/dateHelpers';
 import { cn } from '../utils/cn';
 
 
@@ -81,12 +82,6 @@ export default function Departments() {
 
     const [from,   setFrom]   = useState(() => monthStart(date) || date);
     const [to,     setTo]     = useState(date);
-    const [preset, setPreset] = useState('mtd');
-
-    const applyPreset = (key) => {
-        const r = resolvePresetRange(key);
-        setFrom(r.from); setTo(r.to); setPreset(key);
-    };
 
     const enabled = !!(branch && from && to);
 
@@ -151,32 +146,13 @@ export default function Departments() {
             <main className="flex-1 overflow-y-auto p-4 space-y-4">
 
                 {/* Date range selector */}
-                <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap items-center gap-3">
-                    <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                    <div className="flex gap-1.5 flex-wrap">
-                        {DATE_PRESETS.map(b => (
-                            <button key={b.key} onClick={() => applyPreset(b.key)}
-                                className={cn('px-3 py-1 rounded-full text-[11px] font-600 border transition-all cursor-pointer',
-                                    preset === b.key
-                                        ? 'bg-teal-600 border-teal-600 text-white'
-                                        : 'bg-white border-slate-200 text-slate-500 hover:border-teal-300 hover:text-teal-700')}>
-                                {b.label}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-2 ml-auto flex-wrap">
-                        <div className="flex flex-col gap-0.5">
-                            <label className="text-[9px] font-700 uppercase tracking-wider text-slate-400">From</label>
-                            <input type="date" value={from} max={to} onChange={e => { setFrom(e.target.value); setPreset(''); }}
-                                className="border border-slate-200 rounded-md px-2 py-1 text-[11px] text-slate-700 outline-none focus:border-teal-400" />
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                            <label className="text-[9px] font-700 uppercase tracking-wider text-slate-400">To</label>
-                            <input type="date" value={to} min={from} max={todayStr} onChange={e => { setTo(e.target.value); setPreset(''); }}
-                                className="border border-slate-200 rounded-md px-2 py-1 text-[11px] text-slate-700 outline-none focus:border-teal-400" />
-                        </div>
-                    </div>
-                </div>
+                <PageDateBar
+                    from={from} to={to}
+                    accentColor="teal"
+                    onRange={({ from: f, to: t }) => { setFrom(f); setTo(t); }}
+                    onRefresh={() => { deptQ.refetch(); admQ.refetch(); }}
+                    isRefreshing={deptQ.isFetching || admQ.isFetching}
+                />
 
                 {/* KPI cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

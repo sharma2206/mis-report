@@ -10,6 +10,10 @@
  */
 import { useState } from 'react';
 import { Calendar, RefreshCw, ChevronDown } from 'lucide-react';
+import { useDispatch, useSelector } from 'react-redux';
+import { selectBranch, setBranch } from '../../store/reportSlice';
+import { useBranches } from '../../hooks/useBranches';
+import { MultiSelectDropdown } from './MultiSelectDropdown';
 import { cn } from '../../utils/cn';
 import { resolvePresetRange, today } from '../../utils/dateHelpers';
 import { DATE_PRESETS } from '../../constants';
@@ -23,6 +27,11 @@ const ACCENT = {
 };
 
 export function PageDateBar({ from, to, onRange, accentColor = 'blue', onRefresh, isRefreshing = false }) {
+    const dispatch = useDispatch();
+    const branch = useSelector(selectBranch);
+    const { branches } = useBranches();
+    const branchOptions = branches.map(b => ({ label: b.label, value: b.key }));
+
     const [activePreset, setActivePreset] = useState(() => {
         // Try to detect current preset by matching dates
         for (const p of DATE_PRESETS) {
@@ -54,6 +63,17 @@ export function PageDateBar({ from, to, onRange, accentColor = 'blue', onRefresh
 
     return (
         <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-3 shadow-sm">
+            {/* Branch Filter */}
+            <MultiSelectDropdown
+                options={branchOptions}
+                selected={branch}
+                onChange={v => dispatch(setBranch(v))}
+                defaultLabel="All Branches"
+                className="w-48"
+            />
+            
+            <div className="w-px h-6 bg-slate-200 mx-1"></div>
+
             {/* Calendar icon */}
             <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
 

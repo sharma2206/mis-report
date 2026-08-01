@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { Section } from '../components/ui/Section';
+import { PageDateBar } from '../components/ui/PageDateBar';
 import { selectToken } from '../store/authSlice';
 import { selectBranch, selectDate, setBranch, selectGlobalFrom, selectGlobalTo } from '../store/reportSlice';
 import { analyticsApi, misApi } from '../services/api';
@@ -53,12 +54,14 @@ export default function BRMReport() {
     const branchRaw = useSelector(selectBranch);
     const branch    = Array.isArray(branchRaw) ? (branchRaw[0] || 'chromepet') : (branchRaw || 'chromepet');
     const date      = useSelector(selectDate);
-    const from   = useSelector(selectGlobalFrom);
-    const to     = useSelector(selectGlobalTo);
+    const gFrom   = useSelector(selectGlobalFrom);
+    const gTo     = useSelector(selectGlobalTo);
     const { branches } = useBranches();
 
     const [exporting, setExp]  = useState(false);
     const [dlError,  setDlErr] = useState(null);
+    const [from, setFrom] = useState(gFrom);
+    const [to,   setTo]   = useState(gTo);
 
     const params = { branch, from, to };
 
@@ -142,7 +145,13 @@ export default function BRMReport() {
             </div>
         }>
             <main className="flex-1 overflow-y-auto p-4 space-y-4">
-
+                <PageDateBar
+                    from={from} to={to}
+                    accentColor="emerald"
+                    onRange={({ from: f, to: t }) => { setFrom(f); setTo(t); }}
+                    onRefresh={() => { }}
+                    isRefreshing={false}
+                />
                 {/* Download error */}
                 {dlError && (
                     <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-[12px]">

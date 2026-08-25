@@ -6,22 +6,48 @@ import {
 import { fmtDMY, parseKareDate } from '../../utils/csvScanner';
 import { today } from '../../utils/dateHelpers';
 
+// Props accepted (both old and new naming supported for backwards-compat):
+//   mode | periodMode         — 'auto' | 'manual'
+//   onModeChange | setPeriodMode  — (mode) => void
+//   onForceManual               — () => void   (optional shortcut to force manual)
+//   manualFrom, onManualFrom | setManualFrom
+//   manualTo,   onManualTo   | setManualTo
+//   period                      — { status, min, max, sources, scanCount }
+//   stepNumber                  — optional int for numbered step label
 export const ImportPeriodSelector = ({
-    period, mode, onModeChange,
-    manualFrom, manualTo, onManualFrom, onManualTo,
+    period,
+    // Support both naming conventions
+    mode, periodMode,
+    onModeChange, setPeriodMode,
+    manualFrom, manualTo,
+    onManualFrom, setManualFrom,
+    onManualTo, setManualTo,
     onForceManual,
+    stepNumber,
 }) => {
-    const isAuto = mode === 'auto';
+    // Resolve props regardless of which naming convention is used
+    const activeMode      = mode ?? periodMode ?? 'auto';
+    const handleModeChange = onModeChange ?? setPeriodMode ?? (() => {});
+    const handleManualFrom = onManualFrom ?? setManualFrom ?? (() => {});
+    const handleManualTo   = onManualTo   ?? setManualTo   ?? (() => {});
+    const handleForceManual = onForceManual ?? (() => handleModeChange('manual'));
+
+    const isAuto = activeMode === 'auto';
 
     return (
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-2">
+                    {stepNumber != null && (
+                        <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-700 flex items-center justify-center flex-shrink-0">
+                            {stepNumber}
+                        </span>
+                    )}
                     <ScanLine className="w-4 h-4 text-slate-400" />
-                    <span className="text-[12px] font-700 text-slate-700">Report Period</span>
+                    <span className="text-[12px] font-700 text-slate-700">Report Date</span>
                 </div>
                 <button
-                    onClick={() => onModeChange(isAuto ? 'manual' : 'auto')}
+                    onClick={() => handleModeChange(isAuto ? 'manual' : 'auto')}
                     className="flex items-center gap-1.5 text-[11px] font-600 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
                 >
                     {isAuto
@@ -100,7 +126,7 @@ export const ImportPeriodSelector = ({
                                                 Verify this is expected, or switch to Manual Range to set a specific period.
                                             </div>
                                         </div>
-                                        <button onClick={onForceManual}
+                                        <button onClick={handleForceManual}
                                             className="text-[10px] font-700 text-amber-700 hover:text-amber-900 whitespace-nowrap cursor-pointer">
                                             Set Manually
                                         </button>
@@ -129,7 +155,7 @@ export const ImportPeriodSelector = ({
                                         </button>
                                         <button
                                             className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-[11px] font-700 hover:bg-amber-700 cursor-pointer"
-                                            onClick={onForceManual}>
+                                            onClick={handleForceManual}>
                                             Set Manually
                                         </button>
                                     </div>
@@ -152,8 +178,8 @@ export const ImportPeriodSelector = ({
                         <motion.div key="manual" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                             className="space-y-3">
                             {[
-                                { label: 'From Date', val: manualFrom, onChange: onManualFrom, min: undefined, max: manualTo || today() },
-                                { label: 'To Date',   val: manualTo,   onChange: onManualTo,   min: manualFrom, max: today()           },
+                                { label: 'From Date', val: manualFrom, onChange: handleManualFrom, min: undefined, max: manualTo || today() },
+                                { label: 'To Date',   val: manualTo,   onChange: handleManualTo,   min: manualFrom, max: today()           },
                             ].map(({ label, val, onChange, min, max }) => (
                                 <div key={label}>
                                     <label className="block text-[10px] font-700 uppercase tracking-wider text-slate-500 mb-1.5">

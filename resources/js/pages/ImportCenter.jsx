@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Upload, BarChart3, CreditCard, Hospital, Building2,
     Stethoscope, Package, CheckCircle2, AlertTriangle, History,
-    Layers, RefreshCw, ChevronRight, Info, X, Loader2,
+    Layers, RefreshCw, ChevronRight, Info, X, Loader2, Calendar,
 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { selectToken, selectUser } from '../store/authSlice';
@@ -183,6 +183,8 @@ export default function ImportCenter() {
     const [historyType,  setHistoryType]  = useState(null);
     const [isImporting,  setIsImporting]  = useState(false);
     const [batchResult,  setBatchResult]  = useState(null);
+    // Individual mode — report date (defaults to today, user can override)
+    const [indivDate,    setIndivDate]    = useState(today());
 
     const batch = useBatchState();
 
@@ -369,18 +371,32 @@ export default function ImportCenter() {
                             exit={{ opacity: 0 }}
                             className="p-5 space-y-4"
                         >
-                            {/* Info banner */}
+                            {/* Info banner + date picker */}
                             <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
                                 <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
-                                <div>
+                                <div className="flex-1">
                                     <p className="text-[12px] font-700 text-blue-800">Individual Import Mode</p>
                                     <p className="text-[11px] text-blue-600 mt-0.5">
-                                        Upload reports one by one as they become available. Each upload only replaces data for that report type — other reports are unaffected.
+                                        Upload reports one by one. Each upload only replaces data for that report type — other reports are unaffected.
                                     </p>
+                                </div>
+                                {/* Report date surfaced for individual mode */}
+                                <div className="flex-shrink-0 flex flex-col items-end gap-1">
+                                    <label className="text-[9px] font-700 uppercase tracking-wider text-blue-500">Report Date</label>
+                                    <div className="relative">
+                                        <input
+                                            type="date"
+                                            value={indivDate}
+                                            max={today()}
+                                            onChange={e => setIndivDate(e.target.value)}
+                                            className="pl-2.5 pr-7 py-1 text-[11px] border border-blue-200 rounded-lg text-slate-700 focus:outline-none focus:border-blue-400 bg-white/80 appearance-none"
+                                        />
+                                        <Calendar className="w-3 h-3 text-blue-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Report cards — required */}
+                            {/* Required reports */}
                             <div>
                                 <p className="text-[11px] font-700 uppercase tracking-wide text-slate-400 mb-3">
                                     Required Reports
@@ -391,7 +407,7 @@ export default function ImportCenter() {
                                             key={rt.typeKey}
                                             {...rt}
                                             branch={branch}
-                                            date={today()}
+                                            date={indivDate}
                                             serverStatus={statuses[rt.typeKey]}
                                             onSuccess={handleCardSuccess}
                                             onHistory={(type) => { setHistoryType(type); setHistoryOpen(true); }}
@@ -400,7 +416,7 @@ export default function ImportCenter() {
                                 </div>
                             </div>
 
-                            {/* Report cards — optional */}
+                            {/* Optional reports */}
                             <div>
                                 <p className="text-[11px] font-700 uppercase tracking-wide text-slate-400 mb-3">
                                     Optional Reports
@@ -411,7 +427,7 @@ export default function ImportCenter() {
                                             key={rt.typeKey}
                                             {...rt}
                                             branch={branch}
-                                            date={today()}
+                                            date={indivDate}
                                             serverStatus={statuses[rt.typeKey]}
                                             onSuccess={handleCardSuccess}
                                             onHistory={(type) => { setHistoryType(type); setHistoryOpen(true); }}
@@ -431,107 +447,136 @@ export default function ImportCenter() {
                             exit={{ opacity: 0 }}
                             className="p-5 space-y-4"
                         >
-                            {/* Drop zone */}
-                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-                                <div className="p-5 border-b border-slate-100">
-                                    <p className="text-[13px] font-700 text-slate-700">Upload All Reports</p>
-                                    <p className="text-[11px] text-slate-400 mt-0.5">Drop all CSV files at once — types are auto-detected</p>
+                            {/* ── Step 1: Upload Area ─────────────────────────── */}
+                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2.5">
+                                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-700 flex items-center justify-center flex-shrink-0">1</span>
+                                    <div>
+                                        <p className="text-[13px] font-700 text-slate-700">Upload Files</p>
+                                        <p className="text-[11px] text-slate-400">Drag &amp; drop all CSV reports — types are auto-detected</p>
+                                    </div>
                                 </div>
                                 <div className="p-5">
                                     <DropZone
                                         isDragging={batch.isDragging}
                                         setIsDragging={batch.setIsDragging}
                                         onFiles={batch.addFiles}
+                                        fileCount={batch.items.length}
                                     />
                                 </div>
+                                {/* File cards */}
+                                {batch.items.length > 0 && (
+                                    <div className="px-5 pb-5 space-y-2">
+                                        {batch.items.map(item => (
+                                            <FileCard key={item.id} item={item} onRemove={batch.removeItem} />
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
-                            {/* File cards */}
+                            {/* ── Step 2: Report Date ─────────────────────────── */}
                             {batch.items.length > 0 && (
-                                <div className="space-y-2">
-                                    {batch.items.map(item => (
-                                        <FileCard key={item.id} item={item} onRemove={batch.removeItem} />
-                                    ))}
-                                </div>
+                                <ImportPeriodSelector
+                                    period={batch.period}
+                                    mode={batch.periodMode}
+                                    onModeChange={batch.setPeriodMode}
+                                    manualFrom={batch.manualFrom}
+                                    onManualFrom={batch.setManualFrom}
+                                    manualTo={batch.manualTo}
+                                    onManualTo={batch.setManualTo}
+                                    onForceManual={() => batch.setPeriodMode('manual')}
+                                    stepNumber={2}
+                                />
                             )}
 
-                            {/* Period selector */}
+                            {/* ── Step 3: Validation ──────────────────────────── */}
                             {batch.items.length > 0 && (
-                                <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-                                    <ImportPeriodSelector
-                                        period={batch.period}
-                                        periodMode={batch.periodMode}
-                                        setPeriodMode={batch.setPeriodMode}
-                                        manualFrom={batch.manualFrom}
-                                        setManualFrom={batch.setManualFrom}
-                                        manualTo={batch.manualTo}
-                                        setManualTo={batch.setManualTo}
-                                    />
-                                </div>
+                                <ValidationPanel items={batch.items} branch={branch} stepNumber={3} />
                             )}
 
-                            {/* Validation */}
+                            {/* ── Step 4: Import ──────────────────────────────── */}
                             {batch.items.length > 0 && (
-                                <ValidationPanel items={batch.items} branch={branch} />
-                            )}
-
-                            {/* Batch result */}
-                            <AnimatePresence>
-                                {batchResult && (
-                                    <motion.div
-                                        initial={{ opacity: 0, scale: 0.97 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        className={cn(
-                                            'rounded-xl border px-4 py-3 flex items-start gap-3',
-                                            batchResult.success
-                                                ? 'bg-green-50 border-green-200'
-                                                : 'bg-red-50 border-red-200',
-                                        )}
-                                    >
-                                        {batchResult.success
-                                            ? <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
-                                            : <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />}
-                                        <div className="flex-1 min-w-0">
-                                            <p className={cn('text-[13px] font-700', batchResult.success ? 'text-green-800' : 'text-red-800')}>
-                                                {batchResult.message}
-                                            </p>
-                                            {batchResult.success && (
-                                                <p className="text-[11px] text-green-700 mt-0.5">
-                                                    {Number(batchResult.imported).toLocaleString('en-IN')} rows imported
-                                                    {batchResult.skipped > 0 && `, ${batchResult.skipped} skipped`}
-                                                    {batchResult.errors > 0 && `, ${batchResult.errors} errors`}
-                                                </p>
-                                            )}
+                                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                    <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2.5">
+                                        <span className={cn(
+                                            'w-5 h-5 rounded-full text-[10px] font-700 flex items-center justify-center flex-shrink-0',
+                                            batchResult?.success ? 'bg-green-500 text-white' : 'bg-blue-600 text-white',
+                                        )}>4</span>
+                                        <div>
+                                            <p className="text-[13px] font-700 text-slate-700">Import</p>
+                                            <p className="text-[11px] text-slate-400">Push all validated files to the database</p>
                                         </div>
-                                        <button onClick={() => setBatchResult(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer border-0">
-                                            <X className="w-4 h-4" />
-                                        </button>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
+                                    </div>
+                                    <div className="p-5 space-y-3">
+                                        {/* Batch result banner */}
+                                        <AnimatePresence>
+                                            {batchResult && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, scale: 0.97 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    exit={{ opacity: 0 }}
+                                                    className={cn(
+                                                        'rounded-xl border px-4 py-3 flex items-start gap-3',
+                                                        batchResult.success
+                                                            ? 'bg-green-50 border-green-200'
+                                                            : 'bg-red-50 border-red-200',
+                                                    )}
+                                                >
+                                                    {batchResult.success
+                                                        ? <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                                                        : <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className={cn('text-[13px] font-700', batchResult.success ? 'text-green-800' : 'text-red-800')}>
+                                                            {batchResult.message}
+                                                        </p>
+                                                        {batchResult.success && (
+                                                            <p className="text-[11px] text-green-700 mt-0.5">
+                                                                {Number(batchResult.imported).toLocaleString('en-IN')} rows imported
+                                                                {batchResult.skipped > 0 && `, ${batchResult.skipped} skipped`}
+                                                                {batchResult.errors > 0 && `, ${batchResult.errors} errors`}
+                                                            </p>
+                                                        )}
+                                                        {!batchResult.success && batchResult.errorLines?.length > 0 && (
+                                                            <div className="mt-2 space-y-1">
+                                                                {batchResult.errorLines.slice(0, 3).map((e, i) => (
+                                                                    <p key={i} className="text-[10px] text-red-600">{e.field}: {e.message}</p>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <button onClick={() => setBatchResult(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer border-0">
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
 
-                            {/* Import button */}
-                            {batch.items.length > 0 && (
-                                <button
-                                    onClick={handleBatchImport}
-                                    disabled={isImporting || !batch.items.length}
-                                    className={cn(
-                                        'w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-[13px] font-700 transition-all cursor-pointer border-0',
-                                        isImporting
-                                            ? 'bg-blue-400 text-white cursor-not-allowed'
-                                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md',
-                                    )}
-                                >
-                                    {isImporting ? (
-                                        <><Loader2 className="w-4 h-4 animate-spin" /> Importing…</>
-                                    ) : (
-                                        <><Upload className="w-4 h-4" /> Import All Files</>
-                                    )}
-                                </button>
+                                        {/* Import button */}
+                                        <button
+                                            onClick={handleBatchImport}
+                                            disabled={isImporting || !batch.items.length}
+                                            className={cn(
+                                                'w-full flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl text-[13px] font-700 transition-all border-0',
+                                                isImporting
+                                                    ? 'bg-blue-400 text-white cursor-not-allowed'
+                                                    : batchResult?.success
+                                                        ? 'bg-green-600 hover:bg-green-700 text-white shadow-sm hover:shadow-md cursor-pointer'
+                                                        : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md cursor-pointer',
+                                            )}
+                                        >
+                                            {isImporting ? (
+                                                <><Loader2 className="w-4 h-4 animate-spin" /> Importing…</>
+                                            ) : batchResult?.success ? (
+                                                <><CheckCircle2 className="w-4 h-4" /> Import Complete — Re-import</>                                       
+                                            ) : (
+                                                <><Upload className="w-4 h-4" /> Import All Files</>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
                             )}
 
-                            {/* History panel (existing component) */}
+                            {/* History panel */}
                             <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
                                 <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
                                     <History className="w-4 h-4 text-slate-400" />

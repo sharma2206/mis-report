@@ -52,16 +52,16 @@ class MISController extends Controller
             // 1. Process CSV files → each file gets its own transaction + ImportLog row.
             //    Soft-delete is scoped to exact (branch, billing_date) only.
             $imported = $this->csvService->process(
-                branch:      $branchEnum,
-                date:        $date,
-                billFile:    $request->file('bill_file'),
+                branch: $branchEnum,
+                date: $date,
+                billFile: $request->file('bill_file'),
                 cashierFile: $request->file('cashier_file'),
                 packageFile: $request->file('package_file'),
-                erFile:      $request->file('er_file'),
-                ipFile:      $request->file('ip_file'),
+                erFile: $request->file('er_file'),
+                ipFile: $request->file('ip_file'),
                 surgeryFile: $request->file('surgery_file'),
-                userId:      $request->user()?->id,
-                uploadedBy:  $request->user()?->name ?? 'system',
+                userId: $request->user()?->id,
+                uploadedBy: $request->user()?->name ?? 'system',
             );
 
             // 2. Generate MIS report from freshly imported data
@@ -104,16 +104,16 @@ class MISController extends Controller
         try {
             // Each file gets its own transaction + ImportLog. Soft-delete is exact-date only.
             $imported = $this->csvService->process(
-                branch:      $branchEnum,
-                date:        $date,
-                billFile:    $request->file('bill_file'),
+                branch: $branchEnum,
+                date: $date,
+                billFile: $request->file('bill_file'),
                 cashierFile: $request->file('cashier_file'),
                 packageFile: $request->file('package_file'),
-                erFile:      $request->file('er_file'),
-                ipFile:      $request->file('ip_file'),
+                erFile: $request->file('er_file'),
+                ipFile: $request->file('ip_file'),
                 surgeryFile: $request->file('surgery_file'),
-                userId:      $request->user()?->id,
-                uploadedBy:  $request->user()?->name ?? 'system',
+                userId: $request->user()?->id,
+                uploadedBy: $request->user()?->name ?? 'system',
             );
 
             $sources = $imported['sources'] ?? [];

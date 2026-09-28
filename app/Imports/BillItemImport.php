@@ -7,8 +7,8 @@ use App\Models\BillItem;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
-use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
 class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
 {
@@ -16,7 +16,6 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
 
     public function __construct(
         private Branch $branch,
-        private string $date
     ) {}
 
     public function collection(Collection $rows): void
@@ -55,6 +54,95 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
                 $discount = $amount - $netAmount;
             }
 
+            /*
+             * ---------------------------------------------------------
+             * BILL DATE
+             *
+             * CSV Header:
+             * Bill / Refund Creation Date Time
+             *
+             * DO NOT use $this->date here.
+             * ---------------------------------------------------------
+             */
+            $billCreationDateTime = $this->getValue(
+                $row,
+                [
+                    'bill_refund_creation_date_time',
+                    'bill / refund creation date time',
+                    'bill/refund creation date time',
+                    'bill refund creation date time',
+                ],
+                null
+            );
+
+            if (
+                $billCreationDateTime === null ||
+                trim((string) $billCreationDateTime) === ''
+            ) {
+
+                throw new \RuntimeException(
+                    'Bill / Refund Creation Date Time is missing for Bill No: '
+                        . ($billNo ?: 'Unknown')
+                );
+            }
+
+            $billDate = $this->parseBillDate($billCreationDateTime);
+
+            /*
+             * ---------------------------------------------------------
+             * OTHER FIELDS
+             * ---------------------------------------------------------
+             */
+            $patientType = $this->getValue(
+                $row,
+                [
+                    'patient_type',
+                    'patient type',
+                ],
+                null
+            );
+
+            $serviceType = $this->getValue(
+                $row,
+                [
+                    'service_type',
+                    'service type',
+                ],
+                ''
+            );
+
+            $subDepartment = $this->getValue(
+                $row,
+                [
+                    'sub_department',
+                    'sub-department',
+                    'sub department',
+                ],
+                null
+            );
+
+            $status = $this->getValue(
+                $row,
+                [
+                    'status',
+                ],
+                'Active'
+            );
+
+            $quantity = $this->getValue(
+                $row,
+                [
+                    'quantity',
+                    'qty',
+                ],
+                1
+            );
+
+            /*
+             * ---------------------------------------------------------
+             * INSERT
+             * ---------------------------------------------------------
+             */
             $insert[] = [
                 'branch'                   => $this->branch->value,
                 'bill_date'                => $this->parseDateOnly($this->getValue($row, ['bill_refund_creation_date_time'], null)) ?? $this->date,
@@ -93,10 +181,15 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
             ];
         }
 
+        /*
+         * Bulk insert in chunks.
+         */
         if (!empty($insert)) {
+
             foreach (array_chunk($insert, 500) as $chunk) {
                 BillItem::insert($chunk);
             }
+
             $this->rowCount += count($insert);
         }
     }
@@ -112,9 +205,20 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
             $row = $row->all();
         }
 
-        foreach ($keys as $k) {
-            if (is_array($row) && array_key_exists($k, $row) && trim((string)($row[$k] ?? '')) !== '') {
-                return $row[$k];
+        if (!is_array($row)) {
+            return $default;
+        }
+
+        /*
+         * First try exact keys.
+         */
+        foreach ($keys as $key) {
+
+            if (
+                array_key_exists($key, $row) &&
+                $this->hasValue($row[$key])
+            ) {
+                return $row[$key];
             }
         }
 

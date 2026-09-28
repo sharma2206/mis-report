@@ -5,11 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Carbon\Carbon;
 
 class CashierCollection extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -17,11 +18,11 @@ class CashierCollection extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'branch',
-        'collection_date',
-        'patient_type',
-        'user_department',
-        'paid_amount',
+        'branch', 'collection_date',
+        'uhid', 'patient_name', 'visit_id', 'receipt_no',
+        'patient_type', 'user_department', 'paid_amount',
+        'transaction_type', 'transaction_category',
+        'payment_mode', 'payer_type', 'payer_name',
     ];
 
     /**
@@ -44,9 +45,23 @@ class CashierCollection extends Model
      * @param string $branch
      * @return Builder
      */
-    public function scopeForBranch(Builder $query, string $branch): Builder
+    public function scopeForBranch(Builder $query, $branch): Builder
     {
-        return $query->where('branch', $branch);
+        if ($branch === 'all' || (is_array($branch) && in_array('all', $branch, true))) {
+            return $query;
+        }
+        if (is_array($branch)) return $query->whereIn('branch', $branch);
+        $val = $branch instanceof \BackedEnum ? $branch->value : $branch;
+        return $query->where('branch', $val);
+    }
+
+    public function scopeApplyFilters(Builder $query, array $filters): Builder
+    {
+        if (!empty($filters['departments']))  $query->whereIn('user_department', $filters['departments']);
+        if (!empty($filters['patient_types'])) $query->whereIn('patient_type', $filters['patient_types']);
+        if (!empty($filters['payment_types'])) $query->whereIn('payment_mode', $filters['payment_types']);
+        
+        return $query;
     }
 
     /**

@@ -12,118 +12,46 @@ use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
 class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
 {
-    /**
-     * Track total rows imported.
-     */
     public int $rowCount = 0;
 
-    /**
-     * @param Branch $branch
-     */
     public function __construct(
         private Branch $branch,
     ) {}
 
-    /**
-     * Process each chunk of rows from the CSV.
-     */
     public function collection(Collection $rows): void
     {
         $insert = [];
 
         foreach ($rows as $row) {
-            $patientId = trim((string) $this->getValue(
-                $row,
-                ['patient_id', 'uhid'],
-                ''
-            ));
+            $uhid   = trim($this->getValue($row, ['uhid'], ''));
+            $billNo = trim($this->getValue($row, ['bill_no', 'billno', 'bill_number'], ''));
 
-            $billNo = trim((string) $this->getValue(
-                $row,
-                ['bill_no', 'bill number'],
-                ''
-            ));
-
-            if ($patientId === '' && $billNo === '') {
+            if (empty($uhid) && empty($billNo)) {
                 continue;
             }
 
-            /*
-             * ---------------------------------------------------------
-             * AMOUNT
-             * CSV Header: Amount
-             * ---------------------------------------------------------
-             */
-            $amount = $this->toFloat(
-                $this->getValue(
-                    $row,
-                    [
-                        'amount',
-                        'amt',
-                        'total_amount',
-                    ],
-                    0
-                )
-            );
+            $amount    = (float) $this->getValue($row, ['amount', 'amt', 'total_amount']);
+            $discount = (float) $this->getValue($row, [
+                'discount_amount',
+                'discount amount',
+                'discount amt',
+                'discount_amt',
+                'discount',
+                'disc'
+            ], 0);
 
-            /*
-             * ---------------------------------------------------------
-             * NET AMOUNT
-             * CSV Header: Net Amt
-             *
-             * IMPORTANT:
-             * Use Net Amt directly from CSV.
-             * Do not calculate it from Amount - Discount if Net Amt
-             * already exists.
-             * ---------------------------------------------------------
-             */
-            $netAmountRaw = $this->getValue(
-                $row,
-                [
-                    'net_amt',
-                    'net amount',
-                    'net_amount',
-                    'netamount',
-                ],
-                null
-            );
-
-            /*
-             * CSV Header: Discount Amt
-             */
-            $discountRaw = $this->getValue(
-                $row,
-                [
-                    'discount_amt',
-                    'discount amount',
-                    'discount',
-                    'disc',
-                    'discount_amount',
-                ],
-                null
-            );
-
+            $netAmountRaw = $this->getValue($row, ['net_amount', 'net amount', 'netamount', 'net-amount'], null);
             if ($netAmountRaw !== null && trim((string) $netAmountRaw) !== '') {
-
-                /*
-                 * Source of truth:
-                 * CSV Net Amt
-                 */
-                $netAmount = $this->toFloat($netAmountRaw);
-            } elseif ($discountRaw !== null && trim((string) $discountRaw) !== '') {
-
-                /*
-                 * Fallback only when Net Amt is genuinely missing.
-                 */
-                $discount = $this->toFloat($discountRaw);
-
+                $netAmount = (float) $netAmountRaw;
+            } elseif ($discount > 0) {
                 $netAmount = $amount - $discount;
             } else {
-
-                /*
-                 * Last fallback.
-                 */
                 $netAmount = $amount;
+            }
+
+            // Derive discount_amount if not explicitly provided
+            if ($discount <= 0 && $netAmount < $amount) {
+                $discount = $amount - $netAmount;
             }
 
             /*
@@ -216,40 +144,40 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
              * ---------------------------------------------------------
              */
             $insert[] = [
-                'branch'         => $this->branch->value,
-
-                /*
-                 * Actual date from CSV row.
-                 */
-                'bill_date'      => $billDate,
-
-                'patient_id'     => $patientId,
-
-                'patient_type'   => $this->normalizePatientType(
-                    $patientType !== null
-                        ? trim((string) $patientType)
-                        : null
-                ),
-
-                'service_type'   => trim((string) $serviceType),
-
-                'sub_department' => $subDepartment !== null
-                    ? (trim((string) $subDepartment) ?: null)
-                    : null,
-
-                'amount'         => $amount,
-
-                /*
-                 * Directly from CSV Net Amt.
-                 */
-                'net_amount'     => $netAmount,
-
-                'quantity'       => (int) $quantity,
-
-                'status'         => trim((string) $status) ?: 'Active',
-
-                'created_at'     => now(),
-                'updated_at'     => now(),
+                'branch'                   => $this->branch->value,
+                'bill_date'                => $this->parseDateOnly($this->getValue($row, ['bill_refund_creation_date_time'], null)) ?? $this->date,
+                'bill_no'                  => $billNo ?: null,
+                'uhid'                     => $uhid ?: null,
+                'patient_id'               => $uhid ?: trim($this->getValue($row, ['patient_id'], '')),
+                'patient_name'             => trim($this->getValue($row, ['patient_name'], '')) ?: null,
+                'age'                      => trim($this->getValue($row, ['age', 'patient_age'], '')) ?: null,
+                'gender'                   => trim($this->getValue($row, ['gender', 'patient_gender'], '')) ?: null,
+                'ward'                     => trim($this->getValue($row, ['ward'], '')) ?: null,
+                'bed'                      => trim($this->getValue($row, ['bed'], '')) ?: null,
+                'visit_id'                 => trim($this->getValue($row, ['visit_id', 'visit_id_admissionid', 'visitid', 'visit_idadmissionid'], '')) ?: null,
+                'patient_type'             => $this->normalizePatientType($row['patient_type'] ?? null),
+                'payer_type'               => strtolower(trim($this->getValue($row, ['payer_type'], ''))) ?: null,
+                'payer_name'               => trim($this->getValue($row, ['payer_name', 'payer'], '')) ?: null,
+                'payer_group'              => trim($this->getValue($row, ['payer_group'], '')) ?: null,
+                'insurance_company'        => trim($this->getValue($row, ['insurance_company'], '')) ?: null,
+                'corporate_name'           => trim($this->getValue($row, ['corporate_name'], '')) ?: null,
+                'service_type'             => trim($row['service_type'] ?? ''),
+                'sub_department'           => trim($row['sub_department'] ?? '') ?: null,
+                'service_item_code'        => trim($this->getValue($row, ['service_item_code'], '')) ?: null,
+                'service_item_name'        => trim($this->getValue($row, ['service_item_name'], '')) ?: null,
+                'treating_doctor'          => trim($this->getValue($row, ['treating_doctor_team', 'treating_doctorteam', 'treating_doctor'], '')) ?: null,
+                'treating_doctor_speciality' => trim($this->getValue($row, ['treating_doctor_speciality'], '')) ?: null,
+                'treating_department'      => trim($this->getValue($row, ['treating_department', 'department'], '')) ?: null,
+                'treating_sub_department'  => trim($this->getValue($row, ['treating_sub_department'], '')) ?: null,
+                'billing_category'         => trim($this->getValue($row, ['billing_category'], '')) ?: null,
+                'amount'                   => $amount,
+                'discount_amount'          => round($discount, 2),
+                'net_amount'               => $netAmount,
+                'quantity'                 => (int) ($row['quantity'] ?? 1),
+                'payment_mode'             => trim($this->getValue($row, ['settlement_payment_modes', 'payment_mode', 'payment_method'], '')) ?: null,
+                'status'                   => $this->normalizeStatus($row['status'] ?? null),
+                'created_at'               => now(),
+                'updated_at'               => now(),
             ];
         }
 
@@ -266,33 +194,14 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
         }
     }
 
-    /**
-     * Get value using multiple possible CSV header names.
-     *
-     * This normalization removes:
-     * - spaces
-     * - underscores
-     * - hyphens
-     * - slash
-     * - other special characters
-     *
-     * Therefore:
-     *
-     * "Net Amt"
-     * "net_amt"
-     * "Net-Amt"
-     * "net amount"
-     *
-     * all resolve to:
-     *
-     * netamt
-     */
-    private function getValue(
-        $row,
-        array $keys,
-        $default = 0
-    ) {
-        if ($row instanceof Collection) {
+    public function chunkSize(): int
+    {
+        return 1000;
+    }
+
+    private function getValue($row, array $keys, $default = 0)
+    {
+        if ($row instanceof \Illuminate\Support\Collection) {
             $row = $row->all();
         }
 
@@ -313,146 +222,50 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
             }
         }
 
-        /*
-         * Build normalized row keys.
-         */
         $normalized = [];
-
-        foreach ($row as $rowKey => $rowValue) {
-
-            $normalizedKey = $this->normalizeHeader($rowKey);
-
-            $normalized[$normalizedKey] = $rowValue;
+        if (is_array($row)) {
+            foreach ($row as $rk => $rv) {
+                $key = strtolower(str_replace([' ', '-', '_', '/'], '', $rk));
+                $normalized[$key] = $rv;
+            }
         }
-
-        /*
-         * Try normalized keys.
-         */
-        foreach ($keys as $key) {
-
-            $normalizedKey = $this->normalizeHeader($key);
-
-            if (
-                array_key_exists($normalizedKey, $normalized) &&
-                $this->hasValue($normalized[$normalizedKey])
-            ) {
-                return $normalized[$normalizedKey];
+        foreach ($keys as $k) {
+            $nk = strtolower(str_replace([' ', '-', '_', '/'], '', $k));
+            if (array_key_exists($nk, $normalized) && trim((string)$normalized[$nk]) !== '') {
+                return $normalized[$nk];
             }
         }
 
         return $default;
     }
 
-    /**
-     * Normalize CSV heading.
-     */
-    private function normalizeHeader($key): string
+    private function parseDateOnly($value): ?string
     {
-        return strtolower(
-            preg_replace(
-                '/[^a-zA-Z0-9]/',
-                '',
-                trim((string) $key)
-            )
-        );
-    }
-
-    /**
-     * Check whether a value is non-empty.
-     */
-    private function hasValue($value): bool
-    {
-        return $value !== null &&
-            trim((string) $value) !== '';
-    }
-
-    /**
-     * Convert amount values safely.
-     */
-    private function toFloat($value): float
-    {
-        if ($value === null || trim((string) $value) === '') {
-            return 0.0;
+        if (!$value || trim((string) $value) === '') {
+            return null;
         }
-
-        /*
-         * Remove commas and currency symbols if present.
-         */
-        $value = str_replace(
-            [',', '₹'],
-            '',
-            trim((string) $value)
-        );
-
-        return (float) $value;
-    }
-
-    /**
-     * Parse:
-     *
-     * 09/08/2026, 10:47 pm
-     * 10/08/2026, 11:20 pm
-     *
-     * and return:
-     *
-     * 2026-08-09
-     * 2026-08-10
-     */
-    private function parseBillDate($value): string
-    {
-        $value = trim((string) $value);
-
-        $formats = [
-            'd/m/Y, h:i a',
-            'd/m/Y, H:i',
-            'd/m/Y h:i a',
-            'd/m/Y H:i',
-            'Y-m-d H:i:s',
-            'Y-m-d H:i',
-            'Y-m-d',
-        ];
-
-        foreach ($formats as $format) {
-
+        try {
+            return Carbon::createFromFormat('d/m/Y, h:i a', trim((string) $value))->format('Y-m-d');
+        } catch (\Exception) {
             try {
-
-                $date = Carbon::createFromFormat(
-                    $format,
-                    $value
-                );
-
-                if ($date !== false) {
-                    return $date->format('Y-m-d');
-                }
-            } catch (\Throwable $e) {
-                // Try next format.
+                return Carbon::parse($value)->format('Y-m-d');
+            } catch (\Exception) {
+                return null;
             }
         }
-
-        /*
-         * Final fallback using Carbon parser.
-         */
-        try {
-            return Carbon::parse($value)->format('Y-m-d');
-        } catch (\Throwable $e) {
-
-            throw new \RuntimeException(
-                "Invalid Bill / Refund Creation Date Time: {$value}"
-            );
-        }
     }
 
-    /**
-     * Chunk size.
-     */
-    public function chunkSize(): int
+    private function normalizeStatus(?string $status): string
     {
-        return 1000;
+        $s = strtolower(trim($status ?? ''));
+        return match (true) {
+            in_array($s, ['refund', 'refunded'], true)                        => 'Refund',
+            in_array($s, ['cancelled', 'canceled', 'cancel'], true)           => 'Cancelled',
+            in_array($s, ['active', 'sale', 'billed', 'approved', ''], true)  => 'Sale',
+            default                                                            => 'Sale',
+        };
     }
 
-    /**
-     * Normalize patient type.
-     */
     private function normalizePatientType(?string $type): ?string
     {
         if (!$type || trim($type) === '') {
@@ -462,13 +275,10 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
         $t = strtoupper(trim($type));
 
         return match (true) {
-            str_contains($t, 'OP') => 'OP',
-            str_contains($t, 'IP'),
-            str_contains($t, 'INPATIENT') => 'IP',
-            str_contains($t, 'ER'),
-            str_contains($t, 'EMERGENCY') => 'ER',
-
-            default => $t,
+            str_contains($t, 'OP')                                   => 'OP',
+            str_contains($t, 'IP'), str_contains($t, 'INPATIENT')    => 'IP',
+            str_contains($t, 'ER'), str_contains($t, 'EMERGENCY')    => 'ER',
+            default                                                   => $t,
         };
     }
 }

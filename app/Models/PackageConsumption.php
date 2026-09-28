@@ -5,11 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Carbon\Carbon;
 
 class PackageConsumption extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -17,9 +18,11 @@ class PackageConsumption extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'branch',
-        'consumption_date',
-        'amount',
+        'branch', 'consumption_date',
+        'uhid', 'patient_name', 'bill_no', 'patient_type', 'payer_type', 'payer_name',
+        'package_type', 'package_sub_type', 'package_name', 'package_codes',
+        'department', 'sub_department', 'billing_category',
+        'package_service_type', 'package_service_item', 'amount', 'service_item_amount', 'order_by',
     ];
 
     /**

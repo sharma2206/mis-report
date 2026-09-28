@@ -5,6 +5,9 @@
     "description": "The skeleton application for the Laravel framework.",
     "keywords": ["laravel", "framework"],
     "license": "MIT",
+    "suggest": {
+        "predis/predis": "Required when CACHE_STORE=redis and the phpredis extension is not installed"
+    },
     "require": {
         "php": "^8.2",
         "barryvdh/laravel-dompdf": "^3.1",

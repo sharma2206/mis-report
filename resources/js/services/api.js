@@ -6,34 +6,64 @@ const client = axios.create({
         Accept: "application/json",
         "X-Requested-With": "XMLHttpRequest",
     },
-    // Send session cookie + XSRF-TOKEN on every request (Sanctum SPA auth)
     withCredentials: true,
-    // Ensure axios reads the Laravel CSRF cookie and sends the header
     xsrfCookieName: "XSRF-TOKEN",
     xsrfHeaderName: "X-XSRF-TOKEN",
 });
 
-// Redirect to /login on 401 (session expired or not authenticated)
+let logoutInProgress = false;
+
+const handleUnauthorized = () => {
+    if (logoutInProgress) return;
+
+    logoutInProgress = true;
+
+    const hasStoredUser = !!localStorage.getItem("mis_user");
+    localStorage.removeItem("mis_user");
+
+    if (hasStoredUser) {
+        window.location.replace("/login");
+    }
+};
+
 client.interceptors.response.use(
     (res) => res,
     (err) => {
-        if (err.response?.status === 401) {
-            localStorage.removeItem("mis_user");
-            window.location.replace("/login");
+        const status = err?.response?.status;
+
+        if (status === 401) {
+            handleUnauthorized();
+            return Promise.reject(err);
         }
+
+        if (
+            status === 403 ||
+            status === 419 ||
+            status === 500 ||
+            !err.response
+        ) {
+            return Promise.reject(err);
+        }
+
         return Promise.reject(err);
     },
 );
 
-export default client;
+client.interceptors.request.use(
+    (config) => {
+        if (config.url && config.url.includes("/auth/login")) {
+            logoutInProgress = false;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error),
+);
 
-// ─── Branches ────────────────────────────────────────────────────────────────
+export default client;
 
 export const branchesApi = {
     list: () => client.get("/branches"),
 };
-
-// ─── Auth ────────────────────────────────────────────────────────────────────
 
 export const authApi = {
     login: (data) => client.post("/auth/login", data),
@@ -41,8 +71,6 @@ export const authApi = {
     me: () => client.get("/auth/me"),
     register: (data) => client.post("/auth/register", data),
 };
-
-// ─── MIS Reports ─────────────────────────────────────────────────────────────
 
 export const misApi = {
     upload: (branch, fd) =>
@@ -78,8 +106,6 @@ export const misApi = {
         client.get("/mis/import-logs", { params: { branch, limit } }),
     rollbackImport: (id) => client.delete(`/mis/import-logs/${id}`),
 };
-
-// ─── Analytics ───────────────────────────────────────────────────────────────
 
 export const analyticsApi = {
     kpi: (branch, date, params = {}) =>
@@ -124,8 +150,6 @@ export const intelligenceApi = {
         client.post("/data-quality/snapshots", params),
 };
 
-// ─── Surgery Analytics ───────────────────────────────────────────────────────
-
 export const surgeryAnalyticsApi = {
     kpis: (params) => client.get("/analytics/surgery/kpis", { params }),
     trend: (params) => client.get("/analytics/surgery/trend", { params }),
@@ -143,8 +167,6 @@ export const surgeryAnalyticsApi = {
     payer: (params) => client.get("/analytics/surgery/payer", { params }),
     insights: (params) => client.get("/analytics/surgery/insights", { params }),
 };
-
-// ─── Users ───────────────────────────────────────────────────────────────────
 
 export const usersApi = {
     list: (params) => client.get("/users", { params }),
@@ -172,60 +194,29 @@ export const usersApi = {
     loginLogs: (id) => client.get(`/users/${id}/login-logs`),
 };
 
-// ─── RBAC ────────────────────────────────────────────────────────────────────
-
 export const rbacApi = {
-    getRoles: (params) => client.get("/rbac/roles", { params }),
     getRole: (id) => client.get(`/rbac/roles/${id}`),
+    getRoles: (params) => client.get("/rbac/roles", { params }),
     createRole: (data) => client.post("/rbac/roles", data),
     updateRole: (id, data) => client.put(`/rbac/roles/${id}`, data),
     deleteRole: (id) => client.delete(`/rbac/roles/${id}`),
-    cloneRole: (id, name) => client.post(`/rbac/roles/${id}/clone`, { name }),
+    cloneRole: (id, data) => client.post(`/rbac/roles/${id}/clone`, data),
     toggleRole: (id) => client.patch(`/rbac/roles/${id}/toggle`),
-    updateRolePermissions: (id, ids) =>
-        client.put(`/rbac/roles/${id}/permissions`, { permission_ids: ids }),
+    getPermissions: () => client.get("/rbac/permissions"),
+    getRoleUsers: (id) => client.get(`/rbac/roles/${id}/users`),
+    updateRolePermissions: (id, permissionIds) =>
+        client.put(`/rbac/roles/${id}/permissions`, {
+            permission_ids: permissionIds,
+        }),
+    updatePermissions: (id, permissionIds) =>
+        client.put(`/rbac/roles/${id}/permissions`, {
+            permission_ids: permissionIds,
+        }),
     updateRoleBranches: (id, branches) =>
         client.put(`/rbac/roles/${id}/branches`, { branches }),
-    getRoleUsers: (id) => client.get(`/rbac/roles/${id}/users`),
-    getPermissions: () => client.get("/rbac/permissions"),
     assignRoles: (data) => client.post("/rbac/assign", data),
-    removeRoleFromUser: (roleId, uid) =>
-        client.delete(`/rbac/roles/${roleId}/users/${uid}`),
+    stats: () => client.get("/rbac/stats"),
     getStats: () => client.get("/rbac/stats"),
+    audit: (params) => client.get("/rbac/audit", { params }),
     getAudit: (params) => client.get("/rbac/audit", { params }),
-};
-
-// ─── Audit Logs ──────────────────────────────────────────────────────────────
-
-export const auditLogsApi = {
-    list: (params) => client.get("/audit-logs", { params }),
-    events: () => client.get("/audit-logs/events"),
-};
-
-// ─── Notifications ────────────────────────────────────────────────────────────
-
-export const notificationsApi = {
-    list: (params) => client.get("/notifications", { params }),
-    unread: () => client.get("/notifications/unread"),
-};
-
-// ─── Scheduler ───────────────────────────────────────────────────────────────
-
-export const schedulerApi = {
-    status: () => client.get("/scheduler/status"),
-};
-
-// ─── Operational Centre ───────────────────────────────────────────────────────
-
-export const operationalApi = {
-    kpis: (params) => client.get("/operational/kpis", { params }),
-    bedOccupancy: (params) =>
-        client.get("/operational/bed-occupancy", { params }),
-    admissions: (params) => client.get("/operational/admissions", { params }),
-    census: (params) => client.get("/operational/census", { params }),
-    surgery: (params) => client.get("/operational/surgery", { params }),
-    departments: (params) => client.get("/operational/departments", { params }),
-    doctors: (params) => client.get("/operational/doctors", { params }),
-    alerts: (params) => client.get("/operational/alerts", { params }),
-    analytics: (params) => client.get("/operational/analytics", { params }),
 };

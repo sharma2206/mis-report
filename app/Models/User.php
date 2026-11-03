@@ -135,7 +135,27 @@ class User extends Authenticatable
 
     public function isAdmin(): bool
     {
-        return $this->role === 'admin';
+        $legacyAdminRoles = [
+            'admin',
+            'administrator',
+            'super-admin',
+            'super_admin',
+            'system_administrator',
+            'hospital_administrator',
+            'branch_administrator',
+            'it_administrator',
+        ];
+
+        $roleName = strtolower((string) ($this->role ?? ''));
+
+        if (in_array($roleName, $legacyAdminRoles, true)) {
+            return true;
+        }
+
+        return $this->roles()
+            ->where('is_active', true)
+            ->whereIn('slug', $legacyAdminRoles)
+            ->exists();
     }
     public function isManager(): bool
     {

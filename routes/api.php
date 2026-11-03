@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\RbacController;
 use App\Http\Controllers\Api\SchedulerController;
 use App\Http\Controllers\Api\SurgeryAnalyticsController;
 use App\Http\Controllers\Api\UserController;
+use App\Models\HospitalBranch;
 use Illuminate\Support\Facades\Route;
 
 // ─── Health check (no auth, no version prefix) ───────────────────────────────
@@ -41,7 +42,7 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
     Route::prefix('auth')->middleware('throttle:10,1')->group(function () {
         Route::post('login', [AuthController::class, 'login']);
 
-        Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
+        Route::middleware(['auth:sanctum', 'user.active', 'tenant'])->group(function () {
             Route::post('logout',   [AuthController::class, 'logout']);
             Route::get('me',        [AuthController::class, 'me']);
             Route::post('register', [AuthController::class, 'register']);
@@ -49,12 +50,12 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
     });
 
     // ─── Protected: no branch scope (import logs, dashboard, analytics) ──────
-    Route::middleware(['auth:sanctum', 'tenant', 'throttle:120,1'])->group(function () use ($date) {
+    Route::middleware(['auth:sanctum', 'user.active', 'tenant', 'throttle:120,1'])->group(function () use ($date) {
 
         // Branch list for the current tenant, filtered by the user's branch access.
         // Bed counts come from the branches table (seeded from the original enum).
         Route::get('/branches', function (\Illuminate\Http\Request $request) {
-            $all = \App\Models\HospitalBranch::query()
+            $all = HospitalBranch::query()
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['key', 'name', 'bed_count'])
@@ -228,7 +229,7 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
     });
 
     // ─── Protected: branch-scoped (branch.access middleware enforced) ────────
-    Route::middleware(['auth:sanctum', 'tenant', 'throttle:120,1', 'branch.access'])
+    Route::middleware(['auth:sanctum', 'user.active', 'tenant', 'throttle:120,1', 'branch.access'])
         ->where(['branch' => $branch, 'date' => $date])
         ->group(function () {
             Route::get('/mis/{branch}/{date}', [MISController::class, 'show'])

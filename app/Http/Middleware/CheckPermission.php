@@ -21,6 +21,14 @@ class CheckPermission
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         }
 
+        if ($user->locked_at !== null || ! $user->is_active) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Your account is disabled or locked.',
+                'code' => 'ACCOUNT_DISABLED',
+            ], 403);
+        }
+
         $allowed = [];
         foreach ($permissions as $permission) {
             foreach (explode('|', $permission) as $part) {
@@ -32,7 +40,11 @@ class CheckPermission
         }
 
         if ($allowed === [] || ! $user->hasAnyPermission(...$allowed)) {
-            return response()->json(['success' => false, 'message' => 'Permission denied.'], 403);
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to access this resource.',
+                'code' => 'PERMISSION_DENIED',
+            ], 403);
         }
 
         return $next($request);

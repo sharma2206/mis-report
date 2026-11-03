@@ -2,12 +2,15 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\AuthorizationService;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class CheckRole
 {
+    public function __construct(private AuthorizationService $authorizationService) {}
+
     /**
      * Usage: ->middleware('role:staff|manager|admin')
      * Accepts pipe-separated list of allowed roles.
@@ -20,16 +23,26 @@ class CheckRole
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         }
 
-        // Roles may arrive as a single "staff|manager|admin" argument or multiple args.
-        $allowed = [];
-        foreach ($roles as $r) {
-            foreach (explode('|', $r) as $part) {
-                $allowed[] = trim($part);
-            }
+        if ($user->locked_at !== null || ! $user->is_active) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Your account is disabled or locked.',
+                'code' => 'ACCOUNT_DISABLED',
+            ], 403);
         }
 
-        if (! in_array($user->role, $allowed, true)) {
-            return response()->json(['success' => false, 'message' => 'Insufficient role.'], 403);
+        $allowed = collect($roles)
+            ->flatMap(fn($role) => explode('|', $role))
+            ->map(fn($role) => trim($role))
+            ->filter()
+            ->all();
+
+        if ($allowed === [] || ! collect($allowed)->contains(fn($role) => $this->authorizationService->hasRole($user, $role))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have access for this role.',
+                'code' => 'ROLE_REQUIRED',
+            ], 403);
         }
 
         return $next($request);

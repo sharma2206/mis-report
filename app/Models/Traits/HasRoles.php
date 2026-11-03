@@ -17,33 +17,42 @@ trait HasRoles
 
     public function getAllPermissions(): array
     {
-        return Cache::remember("user_permissions_{$this->id}", 300, function () {
-            // Legacy admin bypass — retains backward-compat while RBAC is seeded.
-            if ($this->role === 'admin') {
+        $userId = (int) ($this->getKey() ?? 0);
+
+        return Cache::remember("user_permissions_{$userId}", 300, function () {
+            // The authoritative source of permissions is the RBAC role assignment.
+            // Legacy role strings are treated only as a compatibility signal for admin-level access;
+            // they are no longer used to grant regular application permissions.
+            if ($this->isAdmin()) {
                 return ['*'];
             }
 
             $roles = $this->roles()
                 ->where('is_active', true)
                 ->where(function ($q) {
-                    // Role assignment is valid if it has no expiry OR the expiry is in the future.
-                    // The closure is essential so the OR does not escape the is_active=true scope.
                     $q->whereNull('user_roles.expires_at')
-                      ->orWhereDate('user_roles.expires_at', '>=', now());
+                        ->orWhereDate('user_roles.expires_at', '>=', now());
                 })
                 ->with('permissions:id,slug')
                 ->get();
 
-            // An assigned RBAC role replaces the legacy column, even if it grants nothing.
             if ($roles->isNotEmpty()) {
                 return $roles
-                    ->flatMap(fn ($r) => $r->permissions->pluck('slug'))
+                    ->flatMap(fn($r) => $r->permissions->pluck('slug'))
+                    ->filter(fn($slug) => is_string($slug) && $slug !== '')
                     ->unique()
                     ->values()
                     ->all();
             }
 
-            return LegacyRolePermissions::for($this->role);
+            $legacyRole = (string) ($this->role ?? '');
+            $legacy = LegacyRolePermissions::for($legacyRole);
+
+            if (! empty($legacy)) {
+                return $legacy;
+            }
+
+            return [];
         });
     }
 
@@ -62,11 +71,11 @@ trait HasRoles
 
     public function hasAnyPermission(string ...$permissions): bool
     {
-        return collect($permissions)->contains(fn ($p) => $this->hasPermission($p));
+        return collect($permissions)->contains(fn($p) => $this->hasPermission($p));
     }
 
     public function clearPermissionCache(): void
     {
-        Cache::forget("user_permissions_{$this->id}");
+        Cache::forget("user_permissions_" . ((int) ($this->getKey() ?? 0)));
     }
 }

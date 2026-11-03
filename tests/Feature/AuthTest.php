@@ -119,4 +119,30 @@ class AuthTest extends TestCase
     {
         $this->getJson('/api/v1/auth/me')->assertUnauthorized();
     }
+
+    public function test_admin_user_has_dashboard_access(): void
+    {
+        $user = User::factory()->create([
+            'email'     => 'admin@mis.local',
+            'password'  => 'secret123',
+            'role'      => 'admin',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)->getJson('/api/v1/kpis')
+            ->assertOk();
+    }
+
+    public function test_user_without_permission_is_forbidden(): void
+    {
+        $user = User::factory()->create([
+            'email'     => 'noperm@mis.local',
+            'password'  => 'secret123',
+            'role'      => 'custom',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)->getJson('/api/v1/kpis')
+            ->assertForbidden();
+    }
 }

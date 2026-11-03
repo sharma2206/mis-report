@@ -14,14 +14,6 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    /**
-     * POST /api/auth/login
-     * Authenticates via session cookie (Sanctum SPA auth). No token returned.
-     */
-    /**
-     * Maximum failed login attempts before account is locked.
-     * After this threshold the account is locked and requires admin unlock.
-     */
     private const MAX_FAILED_ATTEMPTS = 5;
 
     public function login(Request $request): JsonResponse
@@ -31,35 +23,26 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        // ── Pre-flight: look up user before Auth::attempt() so we can
-        //    enforce lockout and inactive checks without leaking whether
-        //    the email exists (all failure paths return the same message).
         $user = User::where('email', $request->email)->first();
 
-        // Account locked — reject immediately, no attempt counted.
         if ($user && $user->locked_at !== null) {
             AuditLog::record('login_blocked_locked', ['email' => $request->email], null, null, $request);
             throw ValidationException::withMessages(['email' => ['Account is locked. Please contact an administrator.']]);
         }
 
-        // Account inactive — reject immediately.
         if ($user && ! $user->is_active) {
             AuditLog::record('login_blocked_inactive', ['email' => $request->email], null, null, $request);
             throw ValidationException::withMessages(['email' => ['Account is disabled.']]);
         }
 
         if (! Auth::attempt($request->only('email', 'password'))) {
-            // Increment failure counter and auto-lock after threshold.
             if ($user) {
                 $attempts = ($user->failed_login_attempts ?? 0) + 1;
-                $updates  = ['failed_login_attempts' => $attempts];
+                $updates = ['failed_login_attempts' => $attempts];
 
                 if ($attempts >= self::MAX_FAILED_ATTEMPTS) {
                     $updates['locked_at'] = now();
-                    AuditLog::record('login_account_locked', [
-                        'email'    => $request->email,
-                        'attempts' => $attempts,
-                    ], null, null, $request);
+                    AuditLog::record('login_account_locked', ['email' => $request->email, 'attempts' => $attempts], null, null, $request);
                 }
 
                 $user->update($updates);
@@ -71,8 +54,6 @@ class AuthController extends Controller
 
         $user = Auth::user();
 
-        // Regenerate session only when a session store is attached (SPA cookie flow).
-        // Token-based flows (tests, CLI, mobile) do not have a session.
         if ($request->hasSession()) {
             $request->session()->regenerate();
         }
@@ -83,28 +64,24 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'user'    => $this->userPayload($user),
+            'user' => $this->userPayload($user),
         ]);
     }
 
-    /**
-     * POST /api/auth/logout
-     */
     public function logout(Request $request): JsonResponse
     {
         $user = $request->user();
-        $uid  = $user->id;
 
-        $user->update(['last_logout_at' => now()]);
-        AuditLog::record('logout', [], null, null, $request);
-        LoginLog::record($uid, 'logout', [], $request->ip(), $request->userAgent());
+        if ($user) {
+            $user->update(['last_logout_at' => now()]);
+            AuditLog::record('logout', [], null, null, $request);
+            LoginLog::record($user->id, 'logout', [], $request->ip(), $request->userAgent());
 
-        // Revoke the current API token if one was used (token-based / mobile flow).
-        if ($user->currentAccessToken() instanceof \Laravel\Sanctum\PersonalAccessToken) {
-            $user->currentAccessToken()->delete();
+            if ($user->currentAccessToken() instanceof \Laravel\Sanctum\PersonalAccessToken) {
+                $user->currentAccessToken()->delete();
+            }
         }
 
-        // Invalidate the session if one is attached (SPA cookie flow).
         if ($request->hasSession()) {
             Auth::guard('web')->logout();
             $request->session()->invalidate();
@@ -114,34 +91,48 @@ class AuthController extends Controller
         return response()->json(['success' => true, 'message' => 'Logged out.']);
     }
 
-    /**
-     * GET /api/auth/me
-     */
     public function me(Request $request): JsonResponse
     {
-        return response()->json(['success' => true, 'data' => $this->userPayload($request->user())]);
+        $user = $request->user();
+
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        return response()->json(['success' => true, 'data' => $this->userPayload($user)]);
     }
 
     private function userPayload(User $user): array
     {
+        $roles = $user->roles()->select('roles.id', 'roles.name', 'roles.slug', 'roles.color', 'roles.is_active')->get();
         $permissions = $user->getAllPermissions();
-        $roles = $user->roles()->select('roles.id', 'roles.name', 'roles.slug', 'roles.color')->get();
+        $branches = $user->userBranches()->pluck('branch')->all();
+        $departments = $user->userDepartments()->pluck('department')->all();
 
         return [
-            'id'          => $user->id,
-            'name'        => $user->name,
-            'email'       => $user->email,
-            'role'        => $user->role,
-            'branch'      => $user->branch,
-            'is_active'   => $user->is_active,
-            'permissions' => $permissions,
-            'roles'       => $roles,
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'employee_code' => $user->employee_code,
+            'phone' => $user->mobile ?? $user->phone ?? null,
+            'is_active' => (bool) $user->is_active,
+            'locked_at' => $user->locked_at ? $user->locked_at->toISOString() : null,
+            'role' => $user->role,
+            'roles' => $roles,
+            'permissions' => array_values(array_unique($permissions)),
+            'assigned_branches' => $branches,
+            'assigned_departments' => $departments,
+            'default_branch' => $user->branch,
+            'default_department' => $user->department,
+            'profile' => [
+                'employee_code' => $user->employee_code,
+                'phone' => $user->mobile ?? $user->phone ?? null,
+                'designation' => $user->designation,
+                'department' => $user->department,
+            ],
         ];
     }
 
-    /**
-     * POST /api/auth/register  (admin only)
-     */
     public function register(Request $request): JsonResponse
     {
         if (! $request->user()?->isAdmin()) {

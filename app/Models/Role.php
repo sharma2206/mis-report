@@ -15,6 +15,7 @@ class Role extends Model
     protected $fillable = [
         'name',
         'slug',
+        'guard_name',
         'description',
         'type',
         'is_system',
@@ -30,7 +31,7 @@ class Role extends Model
         return [
             'is_system' => 'boolean',
             'is_active' => 'boolean',
-            'metadata'  => 'array',
+            'metadata' => 'array',
         ];
     }
 

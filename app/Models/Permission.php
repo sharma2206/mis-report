@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Permission extends Model
 {
-    protected $fillable = ['group_id', 'module', 'action', 'slug', 'name', 'description', 'sort_order'];
+    protected $fillable = ['group_id', 'module', 'action', 'slug', 'guard_name', 'name', 'description', 'sort_order'];
 
     public function group(): BelongsTo
     {

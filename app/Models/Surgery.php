@@ -2,15 +2,18 @@
 
 namespace App\Models;
 
+use App\Models\Traits\BelongsToTenant;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Surgery extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, BelongsToTenant;
     protected $fillable = [
+        'tenant_id',
         'branch',
         'surgery_date',
         'admission_no',
@@ -138,5 +141,15 @@ class Surgery extends Model
             });
         }
         return $query;
+    }
+
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    public function hospitalBranch(): BelongsTo
+    {
+        return $this->belongsTo(HospitalBranch::class, 'branch', 'key');
     }
 }

@@ -6,7 +6,7 @@ import {
     setGfDepartments, setGfDoctors, setGfPatientTypes,
     setGfGenders, setGfAgeGroups, setGfPaymentTypes,
     setGfSpecialties, setGfWards,
-    setGfCorporate, setGfInsurance, setGfReferralSource,
+    setGfCorporate, setGfInsurance, setGfPayers, setGfServiceCategories, setGfReferralSource,
     selectBranch, selectGlobalFrom, selectGlobalTo,
     selectAdvancedFilterParams
 } from '../store/reportSlice';
@@ -54,6 +54,8 @@ export function useUrlFilters() {
         // Ensure these exist in slice
         dispatch(setGfCorporate(getArr('corporate')));
         dispatch(setGfInsurance(getArr('insurance')));
+        dispatch(setGfPayers(getArr('payers')));
+        dispatch(setGfServiceCategories(getArr('service_categories')));
         dispatch(setGfReferralSource(getArr('referral_source')));
 
     }, [dispatch, searchParams]);

@@ -58,6 +58,8 @@ const reportSlice = createSlice({
         gfWards:        [],   // string[]
         gfCorporate:    [],   // string[]
         gfInsurance:    [],   // string[]
+        gfPayers:       [],   // string[]
+        gfServiceCategories: [], // string[]
         gfReferralSource: [], // string[]
         gfFiltersOpen:  false, // Advanced filter panel collapsed state
 
@@ -177,6 +179,8 @@ const reportSlice = createSlice({
         setGfWards(state,        { payload }) { state.gfWards        = payload; },
         setGfCorporate(state,    { payload }) { state.gfCorporate    = payload; },
         setGfInsurance(state,    { payload }) { state.gfInsurance    = payload; },
+        setGfPayers(state,       { payload }) { state.gfPayers       = payload; },
+        setGfServiceCategories(state, { payload }) { state.gfServiceCategories = payload; },
         setGfReferralSource(state, { payload }) { state.gfReferralSource = payload; },
         toggleGfFiltersOpen(state) { state.gfFiltersOpen = !state.gfFiltersOpen; },
         setDraftFilters(state, { payload }) { state.draftFilters = payload; },
@@ -185,6 +189,7 @@ const reportSlice = createSlice({
             const d = state.draftFilters;
             if (d.branch !== undefined) state.branch = Array.isArray(d.branch) ? d.branch : [d.branch];
             if (d.dateRange) {
+                state.globalPreset = 'custom';
                 state.globalFrom = d.dateRange.from;
                 state.globalTo   = d.dateRange.to;
                 state.date       = d.dateRange.to;
@@ -196,9 +201,19 @@ const reportSlice = createSlice({
             if (d.gfAgeGroups !== undefined)    state.gfAgeGroups    = d.gfAgeGroups;
             if (d.gfPaymentTypes !== undefined) state.gfPaymentTypes = d.gfPaymentTypes;
             if (d.gfSpecialties !== undefined)  state.gfSpecialties  = d.gfSpecialties;
+            if (d.gfWards !== undefined)        state.gfWards        = d.gfWards;
             if (d.gfCorporate !== undefined)    state.gfCorporate    = d.gfCorporate;
             if (d.gfInsurance !== undefined)    state.gfInsurance    = d.gfInsurance;
+            if (d.gfPayers !== undefined)       state.gfPayers       = d.gfPayers;
+            if (d.gfServiceCategories !== undefined) state.gfServiceCategories = d.gfServiceCategories;
             if (d.gfReferralSource !== undefined) state.gfReferralSource = d.gfReferralSource;
+            try {
+                sessionStorage.setItem('mis_last_branch', state.branch.join(','));
+                sessionStorage.setItem('mis_global_preset', state.globalPreset);
+                sessionStorage.setItem('mis_global_from', state.globalFrom);
+                sessionStorage.setItem('mis_global_to', state.globalTo);
+                sessionStorage.setItem('mis_last_date', state.date);
+            } catch {}
             state.draftFilters = null;
         },
         resetAdvancedFilters(state) {
@@ -212,6 +227,8 @@ const reportSlice = createSlice({
             state.gfWards        = [];
             state.gfCorporate    = [];
             state.gfInsurance    = [];
+            state.gfPayers       = [];
+            state.gfServiceCategories = [];
             state.gfReferralSource = [];
         },
     },
@@ -226,7 +243,7 @@ export const {
     toggleDarkMode, setDarkMode,
     setGfDepartments, setGfDoctors, setGfPatientTypes, setGfGenders,
     setGfAgeGroups, setGfPaymentTypes, setGfSpecialties, setGfWards,
-    setGfCorporate, setGfInsurance, setGfReferralSource,
+    setGfCorporate, setGfInsurance, setGfPayers, setGfServiceCategories, setGfReferralSource,
     toggleGfFiltersOpen, resetAdvancedFilters,
     setDraftFilters, applyDraftFilters,
 } = reportSlice.actions;
@@ -258,6 +275,8 @@ export const selectGfSpecialties  = (s) => s.report.gfSpecialties;
 export const selectGfWards        = (s) => s.report.gfWards;
 export const selectGfCorporate    = (s) => s.report.gfCorporate;
 export const selectGfInsurance    = (s) => s.report.gfInsurance;
+export const selectGfPayers       = (s) => s.report.gfPayers;
+export const selectGfServiceCategories = (s) => s.report.gfServiceCategories;
 export const selectGfReferralSource = (s) => s.report.gfReferralSource;
 export const selectGfFiltersOpen  = (s) => s.report.gfFiltersOpen;
 export const selectDraftFilters   = (s) => s.report.draftFilters;
@@ -275,9 +294,11 @@ export const selectAdvancedFilterParams = createSelector(
         (s) => s.report.gfWards,
         (s) => s.report.gfCorporate,
         (s) => s.report.gfInsurance,
+        (s) => s.report.gfPayers,
+        (s) => s.report.gfServiceCategories,
         (s) => s.report.gfReferralSource
     ],
-    (dept, docs, pt, gen, age, pay, spec, wards, corp, ins, ref) => {
+    (dept, docs, pt, gen, age, pay, spec, wards, corp, ins, payers, services, ref) => {
         const p = {};
         if (dept?.length)  p['departments[]']  = dept;
         if (docs?.length)  p['doctors[]']      = docs;
@@ -289,6 +310,8 @@ export const selectAdvancedFilterParams = createSelector(
         if (wards?.length) p['wards[]']        = wards;
         if (corp?.length)  p['corporate[]']    = corp;
         if (ins?.length)   p['insurance[]']    = ins;
+        if (payers?.length) p['payers[]']      = payers;
+        if (services?.length) p['service_categories[]'] = services;
         if (ref?.length)   p['referral_source[]'] = ref;
         return p;
     }

@@ -31,9 +31,20 @@ class SurgeryImport implements ToCollection, WithHeadingRow, WithChunkReading
                 continue;
             }
 
+            $surgeryDate = $this->parseDateOnly(
+                $this->getValue($row, ['surgery_start_date_and_time', 'surgery_scheduled_date_time'], null)
+            ) ?? $this->date;
+            if ($surgeryDate !== $this->date) {
+                throw new \RuntimeException(
+                    "Surgery date {$surgeryDate} for "
+                    . ($admissionNo ?: $surgeryName)
+                    . " does not match selected import date {$this->date}."
+                );
+            }
+
             $insert[] = [
                 'branch'               => $this->branch->value,
-                'surgery_date'         => $this->parseDateOnly($this->getValue($row, ['surgery_start_date_and_time', 'surgery_scheduled_date_time'], null)) ?? $this->date,
+                'surgery_date'         => $surgeryDate,
                 'admission_no'         => $admissionNo ?: null,
                 'uhid'                 => trim($row['uhid'] ?? '') ?: null,
                 'patient_name'         => trim($row['patient_name'] ?? '') ?: null,
@@ -97,7 +108,7 @@ class SurgeryImport implements ToCollection, WithHeadingRow, WithChunkReading
 
         if (!empty($insert)) {
             foreach (array_chunk($insert, 500) as $chunk) {
-                Surgery::insert($chunk);
+                Surgery::insert(\App\Support\TenantContext::stamp($chunk));
             }
             $this->rowCount += count($insert);
         }

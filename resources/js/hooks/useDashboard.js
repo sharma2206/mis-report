@@ -8,9 +8,10 @@ const STALE = 1000 * 60 * 15;
  * Fetch all dashboard data for a given branch + date.
  * Tab-specific queries are deferred until that tab is first visited.
  */
-export const useDashboard = (branch, date, from = null, activeTab = 'overview') => {
+export const useDashboard = (branch, date, from = null, activeTab = 'overview', filters = {}) => {
     const rangeFrom = from || monthStart(date) || null;
     const base      = !!(branch && date);
+    const params    = { branch, from: rangeFrom, to: date, ...filters };
 
     const results = useQueries({
         queries: [
@@ -23,70 +24,70 @@ export const useDashboard = (branch, date, from = null, activeTab = 'overview') 
                 retry: 1,
             },
             {
-                queryKey: ['kpi', branch, date],
-                queryFn:  () => analyticsApi.kpi(branch, date).then(r => r.data),
+                queryKey: ['kpi', branch, date, filters],
+                queryFn:  () => analyticsApi.kpi(branch, date, { from: rangeFrom, to: date, ...filters }).then(r => r.data),
                 enabled:  base,
                 staleTime: STALE,
                 retry: 1,
             },
             {
-                queryKey: ['dailyTrend', branch, rangeFrom, date],
-                queryFn:  () => analyticsApi.dailyTrend({ branch, from: rangeFrom, to: date }).then(r => r.data),
+                queryKey: ['dailyTrend', branch, rangeFrom, date, filters],
+                queryFn:  () => analyticsApi.dailyTrend(params).then(r => r.data),
                 enabled:  base,
                 staleTime: STALE,
             },
             {
-                queryKey: ['payerMix', branch, rangeFrom, date],
-                queryFn:  () => analyticsApi.payerMix({ branch, from: rangeFrom, to: date }).then(r => r.data),
+                queryKey: ['payerMix', branch, rangeFrom, date, filters],
+                queryFn:  () => analyticsApi.payerMix(params).then(r => r.data),
                 enabled:  base,
                 staleTime: STALE,
             },
             {
-                queryKey: ['patientMix', branch, rangeFrom, date],
-                queryFn:  () => analyticsApi.patientMix({ branch, from: rangeFrom, to: date }).then(r => r.data),
+                queryKey: ['patientMix', branch, rangeFrom, date, filters],
+                queryFn:  () => analyticsApi.patientMix(params).then(r => r.data),
                 enabled:  base,
                 staleTime: STALE,
             },
             {
-                queryKey: ['serviceRevenue', branch, rangeFrom, date],
-                queryFn:  () => analyticsApi.serviceRevenue({ branch, from: rangeFrom, to: date }).then(r => r.data),
+                queryKey: ['serviceRevenue', branch, rangeFrom, date, filters],
+                queryFn:  () => analyticsApi.serviceRevenue(params).then(r => r.data),
                 enabled:  base,
                 staleTime: STALE,
             },
             {
-                queryKey: ['admissions', branch, rangeFrom, date],
-                queryFn:  () => analyticsApi.admissions({ branch, from: rangeFrom, to: date }).then(r => r.data),
+                queryKey: ['admissions', branch, rangeFrom, date, filters],
+                queryFn:  () => analyticsApi.admissions(params).then(r => r.data),
                 enabled:  base,
                 staleTime: STALE,
             },
             // ── Tab-specific: only load when that tab is first visited ───────
             {
-                queryKey: ['ipDemo', branch, rangeFrom, date],
-                queryFn:  () => analyticsApi.ipDemographics({ branch, from: rangeFrom, to: date }).then(r => r.data),
+                queryKey: ['ipDemo', branch, rangeFrom, date, filters],
+                queryFn:  () => analyticsApi.ipDemographics(params).then(r => r.data),
                 enabled:  base && activeTab === 'ip',
                 staleTime: STALE,
             },
             {
-                queryKey: ['surgeryDetail', branch, rangeFrom, date],
-                queryFn:  () => analyticsApi.surgeryDetail({ branch, from: rangeFrom, to: date }).then(r => r.data),
+                queryKey: ['surgeryDetail', branch, rangeFrom, date, filters],
+                queryFn:  () => analyticsApi.surgeryDetail(params).then(r => r.data),
                 enabled:  base && activeTab === 'surgery',
                 staleTime: STALE,
             },
             {
-                queryKey: ['opMetrics', branch, rangeFrom, date],
-                queryFn:  () => analyticsApi.opMetrics({ branch, from: rangeFrom, to: date }).then(r => r.data),
+                queryKey: ['opMetrics', branch, rangeFrom, date, filters],
+                queryFn:  () => analyticsApi.opMetrics(params).then(r => r.data),
                 enabled:  base && activeTab === 'op',
                 staleTime: STALE,
             },
             {
-                queryKey: ['collection', branch, rangeFrom, date],
-                queryFn:  () => analyticsApi.collection({ branch, from: rangeFrom, to: date }).then(r => r.data),
+                queryKey: ['collection', branch, rangeFrom, date, filters],
+                queryFn:  () => analyticsApi.collection(params).then(r => r.data),
                 enabled:  base && activeTab === 'collection',
                 staleTime: STALE,
             },
             {
-                queryKey: ['doctorPerformance', branch, rangeFrom, date],
-                queryFn:  () => analyticsApi.doctorPerformance({ branch, from: rangeFrom, to: date }).then(r => r.data),
+                queryKey: ['doctorPerformance', branch, rangeFrom, date, filters],
+                queryFn:  () => analyticsApi.doctorPerformance(params).then(r => r.data),
                 enabled:  base && activeTab === 'doctors',
                 staleTime: STALE,
             },

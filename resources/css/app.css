@@ -13,15 +13,64 @@
 
 /* ── Design tokens ──────────────────────────────────────────────── */
 :root {
-    --sidebar-w-open:    232px;
-    --sidebar-w-closed:  60px;
+    --sidebar-w-open:    240px;
+    --sidebar-w-closed:  64px;
     --mobile-header-h:   48px;
-    --topbar-h:          54px;
+    --topbar-h:          52px;
 
-    --radius-card:       12px;
-    --shadow-card:       0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
-    --shadow-card-hover: 0 4px 16px -4px rgb(0 0 0 / 0.10), 0 2px 4px -2px rgb(0 0 0 / 0.05);
-    --shadow-dropdown:   0 8px 32px -4px rgb(0 0 0 / 0.14), 0 2px 8px -2px rgb(0 0 0 / 0.06);
+    --color-primary:      #1d4ed8;
+    --color-primary-hover:#1e40af;
+    --color-secondary:    #0f172a;
+    --color-background:   #f4f6f8;
+    --color-surface:      #ffffff;
+    --color-border:       #e2e8f0;
+    --color-text:         #0f172a;
+    --color-muted:        #64748b;
+    --color-success:      #047857;
+    --color-warning:      #b45309;
+    --color-danger:       #b91c1c;
+    --color-info:         #1d4ed8;
+    --color-sidebar:      #0f172a;
+    --color-sidebar-muted:#94a3b8;
+    --color-sidebar-active:#1e293b;
+
+    --color-bg-page:      var(--color-background);
+    --color-bg-card:      var(--color-surface);
+    --color-bg-topbar:    var(--color-surface);
+    --color-text-primary: var(--color-text);
+    --color-text-muted:   var(--color-muted);
+    --color-text-faint:   #94a3b8;
+    --color-hover-bg:     #f1f5f9;
+
+    --text-display: 1.5rem;
+    --text-h1:      1.125rem;
+    --text-h2:      0.9375rem;
+    --text-body:    0.8125rem;
+    --text-small:   0.75rem;
+    --text-caption: 0.6875rem;
+    --text-kpi:     1.375rem;
+
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+
+    --radius-card:       8px;
+    --shadow-card:       0 1px 2px rgb(15 23 42 / 0.05);
+    --shadow-card-hover: 0 1px 2px rgb(15 23 42 / 0.08);
+    --shadow-dropdown:   0 8px 24px -8px rgb(15 23 42 / 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
 }
 
 /* ── Keyframes ──────────────────────────────────────────────────── */
@@ -93,12 +142,11 @@
 
 /* ── Section card ───────────────────────────────────────────────── */
 .section-card {
-    background: #fff;
-    border: 1px solid #e2e8f0;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     box-shadow: var(--shadow-card);
     overflow: hidden;
-    transition: box-shadow 0.2s;
 }
 
 /* ── Chart custom tooltip ───────────────────────────────────────── */
@@ -117,7 +165,7 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: linear-gradient(90deg, #1d4ed8, #7c3aed);
+    background: var(--color-primary);
     border-radius: 2px 2px 0 0;
 }
 
@@ -153,8 +201,13 @@
 }
 
 /* ── Focus ring ──────────────────────────────────────────────────── */
-.focus-ring:focus-visible {
-    outline: 2px solid #1d4ed8;
+.focus-ring:focus-visible,
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid var(--color-primary);
     outline-offset: 2px;
 }
 
@@ -210,27 +263,21 @@
 .dot-bounce-2 { animation: dot-bounce 1.2s ease infinite 0.2s;  }
 .dot-bounce-3 { animation: dot-bounce 1.2s ease infinite 0.4s;  }
 
-/* ── Dark Mode Design Tokens ─────────────────────────────────────── */
-:root {
-    --color-bg-page:      #f8fafc;
-    --color-bg-card:      #ffffff;
-    --color-bg-topbar:    #ffffff;
-    --color-border:       #e2e8f0;
-    --color-text-primary: #1e293b;
-    --color-text-muted:   #64748b;
-    --color-text-faint:   #94a3b8;
-    --color-hover-bg:     #f1f5f9;
-}
-
 [data-theme="dark"] {
-    --color-bg-page:      #0f172a;
-    --color-bg-card:      #1e293b;
-    --color-bg-topbar:    #1e293b;
+    --color-background:   #0b1220;
+    --color-surface:      #151c2c;
     --color-border:       rgba(255,255,255,0.08);
-    --color-text-primary: #e2e8f0;
-    --color-text-muted:   #94a3b8;
+    --color-text:         #e2e8f0;
+    --color-muted:        #94a3b8;
+    --color-bg-page:      var(--color-background);
+    --color-bg-card:      var(--color-surface);
+    --color-bg-topbar:    var(--color-surface);
+    --color-text-primary: var(--color-text);
+    --color-text-muted:   var(--color-muted);
     --color-text-faint:   #64748b;
     --color-hover-bg:     rgba(255,255,255,0.06);
+    --color-sidebar:      #070b14;
+    --color-sidebar-active:#1e293b;
 }
 
 [data-theme="dark"] body,

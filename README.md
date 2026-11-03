@@ -57,3 +57,13 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Local SPA auth (prevent automatic logout)
+
+If the dashboard logs out immediately after login when using the built-in SPA (Sanctum cookie flow), ensure the following for local development:
+
+- In your `.env` set `SESSION_DOMAIN=localhost` and `SANCTUM_STATEFUL_DOMAINS=localhost`.
+- The frontend must request the CSRF cookie before submitting credentials and send cookies with requests. The app does this by calling `/sanctum/csrf-cookie` and using `withCredentials: true`.
+- Example: `resources/js/services/api.js` sets `withCredentials: true` and `resources/js/hooks/useAuth.js` calls `/sanctum/csrf-cookie` before login.
+
+If your frontend runs on a different host/port, add that host to `SANCTUM_STATEFUL_DOMAINS` (comma-separated). In production, ensure cookies are configured for your real domain and set `SESSION_SECURE_COOKIE=true` when using HTTPS.

@@ -8,12 +8,16 @@ use App\Http\Requests\MISRequest;
 use App\Http\Resources\ImportLogResource;
 use App\Http\Requests\MISUploadRequest;
 use App\Http\Requests\MISUploadSingleRequest;
+use App\Jobs\ProcessCsvImportJob;
 use App\Models\AuditLog;
 use App\Models\ImportLog;
 use App\Models\MisReport;
 use App\Repositories\CachedMisRepository;
 use App\Services\CsvProcessingService;
 use App\Services\MISService;
+use App\Support\TenantContext;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Exception;
 use Illuminate\Http\JsonResponse;
@@ -44,50 +48,7 @@ class MISController extends Controller
      */
     public function upload(MISUploadRequest $request, string $branch): JsonResponse
     {
-        $startMs = (int) round(microtime(true) * 1000);
-        try {
-            $branchEnum = $request->branch();
-            $date       = $request->reportDate();
-
-            // 1. Process CSV files → each file gets its own transaction + ImportLog row.
-            //    Soft-delete is scoped to exact (branch, billing_date) only.
-            $imported = $this->csvService->process(
-                branch: $branchEnum,
-                date: $date,
-                billFile: $request->file('bill_file'),
-                cashierFile: $request->file('cashier_file'),
-                packageFile: $request->file('package_file'),
-                erFile: $request->file('er_file'),
-                ipFile: $request->file('ip_file'),
-                surgeryFile: $request->file('surgery_file'),
-                userId: $request->user()?->id,
-                uploadedBy: $request->user()?->name ?? 'system',
-            );
-
-            // 2. Generate MIS report from freshly imported data
-            $sources = $imported['sources'] ?? [];
-            $report  = $this->misService->generateMIS($branchEnum, $date, $sources);
-
-            AuditLog::record('upload', [
-                'branch'   => $branch,
-                'date'     => $date,
-                'imported' => array_diff_key($imported, ['sources' => null, 'logs' => null]),
-                'sources'  => $sources,
-            ], $branch, $date, $request);
-
-            return response()->json([
-                'success'  => true,
-                'message'  => 'Files processed and MIS report generated successfully.',
-                'imported' => array_diff_key($imported, ['logs' => null]),
-                'logs'     => $imported['logs'] ?? [],
-                'data'     => $report,
-            ]);
-        } catch (Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Upload failed: ' . $e->getMessage(),
-            ], 422);
-        }
+        return $this->dispatchImport($request, $branch, false);
     }
 
     /**
@@ -97,83 +58,154 @@ class MISController extends Controller
      */
     public function uploadSingle(MISUploadSingleRequest $request, string $branch): JsonResponse
     {
-        $startMs    = (int) round(microtime(true) * 1000);
-        $branchEnum = $request->branch();
-        $date       = $request->reportDate();
+        return $this->dispatchImport($request, $branch, true);
+    }
 
+    /**
+     * Store the CSVs, then import them.
+     * The sync queue (tests) finishes before this response.
+     * The database queue returns immediately and a worker finishes the import.
+     */
+    private function dispatchImport(Request $request, string $branch, bool $single): JsonResponse
+    {
         try {
-            // Each file gets its own transaction + ImportLog. Soft-delete is exact-date only.
-            $imported = $this->csvService->process(
-                branch: $branchEnum,
+            $date = $request->input('date');
+            $files = $this->storeImportFiles($request);
+            $tenantId = $request->user()?->tenant_id ?: TenantContext::id();
+            $uploadedBy = $request->user()?->name ?? 'system';
+
+            $job = new ProcessCsvImportJob(
+                branch: $branch,
                 date: $date,
-                billFile: $request->file('bill_file'),
-                cashierFile: $request->file('cashier_file'),
-                packageFile: $request->file('package_file'),
-                erFile: $request->file('er_file'),
-                ipFile: $request->file('ip_file'),
-                surgeryFile: $request->file('surgery_file'),
+                files: $files,
                 userId: $request->user()?->id,
-                uploadedBy: $request->user()?->name ?? 'system',
+                uploadedBy: $uploadedBy,
+                tenantId: $tenantId ? (int) $tenantId : null,
+                single: $single,
             );
 
-            $sources = $imported['sources'] ?? [];
-            $report  = $this->misService->generateMIS($branchEnum, $date, $sources);
+            if (config('queue.default') === 'sync') {
+                $result = Bus::dispatchSync($job);
 
-            // Determine which single type was uploaded (for audit log)
-            $typeMap = [
-                'bill'    => 'bill_file',
-                'cashier' => 'cashier_file',
-                'package' => 'package_file',
-                'er'      => 'er_file',
-                'ip'      => 'ip_file',
-                'surgery' => 'surgery_file',
-            ];
-            $uploadedType = null;
-            foreach ($typeMap as $type => $field) {
-                if ($request->hasFile($field)) {
-                    $uploadedType = $type;
-                    break;
-                }
+                return response()->json([
+                    'success'     => true,
+                    'queued'      => false,
+                    'message'     => $single
+                        ? 'File imported successfully.'
+                        : 'Files processed and MIS report generated successfully.',
+                    'imported'    => array_diff_key($result['imported'], ['logs' => null]),
+                    'logs'        => $result['imported']['logs'] ?? [],
+                    'report_type' => $result['report_type'],
+                    'data'        => $result['report'],
+                ]);
             }
 
-            AuditLog::record('upload_single', [
-                'branch'   => $branch,
-                'date'     => $date,
-                'type'     => $uploadedType,
-                'imported' => array_diff_key($imported, ['sources' => null, 'logs' => null]),
-            ], $branch, $date, $request);
+            $this->markImportsProcessing($branch, $date, $files, $uploadedBy, $request->user()?->id);
+            Bus::dispatch($job);
 
             return response()->json([
                 'success'     => true,
-                'message'     => 'File imported successfully.',
-                'imported'    => array_diff_key($imported, ['logs' => null]),
-                'logs'        => $imported['logs'] ?? [],
-                'report_type' => $uploadedType,
-                'data'        => $report,
-            ]);
+                'queued'      => true,
+                'message'     => 'Import queued. Processing continues in the background.',
+                'imported'    => [],
+                'logs'        => [],
+                'report_type' => $single ? array_key_first($files) : null,
+                'data'        => null,
+            ], 202);
         } catch (Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Upload failed: ' . $e->getMessage()], 422);
+            return response()->json([
+                'success' => false,
+                'message' => 'Upload failed: ' . $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * @return array<string, array{path:string, name:string}>
+     */
+    private function storeImportFiles(Request $request): array
+    {
+        $fields = [
+            'bill'    => 'bill_file',
+            'cashier' => 'cashier_file',
+            'package' => 'package_file',
+            'er'      => 'er_file',
+            'ip'      => 'ip_file',
+            'surgery' => 'surgery_file',
+        ];
+
+        $dir = 'imports/' . Str::uuid();
+        $stored = [];
+
+        foreach ($fields as $key => $field) {
+            if (! $request->hasFile($field)) {
+                continue;
+            }
+
+            $file = $request->file($field);
+            $stored[$key] = [
+                'path' => $file->storeAs($dir, $key . '.csv', 'local'),
+                'name' => $file->getClientOriginalName(),
+            ];
+        }
+
+        return $stored;
+    }
+
+    /**
+     * @param  array<string, array{path:string, name:string}>  $files
+     */
+    private function markImportsProcessing(string $branch, string $date, array $files, string $uploadedBy, ?int $userId): void
+    {
+        foreach ($files as $key => $meta) {
+            $type = $key === 'bill' ? 'bill_items' : $key;
+
+            ImportLog::create([
+                'branch'         => $branch,
+                'report_type'    => $type,
+                'report_date'    => $date,
+                'uploaded_by'    => $uploadedBy,
+                'user_id'        => $userId,
+                'files_uploaded' => [$type],
+                'rows_imported'  => 0,
+                'rows_skipped'   => 0,
+                'rows_errored'   => 0,
+                'period_from'    => $date,
+                'period_to'      => $date,
+                'status'         => 'processing',
+                'notes'          => json_encode([
+                    'file_name' => $meta['name'],
+                    'queued'    => true,
+                ], JSON_UNESCAPED_UNICODE),
+            ]);
         }
     }
 
     /**
      * Return the latest import status for every report type for a branch.
      * GET /api/mis/{branch}/import-status
+     *
+     * Optimised: fetches all import logs for the branch in a single query,
+     * then resolves the latest per-type in PHP — replacing the previous 6
+     * separate queries (one per report type).
      */
     public function importStatus(Request $request, string $branch): JsonResponse
     {
         $types = ['bill_items', 'cashier', 'er', 'ip', 'surgery', 'package'];
-        $result = [];
 
+        // Single query: fetch all non-rolled-back logs for this branch, ordered newest-first.
+        $logs = ImportLog::where('branch', $branch)
+            ->whereNull('rolled_back_at')
+            ->orderByDesc('created_at')
+            ->get();
+
+        // Build per-type result by taking the first (most recent) match per type.
+        $result = [];
         foreach ($types as $type) {
-            $log = ImportLog::where('branch', $branch)
-                ->whereNull('rolled_back_at')
-                ->where(function ($q) use ($type) {
-                    $q->where('report_type', $type)
-                        ->orWhereJsonContains('files_uploaded', $type);
-                })
-                ->latest()
-                ->first();
+            $log = $logs->first(function ($l) use ($type) {
+                return $l->report_type === $type
+                    || (is_array($l->files_uploaded) && in_array($type, $l->files_uploaded, true));
+            });
 
             $result[$type] = $log ? [
                 'status'      => $log->status,
@@ -190,9 +222,9 @@ class MISController extends Controller
             ] : ['status' => 'pending'];
         }
 
-        // Compute overall period from all uploaded types
-        $froms = collect($result)->filter(fn($r) => !empty($r['period_from']))->pluck('period_from');
-        $tos   = collect($result)->filter(fn($r) => !empty($r['period_to']))->pluck('period_to');
+        // Compute overall period from all uploaded types.
+        $froms = collect($result)->filter(fn ($r) => ! empty($r['period_from']))->pluck('period_from');
+        $tos   = collect($result)->filter(fn ($r) => ! empty($r['period_to']))->pluck('period_to');
 
         return response()->json([
             'success'      => true,
@@ -250,8 +282,11 @@ class MISController extends Controller
             $branchEnum = Branch::from($log->branch);
             $date       = $log->report_date->toDateString();
 
-            // Delete via the single canonical method — do NOT duplicate this logic here
-            $this->csvService->deleteForBranchDate($branchEnum, $date);
+            $deleted = $this->csvService->deleteSourceForBranchDate(
+                $branchEnum,
+                $date,
+                $log->report_type
+            );
 
             // Remove the materialized MIS snapshot so the dashboard does not
             // serve aggregated figures from data that no longer exists
@@ -272,11 +307,13 @@ class MISController extends Controller
                 'import_log_id' => $id,
                 'branch'        => $log->branch,
                 'date'          => $date,
+                'source'        => $log->report_type,
+                'rows_deleted'  => $deleted,
             ], $log->branch, $date, $request);
 
             return response()->json([
                 'success' => true,
-                'message' => "Rolled back {$log->rows_imported} rows for {$log->branch} on {$date}.",
+                'message' => "Rolled back {$deleted} {$log->report_type} rows for {$log->branch} on {$date}.",
             ]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
@@ -439,12 +476,27 @@ class MISController extends Controller
      */
     public function printPreview(string $branch, string $date)
     {
+        $user = auth()->user();
+        if (! $user) {
+            abort(401, 'Authentication required.');
+        }
+        if (! $user->canAccessBranch($branch)) {
+            abort(403, 'Access denied for this branch.');
+        }
+
+        $tenantId = $user->tenant_id ?: \App\Support\TenantContext::defaultId();
+        if ($tenantId) {
+            \App\Support\TenantContext::set((int) $tenantId);
+        }
+
         try {
             $branchEnum = \App\Enums\Branch::from($branch);
             $data       = $this->misService->generateMIS($branchEnum, $date);
             return view('print_preview', compact('data', 'branch', 'date'));
         } catch (Exception $e) {
             abort(422, $e->getMessage());
+        } finally {
+            \App\Support\TenantContext::forget();
         }
     }
 

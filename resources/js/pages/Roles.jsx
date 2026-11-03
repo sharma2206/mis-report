@@ -787,12 +787,12 @@ export default function RolesPage() {
                 {/* KPI cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                     {[
-                        { label: 'Total Roles',    value: stats.total_roles,       color: 'violet'  },
-                        { label: 'Active Roles',   value: stats.active_roles,      color: 'emerald' },
+                        { label: 'Total Roles',    value: stats.totalRoles,       color: 'violet'  },
+                        { label: 'Active Roles',   value: stats.activeRoles,      color: 'emerald' },
                         { label: 'System Roles',   value: stats.system_roles,      color: 'amber'   },
-                        { label: 'Custom Roles',   value: stats.custom_roles,      color: 'blue'    },
-                        { label: 'Permissions',    value: stats.total_permissions, color: 'slate'   },
-                        { label: 'Users Assigned', value: stats.users_with_roles,  color: 'teal'    },
+                        { label: 'Custom Roles',   value: stats.customRoles,      color: 'blue'    },
+                        { label: 'Permissions',    value: stats.totalPerms, color: 'slate'   },
+                        { label: 'Users Assigned', value: stats.usersWithRole,  color: 'teal'    },
                     ].map(({ label, value, color }, i) => (
                         <motion.div key={label}
                             initial={{ opacity: 0, y: 8 }}

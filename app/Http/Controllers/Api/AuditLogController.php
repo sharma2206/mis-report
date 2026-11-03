@@ -13,10 +13,15 @@ class AuditLogController extends Controller
         $q = AuditLog::with('user:id,name,email')
             ->orderByDesc('created_at');
 
+        $this->scopeToAccessibleBranches($request, $q);
+
         if ($request->filled('event')) {
             $q->where('event', 'like', '%' . $request->event . '%');
         }
         if ($request->filled('branch')) {
+            if (! $request->user()->canAccessBranch($request->branch)) {
+                return response()->json(['success' => false, 'message' => 'Access denied for this branch.'], 403);
+            }
             $q->where('branch', $request->branch);
         }
         if ($request->filled('user_id')) {
@@ -52,5 +57,23 @@ class AuditLogController extends Controller
             ->pluck('event');
 
         return response()->json(['success' => true, 'data' => $events]);
+    }
+
+    /**
+     * Restricted users only see events for their branches, plus events with no branch.
+     */
+    private function scopeToAccessibleBranches(Request $request, $query): void
+    {
+        $user = $request->user();
+
+        if (! $user->restrictsBranches()) {
+            return;
+        }
+
+        $accessible = $user->branch_list;
+
+        $query->where(function ($sub) use ($accessible) {
+            $sub->whereIn('branch', $accessible)->orWhereNull('branch');
+        });
     }
 }

@@ -45,18 +45,15 @@ export default function Login() {
             <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="hidden md:flex flex-col justify-between bg-slate-900 p-10 relative overflow-hidden"
+                className="hidden md:flex flex-col justify-between p-10 relative overflow-hidden"
+                style={{ background: 'var(--color-sidebar)' }}
             >
-                {/* radial glows */}
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_20%_50%,rgba(29,78,216,.35)_0%,transparent_60%),radial-gradient(ellipse_at_80%_20%,rgba(124,58,237,.25)_0%,transparent_55%)]" />
-
                 <div className="relative z-10">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-900/40">
+                        <div className="w-10 h-10 rounded-md flex items-center justify-center" style={{ background: 'var(--color-primary)' }}>
                             <Hospital className="w-5 h-5 text-white" />
                         </div>
-                        <span className="text-lg font-700 text-white">Hospital MIS</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-white/10 text-white/50 font-600 tracking-wide">v2.0</span>
+                        <span className="text-lg font-600 text-white">Hospital MIS</span>
                     </div>
                 </div>
 
@@ -65,12 +62,9 @@ export default function Login() {
                         <CheckCircle className="w-3.5 h-3.5 text-blue-400" />
                         Management Information System
                     </div>
-                    <h1 className="text-[2.4rem] font-800 text-white leading-[1.15] tracking-tight mb-4">
-                        Your daily<br />
-                        <span className="bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">
-                            hospital intelligence
-                        </span><br />
-                        at a glance.
+                    <h1 className="text-[2rem] font-600 text-white leading-[1.2] tracking-tight mb-4">
+                        Hospital operations,<br />
+                        in one place.
                     </h1>
                     <p className="text-[15px] text-white/50 leading-relaxed max-w-sm">
                         Real-time revenue, collections, occupancy, and patient analytics — across all branches, all in one place.
@@ -169,7 +163,8 @@ export default function Login() {
                             type="submit"
                             disabled={isSubmitting}
                             whileTap={{ scale: 0.98 }}
-                            className="w-full mt-2 flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-blue-700 to-violet-600 text-white rounded-xl text-[15px] font-700 shadow-md shadow-blue-300 hover:opacity-92 transition-all cursor-pointer disabled:opacity-60 border-0"
+                            className="w-full mt-2 flex items-center justify-center gap-2 py-3 text-white rounded-md text-[14px] font-600 cursor-pointer disabled:opacity-60 border-0"
+                            style={{ background: 'var(--color-primary)' }}
                         >
                             {isSubmitting ? (
                                 <><Loader2 className="w-4 h-4 animate-spin" /> Signing in…</>

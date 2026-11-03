@@ -16,6 +16,7 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
 
     public function __construct(
         private Branch $branch,
+        private string $date,
     ) {}
 
     public function collection(Collection $rows): void
@@ -87,6 +88,7 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
             }
 
             $billDate = $this->parseBillDate($billCreationDateTime);
+            $this->assertExpectedDate($billDate, $billNo ?: 'Unknown bill');
 
             /*
              * ---------------------------------------------------------
@@ -145,7 +147,7 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
              */
             $insert[] = [
                 'branch'                   => $this->branch->value,
-                'bill_date'                => $this->parseDateOnly($this->getValue($row, ['bill_refund_creation_date_time'], null)) ?? $this->date,
+                'bill_date'                => $billDate,
                 'bill_no'                  => $billNo ?: null,
                 'uhid'                     => $uhid ?: null,
                 'patient_id'               => $uhid ?: trim($this->getValue($row, ['patient_id'], '')),
@@ -187,7 +189,7 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
         if (!empty($insert)) {
 
             foreach (array_chunk($insert, 500) as $chunk) {
-                BillItem::insert($chunk);
+                BillItem::insert(\App\Support\TenantContext::stamp($chunk));
             }
 
             $this->rowCount += count($insert);
@@ -197,6 +199,15 @@ class BillItemImport implements ToCollection, WithHeadingRow, WithChunkReading
     public function chunkSize(): int
     {
         return 1000;
+    }
+
+    private function assertExpectedDate(string $rowDate, string $identifier): void
+    {
+        if ($rowDate !== $this->date) {
+            throw new \RuntimeException(
+                "Bill date {$rowDate} for {$identifier} does not match selected import date {$this->date}."
+            );
+        }
     }
 
     private function getValue($row, array $keys, $default = 0)

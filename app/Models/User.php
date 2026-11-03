@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Models\Traits\HasRoles;
+use App\Support\TenantContext;
+use Illuminate\Database\Eloquent\Builder;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,11 +20,31 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
     protected $fillable = [
-        'name', 'email', 'password', 'role', 'branch', 'is_active',
-        'employee_id', 'employee_code', 'mobile', 'designation', 'department',
-        'speciality', 'reporting_manager_id', 'date_of_joining', 'employment_status',
-        'failed_login_attempts', 'locked_at', 'last_login_at', 'last_logout_at',
-        'password_changed_at', 'password_expires_at', 'mfa_enabled', 'mfa_secret', 'avatar',
+        'tenant_id',
+        'name',
+        'email',
+        'password',
+        'role',
+        'branch',
+        'is_active',
+        'employee_id',
+        'employee_code',
+        'mobile',
+        'designation',
+        'department',
+        'speciality',
+        'reporting_manager_id',
+        'date_of_joining',
+        'employment_status',
+        'failed_login_attempts',
+        'locked_at',
+        'last_login_at',
+        'last_logout_at',
+        'password_changed_at',
+        'password_expires_at',
+        'mfa_enabled',
+        'mfa_secret',
+        'avatar',
     ];
 
     protected $hidden = ['password', 'remember_token', 'mfa_secret'];
@@ -85,11 +107,44 @@ class User extends Authenticatable
         return $this->hasMany(AuditLog::class);
     }
 
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    /**
+     * Primary branch relation (branch stored as string key).
+     */
+    public function primaryBranch(): BelongsTo
+    {
+        return $this->belongsTo(HospitalBranch::class, 'branch', 'key');
+    }
+
     // ─── Access helpers ───────────────────────────────────────────────────────
 
-    public function isAdmin(): bool   { return $this->role === 'admin'; }
-    public function isManager(): bool { return in_array($this->role, ['admin', 'manager']); }
-    public function isLocked(): bool  { return $this->locked_at !== null; }
+    public function scopeForCurrentTenant(Builder $query): Builder
+    {
+        $tenantId = TenantContext::id();
+
+        if ($tenantId !== null) {
+            $query->where($this->getTable() . '.tenant_id', $tenantId);
+        }
+
+        return $query;
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+    public function isManager(): bool
+    {
+        return in_array($this->role, ['admin', 'manager']);
+    }
+    public function isLocked(): bool
+    {
+        return $this->locked_at !== null;
+    }
 
     public function canAccessBranch(string|array $branch): bool
     {
@@ -115,6 +170,15 @@ class User extends Authenticatable
         }
 
         return true;
+    }
+
+    /**
+     * True when the user is limited to specific branches.
+     * A null primary branch and no user_branches rows means unrestricted.
+     */
+    public function restrictsBranches(): bool
+    {
+        return ! ($this->branch === null && $this->userBranches()->count() === 0);
     }
 
     public function getBranchListAttribute(): array

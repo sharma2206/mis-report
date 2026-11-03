@@ -1,8 +1,11 @@
+import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSelector, useDispatch } from 'react-redux';
 import { useLocation, NavLink } from 'react-router-dom';
 import { ChevronRight, Home, Menu, Hospital } from 'lucide-react';
 import { selectSidebarOpen, setSidebarOpen, toggleSidebar, selectDarkMode } from '../../store/reportSlice';
+import { setCredentials, selectIsAuthenticated } from '../../store/authSlice';
+import { authApi } from '../../services/api';
 import { Sidebar } from './Sidebar';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useUrlFilters } from '../../hooks/useUrlFilters';
@@ -41,24 +44,39 @@ const Breadcrumb = () => {
     const crumbs = BREADCRUMB_MAP[pathname] || [];
     if (!crumbs.length) return null;
     return (
-        <nav className="flex items-center gap-1.5 text-[11px] text-slate-400">
-            <NavLink to="/dashboard" className="hover:text-slate-600 transition-colors no-underline text-slate-400">
+        <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--color-muted)' }}>
+            <NavLink to="/dashboard" aria-label="Dashboard" className="transition-colors no-underline" style={{ color: 'var(--color-muted)' }}>
                 <Home className="w-3.5 h-3.5" />
             </NavLink>
             {crumbs.map((c, i) => (
                 <span key={i} className="flex items-center gap-1.5">
-                    <ChevronRight className="w-3 h-3 text-slate-300" />
-                    <span className={i === crumbs.length - 1 ? 'text-slate-700 font-600' : 'text-slate-400'}>{c}</span>
+                    <ChevronRight className="w-3 h-3" aria-hidden="true" />
+                    <span className={i === crumbs.length - 1 ? 'font-600' : ''} style={{ color: i === crumbs.length - 1 ? 'var(--color-text)' : 'var(--color-muted)' }}>{c}</span>
                 </span>
             ))}
         </nav>
     );
 };
 
+let sessionRefreshed = false;
+
 export const AppLayout = ({ children, topbar, onPrint }) => {
     const open     = useSelector(selectSidebarOpen);
     const darkMode = useSelector(selectDarkMode);
+    const authed   = useSelector(selectIsAuthenticated);
     const dispatch = useDispatch();
+
+    // Pull a fresh permission list once per page load so an existing
+    // localStorage session picks up RBAC without forcing a new login.
+    useEffect(() => {
+        if (!authed || sessionRefreshed) return;
+        sessionRefreshed = true;
+        authApi.me()
+            .then(({ data }) => {
+                if (data?.data) dispatch(setCredentials({ user: data.data }));
+            })
+            .catch(() => {});
+    }, [authed, dispatch]);
     const isMobile = useIsMobile();
     const { pathname } = useLocation();
     const showBreadcrumb  = pathname !== '/dashboard' && BREADCRUMB_MAP[pathname];
@@ -74,7 +92,7 @@ export const AppLayout = ({ children, topbar, onPrint }) => {
     }
 
     return (
-        <div className="flex h-screen overflow-hidden bg-slate-50/80">
+        <div className="flex h-screen overflow-hidden" style={{ background: 'var(--color-background)', color: 'var(--color-text)' }}>
             {/* Mobile backdrop */}
             <AnimatePresence>
                 {isMobile && open && (
@@ -93,25 +111,27 @@ export const AppLayout = ({ children, topbar, onPrint }) => {
             <Sidebar isMobile={isMobile} />
 
             <motion.div
-                animate={{ marginLeft: isMobile ? 0 : (open ? 232 : 60) }}
+                animate={{ marginLeft: isMobile ? 0 : (open ? 240 : 64) }}
                 transition={{ duration: 0.22, ease: 'easeInOut' }}
                 className="flex-1 flex flex-col h-screen overflow-hidden min-w-0"
             >
                 {/* ── Mobile top bar (hamburger + brand) ── */}
                 {isMobile && (
-                    <div className="flex items-center gap-3 px-3 h-[48px] bg-white border-b border-slate-200 flex-shrink-0">
+                    <div className="flex items-center gap-3 px-3 h-12 flex-shrink-0" style={{ background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)' }}>
                         <button
+                            type="button"
                             onClick={() => dispatch(toggleSidebar())}
                             aria-label="Open navigation menu"
-                            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 active:bg-slate-200 transition-colors border-0 cursor-pointer focus-ring"
+                            className="w-8 h-8 flex items-center justify-center rounded-md transition-colors border-0 cursor-pointer focus-ring"
+                            style={{ color: 'var(--color-text)' }}
                         >
                             <Menu className="w-4.5 h-4.5" />
                         </button>
                         <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-[7px] bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shadow-sm">
+                            <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'var(--color-primary)' }}>
                                 <Hospital className="w-3.5 h-3.5 text-white" />
                             </div>
-                            <span className="text-[13px] font-700 text-slate-800">Hospital MIS</span>
+                            <span className="text-[13px] font-600" style={{ color: 'var(--color-text)' }}>Hospital MIS</span>
                         </div>
                     </div>
                 )}
@@ -119,7 +139,7 @@ export const AppLayout = ({ children, topbar, onPrint }) => {
                 {topbar}
 
                 {showBreadcrumb && (
-                    <div className="px-5 py-2 border-b border-slate-200 bg-white">
+                    <div className="px-5 py-2" style={{ background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)' }}>
                         <Breadcrumb />
                     </div>
                 )}

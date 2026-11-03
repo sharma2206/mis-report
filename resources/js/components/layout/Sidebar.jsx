@@ -1,60 +1,59 @@
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     LayoutDashboard, Download, FileText, TrendingUp, Building2,
     Stethoscope, DollarSign, Activity, Scissors,
     Pill, Clock, Bell, Users, ShieldCheck, ClipboardList,
-    Settings, ChevronLeft, Hospital, ChevronDown,
-    Banknote, LogOut, X, GitCompare, UserSearch, CreditCard, Moon, Sun,
+    Settings, ChevronLeft, Hospital,
+    Banknote, LogOut, X, GitCompare, UserSearch, CreditCard, Moon, Sun, Search,
 } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectSidebarOpen, toggleSidebar, setSidebarOpen, selectDarkMode, toggleDarkMode } from '../../store/reportSlice';
 import { selectUser } from '../../store/authSlice';
 import { useAuth } from '../../hooks/useAuth';
+import { usePermissions } from '../../hooks/usePermissions';
 import { cn } from '../../utils/cn';
-
-const ROLE_RANK = { viewer: 0, staff: 1, manager: 2, admin: 3 };
 
 const NAV_GROUPS = [
     {
         label: 'Core',
         items: [
-            { path: '/dashboard', label: 'Dashboard',     Icon: LayoutDashboard },
-            { path: '/import',    label: 'Import Center', Icon: Download, badge: 'New', minRole: 'staff' },
-            { path: '/reports',   label: 'Report Center', Icon: FileText },
+            { path: '/dashboard', label: 'Dashboard',     Icon: LayoutDashboard, permission: 'dashboard.view' },
+            { path: '/import',    label: 'Import Center', Icon: Download, badge: 'New', permission: 'import_center.view' },
+            { path: '/reports',   label: 'Report Center', Icon: FileText, permission: 'report_center.view' },
         ],
     },
     {
         label: 'Reports',
         items: [
-            { path: '/mis',               label: 'MIS Reports',      Icon: TrendingUp },
-            { path: '/brm',               label: 'BRM Reports',      Icon: Banknote,    minRole: 'staff'   },
-            { path: '/financial',         label: 'Financial',        Icon: DollarSign,  minRole: 'manager' },
-            { path: '/operational',       label: 'Operational',      Icon: Activity },
-            { path: '/branch-comparison', label: 'Branch Comparison',Icon: GitCompare,  minRole: 'manager', badge: 'New' },
+            { path: '/mis',               label: 'MIS Reports',      Icon: TrendingUp, permission: 'mis_report.view' },
+            { path: '/brm',               label: 'BRM Reports',      Icon: Banknote, permission: 'brm_report.view' },
+            { path: '/financial',         label: 'Financial',        Icon: DollarSign, permission: 'financial.view' },
+            { path: '/operational',       label: 'Operational',      Icon: Activity, permission: 'operational.view' },
+            { path: '/branch-comparison', label: 'Branch Comparison',Icon: GitCompare, permission: 'dashboard.drill_down', badge: 'New' },
         ],
     },
     {
         label: 'Analytics',
         items: [
-            { path: '/doctors',          label: 'Doctors',           Icon: Stethoscope },
-            { path: '/departments',      label: 'Departments',       Icon: Building2 },
-            { path: '/surgery',          label: 'Surgery',           Icon: Scissors },
-            { path: '/pharmacy',         label: 'Pharmacy',          Icon: Pill },
-            { path: '/patient-analytics',label: 'Patient Analytics', Icon: UserSearch, badge: 'New' },
-            { path: '/payment-analytics',label: 'Payment Analytics', Icon: CreditCard, badge: 'New' },
-            { path: '/notifications',    label: 'Notifications',     Icon: Bell },
+            { path: '/doctors',          label: 'Doctors',           Icon: Stethoscope, permission: 'doctors.view' },
+            { path: '/departments',      label: 'Departments',       Icon: Building2, permission: 'departments.view' },
+            { path: '/surgery',          label: 'Surgery',           Icon: Scissors, permission: 'surgery.view' },
+            { path: '/pharmacy',         label: 'Pharmacy',          Icon: Pill, permission: 'pharmacy.view' },
+            { path: '/patient-analytics',label: 'Patient Analytics', Icon: UserSearch, permission: 'dashboard.view', badge: 'New' },
+            { path: '/payment-analytics',label: 'Payment Analytics', Icon: CreditCard, permission: 'dashboard.view|financial.view', badge: 'New' },
+            { path: '/notifications',    label: 'Notifications',     Icon: Bell, permission: 'notifications.view' },
         ],
     },
     {
         label: 'Administration',
-        minRole: 'admin',
         items: [
-            { path: '/scheduler',  label: 'Scheduler',  Icon: Clock },
-            { path: '/users',      label: 'Users',      Icon: Users },
-            { path: '/roles',      label: 'Roles',      Icon: ShieldCheck },
-            { path: '/audit-logs', label: 'Audit Logs', Icon: ClipboardList },
-            { path: '/settings',   label: 'Settings',   Icon: Settings },
+            { path: '/scheduler',  label: 'Scheduler',  Icon: Clock, permission: 'scheduler.view' },
+            { path: '/users',      label: 'Users',      Icon: Users, permission: 'users.view' },
+            { path: '/roles',      label: 'Roles',      Icon: ShieldCheck, permission: 'roles.view' },
+            { path: '/audit-logs', label: 'Audit Logs', Icon: ClipboardList, permission: 'audit_logs.view' },
+            { path: '/settings',   label: 'Settings',   Icon: Settings, permission: 'settings.view' },
         ],
     },
 ];
@@ -65,30 +64,41 @@ export const Sidebar = ({ isMobile = false }) => {
     const user       = useSelector(selectUser);
     const dispatch   = useDispatch();
     const { logout } = useAuth();
+    const { canAny } = usePermissions();
 
+    const [navQuery, setNavQuery] = useState('');
     const name    = user?.name || user?.email || 'User';
     const role    = user?.role || 'viewer';
     const initial = name.charAt(0).toUpperCase();
-    const rank    = ROLE_RANK[role] ?? 0;
+    const query   = navQuery.trim().toLowerCase();
+
+    const groups = useMemo(() => NAV_GROUPS.map(({ label, items }) => ({
+        label,
+        items: items.filter(item => {
+            if (item.permission && !canAny(...item.permission.split('|'))) return false;
+            if (query && !item.label.toLowerCase().includes(query)) return false;
+            return true;
+        }),
+    })).filter(group => group.items.length > 0), [canAny, query]);
 
     const handleNavClick = () => {
         if (isMobile) dispatch(setSidebarOpen(false));
     };
 
     const sidebarAnimate = isMobile
-        ? { x: open ? 0 : -280, width: 260 }
-        : { width: open ? 232 : 60, x: 0 };
+        ? { x: open ? 0 : -280, width: 240 }
+        : { width: open ? 240 : 64, x: 0 };
 
     return (
         <motion.aside
             animate={sidebarAnimate}
             transition={{ duration: 0.22, ease: 'easeInOut' }}
             className="fixed left-0 top-0 bottom-0 z-50 flex flex-col overflow-hidden"
-            style={{ background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)', boxShadow: '4px 0 24px -4px rgba(0,0,0,0.3)' }}
+            style={{ background: 'var(--color-sidebar)', borderRight: '1px solid rgba(255,255,255,0.06)' }}
         >
             {/* ── Brand row ── */}
             <div className="flex items-center gap-2.5 px-3 py-3.5 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <div className="w-8 h-8 rounded-[10px] bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center flex-shrink-0 shadow-lg" style={{ boxShadow: '0 4px 12px rgba(29,78,216,0.4)' }}>
+                <div className="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: 'var(--color-primary)' }}>
                     <Hospital className="w-4 h-4 text-white" />
                 </div>
                 <AnimatePresence>
@@ -100,14 +110,18 @@ export const Sidebar = ({ isMobile = false }) => {
                             transition={{ duration: 0.15 }}
                             className="flex items-center gap-2 overflow-hidden flex-1 min-w-0"
                         >
-                            <span className="text-[13px] font-700 text-white whitespace-nowrap truncate">Hospital MIS</span>
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-md font-600 flex-shrink-0" style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }}>v3.0</span>
+                            <span className="min-w-0">
+                                <span className="block text-[13px] font-600 text-white whitespace-nowrap truncate">Hospital MIS</span>
+                                <span className="block text-[10px] whitespace-nowrap truncate" style={{ color: 'var(--color-sidebar-muted)' }}>Operations</span>
+                            </span>
                         </motion.div>
                     )}
                 </AnimatePresence>
 
                 {isMobile ? (
                     <button
+                        type="button"
+                        aria-label="Close navigation"
                         onClick={() => dispatch(setSidebarOpen(false))}
                         className="w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer border-0 transition-colors flex-shrink-0 ml-auto"
                         style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.5)' }}
@@ -116,6 +130,8 @@ export const Sidebar = ({ isMobile = false }) => {
                     </button>
                 ) : (
                     <button
+                        type="button"
+                        aria-label={open ? 'Collapse sidebar' : 'Expand sidebar'}
                         onClick={() => dispatch(toggleSidebar())}
                         className={cn(
                             'w-6 h-6 rounded-md cursor-pointer border-0 flex items-center justify-center transition-colors flex-shrink-0',
@@ -130,13 +146,29 @@ export const Sidebar = ({ isMobile = false }) => {
                 )}
             </div>
 
+            {(open || isMobile) && (
+                <div className="px-3 py-2 flex-shrink-0">
+                    <label className="flex items-center gap-2 px-2.5 h-8 rounded-md" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                        <Search className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-sidebar-muted)' }} />
+                        <input
+                            type="search"
+                            value={navQuery}
+                            onChange={(e) => setNavQuery(e.target.value)}
+                            placeholder="Search modules"
+                            aria-label="Search modules"
+                            className="w-full bg-transparent border-0 outline-none text-[12px] text-white placeholder:text-white/35"
+                        />
+                    </label>
+                </div>
+            )}
+
             {/* ── Nav ── */}
-            <nav className="sidebar-scroll flex-1 py-2 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.12) transparent' }}>
+            <nav aria-label="Primary" className="sidebar-scroll flex-1 py-2 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.12) transparent' }}>
                 <div className="px-2">
-                    {NAV_GROUPS.map(({ label, items, minRole: groupMinRole }) => {
-                        // Filter items by user role
-                        const visibleItems = items.filter(item => rank >= (ROLE_RANK[item.minRole || groupMinRole || 'viewer'] ?? 0));
-                        if (visibleItems.length === 0) return null;
+                    {groups.length === 0 && (
+                        <p className="px-3 py-4 text-[12px]" style={{ color: 'var(--color-sidebar-muted)' }}>No matching modules</p>
+                    )}
+                    {groups.map(({ label, items: visibleItems }) => {
 
                         return (
                             <div key={label}>
@@ -162,20 +194,20 @@ export const Sidebar = ({ isMobile = false }) => {
                                             to={path}
                                             onClick={handleNavClick}
                                             className={({ isActive }) => cn(
-                                                'flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer border-0 text-left w-full transition-all duration-150 mb-0.5 font-500 text-[13px] whitespace-nowrap no-underline relative',
-                                                isActive ? 'text-blue-300' : 'hover:text-white/85',
+                                                'flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer border-0 text-left w-full transition-colors duration-150 mb-0.5 font-500 text-[13px] whitespace-nowrap no-underline relative',
+                                                isActive ? 'text-white' : 'hover:text-white/85',
                                             )}
                                             style={({ isActive }) => isActive
-                                                ? { background: 'rgba(59,130,246,0.2)', color: undefined }
-                                                : { color: 'rgba(255,255,255,0.5)' }
+                                                ? { background: 'var(--color-sidebar-active)', color: '#fff' }
+                                                : { color: 'rgba(255,255,255,0.62)' }
                                             }
                                         >
                                             {({ isActive }) => (
                                                 <>
                                                     {isActive && (
-                                                        <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r-full bg-blue-400" />
+                                                        <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r-full" style={{ background: 'var(--color-primary)' }} />
                                                     )}
-                                                    <Icon className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-blue-400' : '')} />
+                                                    <Icon className="w-4 h-4 flex-shrink-0" style={{ color: isActive ? '#fff' : 'rgba(255,255,255,0.55)' }} />
                                                     <AnimatePresence>
                                                         {(open || isMobile) && (
                                                             <motion.span
@@ -205,8 +237,10 @@ export const Sidebar = ({ isMobile = false }) => {
 
                     {/* Dark mode toggle */}
                     <button
+                        type="button"
+                        aria-pressed={darkMode}
                         onClick={() => dispatch(toggleDarkMode())}
-                        className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 font-500 text-[13px] whitespace-nowrap w-full border-0 text-left cursor-pointer mb-0.5"
+                        className="flex items-center gap-3 px-3 py-2 rounded-md transition-colors duration-150 font-500 text-[13px] whitespace-nowrap w-full border-0 text-left cursor-pointer mb-0.5"
                         style={{ color: 'rgba(255,255,255,0.5)' }}
                         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = 'rgba(255,255,255,0.85)'; }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.5)'; }}
@@ -230,8 +264,9 @@ export const Sidebar = ({ isMobile = false }) => {
                     </button>
 
                     <button
+                        type="button"
                         onClick={logout}
-                        className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 font-500 text-[13px] whitespace-nowrap w-full border-0 text-left cursor-pointer"
+                        className="flex items-center gap-3 px-3 py-2 rounded-md transition-colors duration-150 font-500 text-[13px] whitespace-nowrap w-full border-0 text-left cursor-pointer"
                         style={{ color: 'rgba(252,165,165,0.6)' }}
                         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; e.currentTarget.style.color = '#fca5a5'; }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(252,165,165,0.6)'; }}
@@ -257,7 +292,7 @@ export const Sidebar = ({ isMobile = false }) => {
             {/* ── User profile ── */}
             <div className="px-3 py-2.5 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                 <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-white text-[11px] font-700 flex-shrink-0 shadow-sm">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-600 flex-shrink-0" style={{ background: 'var(--color-primary)' }}>
                         {initial}
                     </div>
                     <AnimatePresence>

@@ -5,7 +5,7 @@
 import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { Navigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import EChart from '../components/ui/EChart';
 import {
@@ -18,8 +18,8 @@ import { AppLayout } from '../components/layout/AppLayout';
 import { Section } from '../components/ui/Section';
 import { GlobalFilterBar } from '../components/ui/GlobalFilterBar';
 import { selectToken } from '../store/authSlice';
-import { selectBranch, selectGlobalFrom, selectGlobalTo } from '../store/reportSlice';
-import { analyticsApi } from '../services/api';
+import { selectGlobalFrom, selectGlobalTo } from '../store/reportSlice';
+import { analyticsApi, misApi } from '../services/api';
 import { ChartSkeleton } from '../components/ui/Skeleton';
 import { fmtL } from '../utils/formatters';
 import { cn } from '../utils/cn';
@@ -140,24 +140,22 @@ export default function BranchComparison() {
     const branchKeys   = branches.map(b => b.key);
 
     // Fetch analytics for each branch in parallel
-    const queries = branchKeys.map(b =>
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        useQuery({
+    const queries = useQueries({
+        queries: branchKeys.map(b => ({
             queryKey:  ['branch-compare', b, from, to],
             queryFn:   () => analyticsApi.kpi(b, to).then(r => ({ branch: b, data: r.data?.data ?? {} })),
             enabled:   !!(b && from && to),
-        })
-    );
+        })),
+    });
 
     // Fetch MIS for each branch
-    const misQueries = branchKeys.map(b =>
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        useQuery({
+    const misQueries = useQueries({
+        queries: branchKeys.map(b => ({
             queryKey:  ['branch-mis', b, to],
-            queryFn:   () => import('../services/api').then(m => m.misApi.show(b, to)).then(r => ({ branch: b, data: r.data?.data ?? {} })),
+            queryFn:   () => misApi.show(b, to).then(r => ({ branch: b, data: r.data?.data ?? {} })),
             enabled:   !!(b && to),
-        })
-    );
+        })),
+    });
 
     const isLoading = queries.some(q => q.isLoading) || misQueries.some(q => q.isLoading);
 

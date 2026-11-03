@@ -243,7 +243,7 @@ class CsvProcessingService
             }
 
             // ── Step 2: Advisory lock — serialise concurrent uploads for same key ─
-            DB::statement('SELECT GET_LOCK(?, 30)', [$lockName]);
+            DB::statement('SELECT GET_LOCK(?, 120)', [$lockName]);
 
             try {
                 // ── Steps 3-4: Per-file transaction ───────────────────────────
@@ -303,11 +303,11 @@ class CsvProcessingService
         try {
             ImportLog::create([
                 'branch'         => $log['branch'],
-                'report_type'    => $log['key'],
+                'report_type'    => $log['key'] === 'bill' ? 'bill_items' : $log['key'],
                 'report_date'    => $date,
                 'uploaded_by'    => $uploadedBy ?? 'system',
                 'user_id'        => $userId,
-                'files_uploaded' => [$log['key']],
+                'files_uploaded' => [$log['key'] === 'bill' ? 'bill_items' : $log['key']],
                 'rows_imported'  => $log['inserted'],
                 'rows_skipped'   => $log['skipped'],
                 'rows_errored'   => $log['errors'],
@@ -348,6 +348,28 @@ class CsvProcessingService
         if ($branch === Branch::CHROMEPET) {
             PackageConsumption::where('branch', $b)->whereDate('consumption_date', $date)->forceDelete();
         }
+    }
+
+    /**
+     * Roll back only the source represented by a single import log.
+     */
+    public function deleteSourceForBranchDate(Branch $branch, string $date, string $reportType): int
+    {
+        $source = match ($reportType) {
+            'bill', 'bill_items' => [BillItem::class, 'bill_date'],
+            'cashier', 'cashier_collections' => [CashierCollection::class, 'collection_date'],
+            'package', 'package_consumptions' => [PackageConsumption::class, 'consumption_date'],
+            'er', 'er_admissions' => [ErAdmission::class, 'admission_date'],
+            'ip', 'ip_admissions' => [IpAdmission::class, 'admission_date'],
+            'surgery', 'surgeries' => [Surgery::class, 'surgery_date'],
+            default => throw new \InvalidArgumentException("Unsupported import source [{$reportType}]."),
+        };
+
+        [$model, $dateColumn] = $source;
+
+        return (int) $model::where('branch', $branch->value)
+            ->whereDate($dateColumn, $date)
+            ->forceDelete();
     }
 
     /**

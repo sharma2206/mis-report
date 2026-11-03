@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Support\TenantContext;
 use App\Models\LoginLog;
 use App\Models\PasswordHistory;
 use App\Models\User;
@@ -17,6 +18,7 @@ class UserRepository
     public function paginate(array $filters = [], int $perPage = 20): LengthAwarePaginator
     {
         return User::query()
+            ->forCurrentTenant()
             ->with(['profile', 'userBranches', 'userDepartments', 'roles:id,name,slug,color', 'reportingManager:id,name'])
             ->when($filters['search'] ?? null, function ($q, $s) {
                 $q->where(function ($q2) use ($s) {
@@ -50,6 +52,7 @@ class UserRepository
     public function all(array $filters = []): Collection
     {
         return User::query()
+            ->forCurrentTenant()
             ->select('id', 'name', 'email', 'role', 'branch', 'is_active', 'employee_id', 'designation', 'department')
             ->when($filters['search'] ?? null, fn ($q, $s) => $q->where('name', 'like', "%{$s}%"))
             ->orderBy('name')
@@ -58,7 +61,9 @@ class UserRepository
 
     public function find(int $id): User
     {
-        return User::with([
+        return User::query()
+            ->forCurrentTenant()
+            ->with([
             'profile',
             'userBranches',
             'userDepartments',
@@ -70,6 +75,10 @@ class UserRepository
 
     public function create(array $data): User
     {
+        if (empty($data['tenant_id'])) {
+            $data['tenant_id'] = TenantContext::resolveId();
+        }
+
         return User::create($data);
     }
 
@@ -113,7 +122,7 @@ class UserRepository
 
     public function syncRoles(int $userId, array $roleIds, int $byUserId): void
     {
-        $user = User::findOrFail($userId);
+        $user = User::query()->forCurrentTenant()->findOrFail($userId);
         $pivot = collect($roleIds)->mapWithKeys(fn ($id) => [
             $id => ['assigned_by' => $byUserId, 'assigned_at' => now()],
         ])->toArray();
@@ -123,18 +132,20 @@ class UserRepository
 
     public function getStats(): array
     {
-        $total    = User::count();
-        $active   = User::where('is_active', true)->whereNull('locked_at')->count();
-        $inactive = User::where('is_active', false)->count();
-        $locked   = User::whereNotNull('locked_at')->count();
-        $admins   = User::where('role', 'admin')->count();
-        $doctors  = User::whereHas('roles', fn ($q) => $q->where('slug', 'doctor'))
-                        ->orWhere('designation', 'like', 'Dr.%')
-                        ->count();
-        $newThisMonth = User::whereMonth('created_at', now()->month)
+        $base = fn () => User::query()->forCurrentTenant();
+        $total    = $base()->count();
+        $active   = $base()->where('is_active', true)->whereNull('locked_at')->count();
+        $inactive = $base()->where('is_active', false)->count();
+        $locked   = $base()->whereNotNull('locked_at')->count();
+        $admins   = $base()->where('role', 'admin')->count();
+        $doctors  = $base()->where(function ($q) {
+            $q->whereHas('roles', fn ($role) => $role->where('slug', 'doctor'))
+              ->orWhere('designation', 'like', 'Dr.%');
+        })->count();
+        $newThisMonth = $base()->whereMonth('created_at', now()->month)
                             ->whereYear('created_at', now()->year)
                             ->count();
-        $recentLogins = User::whereNotNull('last_login_at')
+        $recentLogins = $base()->whereNotNull('last_login_at')
                             ->where('last_login_at', '>=', now()->subDay())
                             ->count();
 

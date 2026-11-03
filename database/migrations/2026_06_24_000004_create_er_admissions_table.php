@@ -35,8 +35,11 @@ return new class extends Migration
             $table->dateTime('discharge_date')->nullable();
             $table->decimal('actual_los', 8, 2)->nullable();
             $table->timestamps();
+            $table->softDeletes();
 
             $table->index(['branch', 'admission_date', 'payer_type'], 'idx_er_branch_date_ptype');
+            $table->index(['branch', 'admission_date', 'treating_department'], 'idx_er_branch_date_dept');
+            $table->index(['branch', 'discharge_date'], 'idx_er_branch_discharge_date');
         });
     }
 

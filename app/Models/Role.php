@@ -13,8 +13,16 @@ class Role extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'name', 'slug', 'description', 'type', 'is_system', 'is_active',
-        'color', 'icon', 'metadata', 'created_by',
+        'name',
+        'slug',
+        'description',
+        'type',
+        'is_system',
+        'is_active',
+        'color',
+        'icon',
+        'metadata',
+        'created_by',
     ];
 
     protected function casts(): array

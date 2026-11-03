@@ -31,9 +31,20 @@ class IpAdmissionImport implements ToCollection, WithHeadingRow, WithChunkReadin
                 continue;
             }
 
+            $admissionDate = $this->parseDateOnly(
+                $this->getValue($row, ['admission_date_time', 'ip_conversion_date_time'], null)
+            ) ?? $this->date;
+            if ($admissionDate !== $this->date) {
+                throw new \RuntimeException(
+                    "IP admission date {$admissionDate} for "
+                    . ($admissionNo ?: $uhid)
+                    . " does not match selected import date {$this->date}."
+                );
+            }
+
             $insert[] = [
                 'branch'                     => $this->branch->value,
-                'admission_date'             => $this->parseDateOnly($this->getValue($row, ['admission_date_time', 'ip_conversion_date_time'], null)) ?? $this->date,
+                'admission_date'             => $admissionDate,
                 'admission_no'               => $admissionNo ?: null,
                 'uhid'                       => $uhid ?: null,
                 'patient_name'               => trim($row['patient_name'] ?? '') ?: null,
@@ -67,7 +78,7 @@ class IpAdmissionImport implements ToCollection, WithHeadingRow, WithChunkReadin
 
         if (!empty($insert)) {
             foreach (array_chunk($insert, 500) as $chunk) {
-                IpAdmission::insert($chunk);
+                IpAdmission::insert(\App\Support\TenantContext::stamp($chunk));
             }
             $this->rowCount += count($insert);
         }

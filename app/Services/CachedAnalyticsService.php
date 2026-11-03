@@ -132,11 +132,16 @@ class CachedAnalyticsService extends AnalyticsService
     public static function bustForBranch(string $branch): void
     {
         Cache::increment("analytics:gen:{$branch}");
+        Cache::increment('analytics:gen:all');
     }
 
     private static function generation($branch): int
     {
         $branches = is_array($branch) ? $branch : explode(',', $branch);
+        if (in_array('all', $branches, true)) {
+            return (int) Cache::get('analytics:gen:all', 0);
+        }
+
         $gen = 0;
         foreach ($branches as $b) {
             $gen += (int) Cache::get("analytics:gen:{$b}", 0);
@@ -146,11 +151,23 @@ class CachedAnalyticsService extends AnalyticsService
 
     private function resolveBranchKey($branch): string
     {
-        return is_array($branch) ? implode(',', $branch) : $branch;
+        if (! is_array($branch)) {
+            return $branch;
+        }
+
+        sort($branch);
+        return implode(',', $branch);
     }
 
     private function resolveFilterKey(array $filters): string
     {
+        ksort($filters);
+        foreach ($filters as &$values) {
+            if (is_array($values)) {
+                sort($values);
+            }
+        }
+
         return empty($filters) ? '' : ':' . md5(json_encode($filters));
     }
 

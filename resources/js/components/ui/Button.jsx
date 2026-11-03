@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { cn } from '../../utils/cn';
 
 const variants = {
-    primary: 'bg-gradient-to-r from-blue-700 to-violet-600 text-white border-transparent shadow-md hover:opacity-90 hover:shadow-lg',
+    primary: 'bg-[var(--color-primary)] text-white border-transparent hover:bg-[var(--color-primary-hover)]',
     secondary: 'bg-white text-slate-700 border-slate-200 hover:border-blue-400 hover:text-blue-700 hover:bg-blue-50',
     danger:  'bg-white text-red-600 border-slate-200 hover:border-red-400 hover:bg-red-50',
     success: 'bg-white text-emerald-600 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50',

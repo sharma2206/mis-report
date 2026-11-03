@@ -16,6 +16,7 @@ import { today } from '../utils/dateHelpers';
 import { BRANCHES } from '../constants';
 import { cn } from '../utils/cn';
 import { FILE_FIELD_MAP, DETECT_RULES } from '../utils/fileDetect';
+import { waitForImport } from '../utils/importPoll';
 import { scanCsvFile, tsToYMD, fmtDMY, parseKareDate } from '../utils/csvScanner';
 import { DropZone } from '../components/import/DropZone';
 import { FileCard } from '../components/import/FileCard';
@@ -194,7 +195,11 @@ export default function ImportCenter() {
         queryFn:  () => misApi.importStatus(branch).then(r => r.data),
         enabled:  !!branch && !!token,
         staleTime: 15_000,
-        refetchInterval: mode === 'individual' ? 30_000 : false,
+        refetchInterval: (query) => {
+            const rows = Object.values(query.state.data?.data || {});
+            if (rows.some((row) => row?.status === 'processing')) return 2_000;
+            return mode === 'individual' ? 30_000 : false;
+        },
     });
 
     const statuses    = statusData?.data     || {};
@@ -235,6 +240,12 @@ export default function ImportCenter() {
             const { data } = await misApi.upload(branch, fd);
             if (!data.success) throw new Error(data.message || 'Import failed');
 
+            if (data.queued) {
+                batch.setItems(prev => prev.map(f => ({ ...f, status: 'importing', progress: 80 })));
+                await waitForImport(branch, items.map(item => item.typeKey));
+                refetchStatus();
+            }
+
             const imported  = data.imported || {};
             let totalImported = 0, totalSkipped = 0, totalErrors = 0;
             Object.entries(imported).forEach(([, val]) => {
@@ -262,8 +273,18 @@ export default function ImportCenter() {
             ].forEach(k => queryClient.invalidateQueries({ queryKey: [k, branch] }));
 
             refetchStatus();
-            setBatchResult({ success: true, imported: totalImported, skipped: totalSkipped, errors: totalErrors, message: data.message || 'Import complete' });
+            setBatchResult({
+                success: true,
+                imported: totalImported,
+                skipped: totalSkipped,
+                errors: totalErrors,
+                message: data.queued ? 'Import complete' : (data.message || 'Import complete'),
+            });
         } catch (err) {
+            if (err.code === 'IMPORT_TIMEOUT') {
+                setBatchResult({ success: true, imported: 0, skipped: 0, errors: 0, message: err.message });
+                return;
+            }
             const apiErrors   = err.response?.data?.errors || {};
             const topMsg      = err.response?.data?.message || err.message || 'Upload failed';
             const allMessages = Object.entries(apiErrors).flatMap(([field, msgs]) => msgs.map(m => ({ field, message: m })));

@@ -210,24 +210,19 @@ const KPICard = ({
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.025, duration: 0.2 }}
-            className="relative bg-white border border-slate-200 rounded-xl overflow-hidden
-                       hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-default group"
-            style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
+            className="relative bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-card)] overflow-hidden"
+            style={{ boxShadow: 'var(--shadow-card)' }}
         >
-            {/* Gradient accent top bar */}
-            <div
-                className="h-[3px] w-full"
-                style={{ background: `linear-gradient(90deg, ${grad[0]}, ${grad[1]})` }}
-            />
+            <div className="h-0.5 w-full" style={{ background: 'var(--color-primary)' }} />
 
             <div className="p-3">
                 {/* Icon + growth badge */}
                 <div className="flex items-start justify-between mb-2">
                     <div
-                        className="w-7 h-7 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0"
-                        style={{ background: `linear-gradient(135deg, ${grad[0]}, ${grad[1]})` }}
+                        className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0"
+                        style={{ background: 'var(--color-hover-bg)', color: 'var(--color-primary)' }}
                     >
-                        {Icon && <Icon className="w-3.5 h-3.5 text-white" />}
+                        {Icon && <Icon className="w-3.5 h-3.5" />}
                     </div>
                     <GrowthBadge pct={growthPct} />
                 </div>

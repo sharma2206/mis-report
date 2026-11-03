@@ -2,13 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ImportLog extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, BelongsToTenant;
     protected $fillable = [
+        'tenant_id',
         'branch',
         'report_type',
         'report_date',
@@ -38,5 +41,15 @@ class ImportLog extends Model
     public function user(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(\App\Models\User::class)->withDefault();
+    }
+
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    public function hospitalBranch(): BelongsTo
+    {
+        return $this->belongsTo(HospitalBranch::class, 'branch', 'key');
     }
 }

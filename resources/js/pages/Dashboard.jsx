@@ -11,12 +11,18 @@ import {
 import { selectToken } from '../store/authSlice';
 import {
     selectBranch as selBranch, selectActiveTab,
-    selectGlobalFrom, selectGlobalTo, setActiveTab,
+    selectGlobalFrom, selectGlobalTo, selectAdvancedFilterParams, setActiveTab,
 } from '../store/reportSlice';
 import { useDashboard } from '../hooks/useDashboard';
 import { AppLayout } from '../components/layout/AppLayout';
 import { Section } from '../components/ui/Section';
 import { Topbar } from '../components/layout/Topbar';
+import { GlobalFilterBar } from '../components/ui/GlobalFilterBar';
+import { PageHeader } from '../components/ui/PageHeader';
+import { CommandCenter } from '../components/dashboard/CommandCenter';
+import { DashboardDrilldown } from '../components/dashboard/DashboardDrilldown';
+import { SourceHealth } from '../components/dashboard/SourceHealth';
+import { usePermissions } from '../hooks/usePermissions';
 import { TableSkeleton, ChartSkeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { RankedList, PayerChips } from '../components/ui/RankedList';
@@ -585,57 +591,20 @@ const AnalyticsTab = ({ payer, mix, isPayerLoading, isMixLoading }) => (
 const OverviewTab = ({
     mis, kpi, trend, payer, mix, collection, serviceRev, admissions, branch,
     isLoading, isTrendLoading, isPayerLoading, isMixLoading, isAdmLoading,
+    onDrilldown,
 }) => {
-    const ftdVol = mis?.volume?.ftd || {};
     return (
         <div className="space-y-4">
-            {/* AI Insights — above KPI strip */}
-            <AIInsightsPanel kpi={kpi} mis={mis} branch={branch} isLoading={isLoading} />
-
-            <KPIStrip mis={mis} kpi={kpi} collection={collection} isLoading={isLoading} />
-
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-                <div className="xl:col-span-2">
-                    <Section title="Revenue Trend" icon={TrendingUp}>
-                        <RevenueTrendChart data={trend} isLoading={isTrendLoading} />
-                    </Section>
-                </div>
-                <Section title="Payer Mix" icon={PieIcon}>
-                    <PayerChart data={payer} isLoading={isPayerLoading} />
-                </Section>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Section title="Patient Trend" icon={Users}>
-                    <PatientMixChart data={mix} isLoading={isMixLoading} />
-                </Section>
-                <Section title="Admissions vs Discharges" icon={Activity}>
-                    <AdmissionsChart data={
-                        admissions
-                            ? [{ date: 'IP', admissions: admissions.ip_total || 0, discharges: 0 },
-                               { date: 'ER', admissions: admissions.er_total || 0, discharges: 0 }]
-                            : []
-                    } isLoading={isAdmLoading} />
-                </Section>
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-                <div className="xl:col-span-2">
-                    <Section title="Department Revenue" icon={BarChart3}>
-                        <DeptRevenueChart data={serviceRev} isLoading={isTrendLoading} />
-                    </Section>
-                </div>
-                <div className="space-y-4">
-                    <QuickActions />
-                    <Section title="Bed Occupancy" icon={BedDouble}>
-                        <BedOccupancyChart data={[]} occupancyPct={ftdVol.occupancy_pct} isLoading={isLoading} />
-                    </Section>
-                </div>
-            </div>
-
-            <Section title="Pharmacy Revenue Trend" icon={ShoppingBag}>
-                <PharmacyTrendChart data={trend} isLoading={isTrendLoading} />
-            </Section>
+            <CommandCenter
+                kpi={kpi}
+                trend={trend}
+                payer={payer}
+                patientMix={mix}
+                serviceRevenue={serviceRev}
+                loading={isLoading || isTrendLoading || isPayerLoading || isMixLoading}
+                onDrilldown={onDrilldown}
+            />
+            <SourceHealth />
         </div>
     );
 };
@@ -650,7 +619,7 @@ const TabStrip = ({ tab, onChange }) => {
     }, [onChange]);
 
     return (
-        <div role="tablist" aria-label="Dashboard sections" className="bg-white border-b border-slate-200 overflow-x-auto scrollbar-none flex-shrink-0">
+        <div role="tablist" aria-label="Dashboard sections" className="overflow-x-auto scrollbar-none flex-shrink-0" style={{ background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)' }}>
             <div className="flex gap-0 min-w-max px-1">
                 {TABS.map(({ key, label, icon: Icon }, index) => {
                     const active = tab === key;
@@ -689,6 +658,9 @@ export default function Dashboard() {
     const tab      = useSelector(selectActiveTab);
     const dispatch = useDispatch();
     const effectiveFrom = useSelector(selectGlobalFrom);
+    const advancedFilters = useSelector(selectAdvancedFilterParams);
+    const { canAny } = usePermissions();
+    const [drilldown, setDrilldown] = useState(null);
 
     const {
         mis, kpi, trend, payer, mix, serviceRev, admissions,
@@ -697,7 +669,7 @@ export default function Dashboard() {
         isIpLoading, isSurgLoading, isOpLoading, isCollLoading,
         isSvcLoading, isDrLoading, isAdmLoading,
         isError, refetch, dataUpdatedAt,
-    } = useDashboard(branch, date, effectiveFrom, tab);
+    } = useDashboard(branch, date, effectiveFrom, tab, advancedFilters);
 
     if (!token) return <Navigate to="/login" replace />;
 
@@ -716,6 +688,9 @@ export default function Dashboard() {
                         isPayerLoading={isPayerLoading}
                         isMixLoading={isMixLoading}
                         isAdmLoading={isAdmLoading}
+                        onDrilldown={(type, label) => {
+                            if (canAny('dashboard.drill_down')) setDrilldown({ type, label });
+                        }}
                     />
                 );
             case 'revenue':
@@ -745,8 +720,12 @@ export default function Dashboard() {
 
     return (
         <AppLayout topbar={<Topbar isLoading={isLoading} onPrint={handlePrint} dataUpdatedAt={dataUpdatedAt} />}>
-            {/* Global filter bar — sticky below topbar */}
-            {/* <GlobalFilterBar /> */}
+            <PageHeader
+                eyebrow="Hospital performance"
+                title="Operations Command Center"
+                description={`Operational, clinical, and financial performance from ${effectiveFrom} to ${date}.`}
+            />
+            <GlobalFilterBar />
 
             {/* Horizontal tab strip */}
             <TabStrip tab={tab} onChange={(key) => dispatch(setActiveTab(key))} />
@@ -789,6 +768,11 @@ export default function Dashboard() {
                     )}
                 </AnimatePresence>
             </main>
+            <DashboardDrilldown
+                selection={drilldown}
+                onClose={() => setDrilldown(null)}
+                params={{ branch, from: effectiveFrom, to: date, ...advancedFilters }}
+            />
         </AppLayout>
     );
 }

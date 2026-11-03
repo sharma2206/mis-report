@@ -5,8 +5,10 @@ namespace App\Console\Commands;
 use App\Enums\Branch;
 use App\Jobs\EmailReportJob;
 use App\Models\AuditLog;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Services\MISService;
+use App\Support\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 
@@ -23,6 +25,29 @@ class SendMisReport extends Command
     public function __construct(private MISService $misService) { parent::__construct(); }
 
     public function handle(): int
+    {
+        $ids = Tenant::query()->where('is_active', true)->pluck('id');
+
+        if ($ids->isEmpty()) {
+            return $this->dispatchReports();
+        }
+
+        foreach ($ids as $id) {
+            TenantContext::set((int) $id);
+            try {
+                $code = $this->dispatchReports();
+                if ($code !== Command::SUCCESS) {
+                    return $code;
+                }
+            } finally {
+                TenantContext::forget();
+            }
+        }
+
+        return Command::SUCCESS;
+    }
+
+    private function dispatchReports(): int
     {
         $period    = $this->argument('period');
         $branchArg = $this->argument('branch');
@@ -67,7 +92,9 @@ class SendMisReport extends Command
 
     private function recipientsFor(Branch $branch): array
     {
-        return User::where('is_active', true)
+        return User::query()
+            ->forCurrentTenant()
+            ->where('is_active', true)
             ->where(fn($q) => $q->whereNull('branch')->orWhere('branch', $branch->value))
             ->whereIn('role', ['admin', 'manager'])
             ->pluck('email')

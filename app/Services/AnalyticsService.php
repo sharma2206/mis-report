@@ -16,7 +16,7 @@ class AnalyticsService
 {
     // ─── Daily trend ─────────────────────────────────────────────────────────
 
-    public function dailyTrend($branch, string $from, string $to, array $filters = []): Collection
+    public function dailyTrend(string $branch, string $from, string $to, array $filters = []): Collection
     {
         return BillItem::select(
             DB::raw('DATE(bill_date) as day'),
@@ -37,7 +37,7 @@ class AnalyticsService
 
     // ─── Monthly trend ────────────────────────────────────────────────────────
 
-    public function monthlyTrend($branch, int $year, array $filters = []): array
+    public function monthlyTrend(string $branch, int $year, array $filters = []): array
     {
         $rows = BillItem::select(
             DB::raw('MONTH(bill_date) as month'),
@@ -68,7 +68,7 @@ class AnalyticsService
 
     // ─── Department revenue ───────────────────────────────────────────────────
 
-    public function deptRevenue($branch, string $from, string $to, array $filters = []): Collection
+    public function deptRevenue(string $branch, string $from, string $to, array $filters = []): Collection
     {
         return BillItem::select(
             'treating_department',
@@ -90,7 +90,7 @@ class AnalyticsService
 
     // ─── Payer mix ────────────────────────────────────────────────────────────
 
-    public function payerMix($branch, string $from, string $to, array $filters = []): Collection
+    public function payerMix(string $branch, string $from, string $to, array $filters = []): Collection
     {
         return CashierCollection::select(
             'payer_type',
@@ -108,14 +108,14 @@ class AnalyticsService
 
     // ─── Patient mix ──────────────────────────────────────────────────────────
 
-    public function patientMix($branch, string $from, string $to, array $filters = []): Collection
+    public function patientMix(string $branch, string $from, string $to, array $filters = []): Collection
     {
         return BillItem::select(
             DB::raw('DATE(bill_date) as day'),
-            DB::raw('SUM(CASE WHEN patient_type = "OP" THEN net_amount ELSE 0 END) as op'),
-            DB::raw('SUM(CASE WHEN patient_type = "IP" THEN net_amount ELSE 0 END) as ip'),
-            DB::raw('SUM(CASE WHEN patient_type = "ER" THEN net_amount ELSE 0 END) as er'),
-            DB::raw('SUM(CASE WHEN patient_type IS NULL THEN net_amount ELSE 0 END) as pharmacy')
+            DB::raw('COUNT(DISTINCT CASE WHEN patient_type = "OP" THEN COALESCE(NULLIF(visit_id, ""), uhid) END) as op'),
+            DB::raw('COUNT(DISTINCT CASE WHEN patient_type = "IP" THEN COALESCE(NULLIF(visit_id, ""), uhid) END) as ip'),
+            DB::raw('COUNT(DISTINCT CASE WHEN patient_type = "ER" THEN COALESCE(NULLIF(visit_id, ""), uhid) END) as er'),
+            DB::raw('COUNT(DISTINCT CASE WHEN patient_type IS NULL THEN COALESCE(NULLIF(visit_id, ""), uhid) END) as pharmacy')
         )
             ->forBranch($branch)
             ->applyFilters($filters)
@@ -130,22 +130,42 @@ class AnalyticsService
 
     public function branchComparison(string $from, string $to): array
     {
+        // Aggregate metrics across branches in three queries to reduce DB round-trips
+        $billRows = BillItem::select(
+            'branch',
+            DB::raw('SUM(net_amount) as revenue'),
+            DB::raw('COUNT(DISTINCT uhid) as patients')
+        )
+            ->whereDate('bill_date', '>=', $from)->whereDate('bill_date', '<=', $to)
+            ->saleStatus()
+            ->groupBy('branch')
+            ->get()
+            ->keyBy('branch');
+
+        $cashRows = CashierCollection::select(
+            'branch',
+            DB::raw('SUM(paid_amount) as collection')
+        )
+            ->whereDate('collection_date', '>=', $from)->whereDate('collection_date', '<=', $to)
+            ->groupBy('branch')
+            ->get()
+            ->keyBy('branch');
+
+        $surgRows = Surgery::select('branch', DB::raw('COUNT(*) as surgeries'))
+            ->whereDate('surgery_date', '>=', $from)->whereDate('surgery_date', '<=', $to)
+            ->groupBy('branch')
+            ->get()
+            ->keyBy('branch');
+
         $result = [];
         foreach (Branch::cases() as $branch) {
-            $result[$branch->value] = [
+            $b = $branch->value;
+            $result[$b] = [
                 'label'      => $branch->label(),
-                'revenue'    => (float) BillItem::where('branch', $branch->value)
-                    ->whereDate('bill_date', '>=', $from)->whereDate('bill_date', '<=', $to)
-                    ->saleStatus()->sum('net_amount'),
-                'collection' => (float) CashierCollection::where('branch', $branch->value)
-                    ->whereDate('collection_date', '>=', $from)->whereDate('collection_date', '<=', $to)
-                    ->sum('paid_amount'),
-                'patients'   => BillItem::where('branch', $branch->value)
-                    ->whereDate('bill_date', '>=', $from)->whereDate('bill_date', '<=', $to)
-                    ->saleStatus()->distinct('uhid')->count('uhid'),
-                'surgeries'  => Surgery::where('branch', $branch->value)
-                    ->whereDate('surgery_date', '>=', $from)->whereDate('surgery_date', '<=', $to)
-                    ->count(),
+                'revenue'    => (float) ($billRows->get($b)?->revenue ?? 0),
+                'collection' => (float) ($cashRows->get($b)?->collection ?? 0),
+                'patients'   => (int)   ($billRows->get($b)?->patients ?? 0),
+                'surgeries'  => (int)   ($surgRows->get($b)?->surgeries ?? 0),
             ];
         }
 
@@ -154,7 +174,7 @@ class AnalyticsService
 
     // ─── Doctor revenue ───────────────────────────────────────────────────────
 
-    public function doctorRevenue($branch, string $from, string $to, array $filters = []): Collection
+    public function doctorRevenue(string $branch, string $from, string $to, array $filters = []): Collection
     {
         return BillItem::select(
             'treating_doctor',
@@ -176,7 +196,7 @@ class AnalyticsService
 
     // ─── Surgeries ────────────────────────────────────────────────────────────
 
-    public function surgeries($branch, string $from, string $to, array $filters = []): array
+    public function surgeries(string $branch, string $from, string $to, array $filters = []): array
     {
         $base = Surgery::forBranch($branch)
             ->applyFilters($filters)
@@ -200,7 +220,7 @@ class AnalyticsService
 
     // ─── Admissions ───────────────────────────────────────────────────────────
 
-    public function admissions($branch, string $from, string $to, array $filters = []): array
+    public function admissions(string $branch, string $from, string $to, array $filters = []): array
     {
         $ipBase = IpAdmission::forBranch($branch)
             ->applyFilters($filters)
@@ -225,7 +245,7 @@ class AnalyticsService
 
     // ─── IP demographics ──────────────────────────────────────────────────────
 
-    public function ipDemographics($branch, string $from, string $to, array $filters = []): array
+    public function ipDemographics(string $branch, string $from, string $to, array $filters = []): array
     {
         $base = IpAdmission::forBranch($branch)
             ->applyFilters($filters)
@@ -273,7 +293,7 @@ class AnalyticsService
 
     // ─── Surgery detail ───────────────────────────────────────────────────────
 
-    public function surgeryDetail($branch, string $from, string $to, array $filters = []): array
+    public function surgeryDetail(string $branch, string $from, string $to, array $filters = []): array
     {
         $base = Surgery::forBranch($branch)
             ->applyFilters($filters)
@@ -310,7 +330,7 @@ class AnalyticsService
 
     // ─── Collection report ────────────────────────────────────────────────────
 
-    public function collectionReport($branch, string $from, string $to, array $filters = []): array
+    public function collectionReport(string $branch, string $from, string $to, array $filters = []): array
     {
         $base = CashierCollection::forBranch($branch)
             ->applyFilters($filters)
@@ -386,7 +406,7 @@ class AnalyticsService
 
     // ─── Service revenue ──────────────────────────────────────────────────────
 
-    public function serviceRevenue($branch, string $from, string $to, array $filters = []): array
+    public function serviceRevenue(string $branch, string $from, string $to, array $filters = []): array
     {
         $base = BillItem::forBranch($branch)
             ->applyFilters($filters)
@@ -434,7 +454,7 @@ class AnalyticsService
 
     // ─── Doctor performance ───────────────────────────────────────────────────
 
-    public function doctorPerformance($branch, string $from, string $to, array $filters = []): array
+    public function doctorPerformance(string $branch, string $from, string $to, array $filters = []): array
     {
         $doctorRevenue = BillItem::select(
             'treating_doctor',
@@ -459,29 +479,41 @@ class AnalyticsService
             ->orderByDesc('total_revenue')
             ->get();
 
-        $ipCounts = IpAdmission::select('treating_doctor', DB::raw('COUNT(*) as ip_admissions'), DB::raw('AVG(actual_los) as avg_los'))
-            ->forBranch($branch)
-            ->applyFilters($filters)
-            ->whereDate('admission_date', '>=', $from)->whereDate('admission_date', '<=', $to)
-            ->whereNotNull('treating_doctor')
-            ->groupBy('treating_doctor')
-            ->get()->keyBy('treating_doctor');
+        // Limit follow-up aggregation queries to doctors present in billing results
+        $doctorList = $doctorRevenue->pluck('treating_doctor')->filter()->unique()->values()->all();
 
-        $erCounts = ErAdmission::select('doctor_name', DB::raw('COUNT(*) as er_admissions'))
-            ->forBranch($branch)
-            ->applyFilters($filters)
-            ->whereDate('admission_date', '>=', $from)->whereDate('admission_date', '<=', $to)
-            ->whereNotNull('doctor_name')
-            ->groupBy('doctor_name')
-            ->get()->keyBy('doctor_name');
+        if (count($doctorList) === 0) {
+            $ipCounts = collect();
+            $erCounts = collect();
+            $surgCounts = collect();
+        } else {
+            $ipCounts = IpAdmission::select('treating_doctor', DB::raw('COUNT(*) as ip_admissions'), DB::raw('AVG(actual_los) as avg_los'))
+                ->forBranch($branch)
+                ->applyFilters($filters)
+                ->whereDate('admission_date', '>=', $from)->whereDate('admission_date', '<=', $to)
+                ->whereNotNull('treating_doctor')
+                ->whereIn('treating_doctor', $doctorList)
+                ->groupBy('treating_doctor')
+                ->get()->keyBy('treating_doctor');
 
-        $surgCounts = Surgery::select('performing_surgeon', DB::raw('COUNT(*) as surgeries'), DB::raw('COUNT(CASE WHEN surgery_category="Major" THEN 1 END) as major_surgeries'))
-            ->forBranch($branch)
-            ->applyFilters($filters)
-            ->whereDate('surgery_date', '>=', $from)->whereDate('surgery_date', '<=', $to)
-            ->whereNotNull('performing_surgeon')
-            ->groupBy('performing_surgeon')
-            ->get()->keyBy('performing_surgeon');
+            $erCounts = ErAdmission::select('doctor_name', DB::raw('COUNT(*) as er_admissions'))
+                ->forBranch($branch)
+                ->applyFilters($filters)
+                ->whereDate('admission_date', '>=', $from)->whereDate('admission_date', '<=', $to)
+                ->whereNotNull('doctor_name')
+                ->whereIn('doctor_name', $doctorList)
+                ->groupBy('doctor_name')
+                ->get()->keyBy('doctor_name');
+
+            $surgCounts = Surgery::select('performing_surgeon', DB::raw('COUNT(*) as surgeries'), DB::raw('COUNT(CASE WHEN surgery_category="Major" THEN 1 END) as major_surgeries'))
+                ->forBranch($branch)
+                ->applyFilters($filters)
+                ->whereDate('surgery_date', '>=', $from)->whereDate('surgery_date', '<=', $to)
+                ->whereNotNull('performing_surgeon')
+                ->whereIn('performing_surgeon', $doctorList)
+                ->groupBy('performing_surgeon')
+                ->get()->keyBy('performing_surgeon');
+        }
 
         $doctors = $doctorRevenue->map(function ($row) use ($ipCounts, $erCounts, $surgCounts) {
             $doctor   = $row->treating_doctor;

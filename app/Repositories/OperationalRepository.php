@@ -22,7 +22,7 @@ class OperationalRepository
             ->whereDate('admission_date', '<=', $date)
             ->where(function ($q) use ($date) {
                 $q->whereNull('discharge_date')
-                  ->orWhereDate('discharge_date', '>', $date);
+                    ->orWhereDate('discharge_date', '>', $date);
             });
     }
 
@@ -32,7 +32,7 @@ class OperationalRepository
             ->whereDate('admission_date', '<=', $date)
             ->where(function ($q) use ($date) {
                 $q->whereNull('discharge_date')
-                  ->orWhereDate('discharge_date', '>', $date);
+                    ->orWhereDate('discharge_date', '>', $date);
             });
     }
 
@@ -41,42 +41,72 @@ class OperationalRepository
     public function getKpis(string $branch, string $date): array
     {
         $from = Carbon::parse($date)->startOfMonth()->toDateString();
+        // Base queries
+        $ipBase   = IpAdmission::where('branch', $branch);
+        $erBase   = ErAdmission::where('branch', $branch);
+        $surgBase = Surgery::where('branch', $branch);
 
-        $currentIp  = $this->ipCensusBase($branch, $date)->count();
-        $currentEr  = $this->erCensusBase($branch, $date)->count();
-        $todayAdm   = IpAdmission::where('branch', $branch)->whereDate('admission_date', $date)->count();
-        $todayDis   = IpAdmission::where('branch', $branch)->whereDate('discharge_date', $date)->count();
-        $todayEr    = ErAdmission::where('branch', $branch)->whereDate('admission_date', $date)->count();
-        $todaySurg  = Surgery::where('branch', $branch)->whereDate('surgery_date', $date)->count();
-        $todayOp    = BillItem::where('branch', $branch)->whereDate('bill_date', $date)
-                        ->where('patient_type', 'OP')->saleStatus()->distinct('uhid')->count('uhid');
+        // Aggregate IP counts: current inpatients, today admissions/discharges, MTD admissions/discharges, pending discharges
+        $pendingDate = Carbon::parse($date)->subDays(7)->toDateString();
+        $ipAgg = $ipBase->clone()
+            ->select(
+                DB::raw("SUM(CASE WHEN discharge_date IS NULL OR DATE(discharge_date) > '{$date}' THEN 1 ELSE 0 END) as current_ip"),
+                DB::raw("SUM(CASE WHEN DATE(admission_date) = '{$date}' THEN 1 ELSE 0 END) as today_adm"),
+                DB::raw("SUM(CASE WHEN DATE(discharge_date) = '{$date}' THEN 1 ELSE 0 END) as today_dis"),
+                DB::raw("SUM(CASE WHEN DATE(admission_date) >= '{$from}' AND DATE(admission_date) <= '{$date}' THEN 1 ELSE 0 END) as mtd_adm"),
+                DB::raw("SUM(CASE WHEN DATE(discharge_date) >= '{$from}' AND DATE(discharge_date) <= '{$date}' THEN 1 ELSE 0 END) as mtd_dis"),
+                DB::raw("SUM(CASE WHEN DATE(admission_date) <= '{$pendingDate}' THEN 1 ELSE 0 END) as pending_dis")
+            )
+            ->first();
 
-        $mtdAdm  = IpAdmission::where('branch', $branch)
-                    ->whereDate('admission_date', '>=', $from)->whereDate('admission_date', '<=', $date)->count();
-        $mtdDis  = IpAdmission::where('branch', $branch)
-                    ->whereDate('discharge_date', '>=', $from)->whereDate('discharge_date', '<=', $date)->count();
-        $mtdEr   = ErAdmission::where('branch', $branch)
-                    ->whereDate('admission_date', '>=', $from)->whereDate('admission_date', '<=', $date)->count();
-        $mtdSurg = Surgery::where('branch', $branch)
-                    ->whereDate('surgery_date', '>=', $from)->whereDate('surgery_date', '<=', $date)->count();
+        $currentIp  = (int) ($ipAgg->current_ip ?? 0);
+        $todayAdm   = (int) ($ipAgg->today_adm ?? 0);
+        $todayDis   = (int) ($ipAgg->today_dis ?? 0);
+        $mtdAdm     = (int) ($ipAgg->mtd_adm ?? 0);
+        $mtdDis     = (int) ($ipAgg->mtd_dis ?? 0);
+        $pendingDis = (int) ($ipAgg->pending_dis ?? 0);
 
-        $avgLos = IpAdmission::where('branch', $branch)
+        // ER aggregations
+        $erAgg = $erBase->clone()
+            ->select(
+                DB::raw("SUM(CASE WHEN discharge_date IS NULL OR DATE(discharge_date) > '{$date}' THEN 1 ELSE 0 END) as current_er"),
+                DB::raw("SUM(CASE WHEN DATE(admission_date) = '{$date}' THEN 1 ELSE 0 END) as today_er"),
+                DB::raw("SUM(CASE WHEN DATE(admission_date) >= '{$from}' AND DATE(admission_date) <= '{$date}' THEN 1 ELSE 0 END) as mtd_er")
+            )
+            ->first();
+
+        $currentEr = (int) ($erAgg->current_er ?? 0);
+        $todayEr   = (int) ($erAgg->today_er ?? 0);
+        $mtdEr     = (int) ($erAgg->mtd_er ?? 0);
+
+        // Surgery aggregations (today and MTD, plus category/status breakdowns)
+        $surgAgg = $surgBase->clone()
+            ->select(
+                DB::raw("SUM(CASE WHEN DATE(surgery_date) = '{$date}' THEN 1 ELSE 0 END) as today_surg"),
+                DB::raw("SUM(CASE WHEN DATE(surgery_date) >= '{$from}' AND DATE(surgery_date) <= '{$date}' THEN 1 ELSE 0 END) as mtd_surg"),
+                DB::raw("SUM(CASE WHEN DATE(surgery_date) = '{$date}' AND status = 'Completed' THEN 1 ELSE 0 END) as surg_completed"),
+                DB::raw("SUM(CASE WHEN DATE(surgery_date) = '{$date}' AND status = 'Cancelled' THEN 1 ELSE 0 END) as surg_cancelled"),
+                DB::raw("SUM(CASE WHEN DATE(surgery_date) = '{$date}' AND ot_surgery_type = 'Emergency' THEN 1 ELSE 0 END) as emergency_surg"),
+                DB::raw("SUM(CASE WHEN DATE(surgery_date) = '{$date}' AND ot_surgery_type = 'Elective' THEN 1 ELSE 0 END) as elective_surg")
+            )
+            ->first();
+
+        $todaySurg      = (int) ($surgAgg->today_surg ?? 0);
+        $mtdSurg        = (int) ($surgAgg->mtd_surg ?? 0);
+        $surgCompleted  = (int) ($surgAgg->surg_completed ?? 0);
+        $surgCancelled  = (int) ($surgAgg->surg_cancelled ?? 0);
+        $emergencySurg  = (int) ($surgAgg->emergency_surg ?? 0);
+        $electiveSurg   = (int) ($surgAgg->elective_surg ?? 0);
+
+        // OP unique patients for today
+        $todayOp = BillItem::where('branch', $branch)->whereDate('bill_date', $date)
+            ->where('patient_type', 'OP')->saleStatus()->distinct('uhid')->count('uhid');
+
+        // Average LOS remains a separate aggregated calculation
+        $avgLos = $ipBase->clone()
             ->whereDate('discharge_date', '>=', $from)->whereDate('discharge_date', '<=', $date)
             ->whereNotNull('actual_los')->where('actual_los', '>', 0)
             ->avg('actual_los');
-
-        $surgCompleted = Surgery::where('branch', $branch)->whereDate('surgery_date', $date)
-                            ->where('status', 'Completed')->count();
-        $surgCancelled = Surgery::where('branch', $branch)->whereDate('surgery_date', $date)
-                            ->where('status', 'Cancelled')->count();
-        $emergencySurg = Surgery::where('branch', $branch)->whereDate('surgery_date', $date)
-                            ->where('ot_surgery_type', 'Emergency')->count();
-        $electiveSurg  = Surgery::where('branch', $branch)->whereDate('surgery_date', $date)
-                            ->where('ot_surgery_type', 'Elective')->count();
-
-        $pendingDis = $this->ipCensusBase($branch, $date)
-            ->whereDate('admission_date', '<=', Carbon::parse($date)->subDays(7)->toDateString())
-            ->count();
 
         return [
             'current_ip'        => $currentIp,
@@ -106,6 +136,9 @@ class OperationalRepository
         $from       = Carbon::parse($date)->startOfMonth()->toDateString();
         $twoWeekAgo = Carbon::parse($date)->subDays(13)->toDateString();
 
+        // Reuse a base query for IpAdmission to avoid repeating branch conditions
+        $ipBase = IpAdmission::where('branch', $branch);
+
         $wardBreakdown = $this->ipCensusBase($branch, $date)
             ->select('ward', DB::raw('COUNT(*) as occupied'))
             ->whereNotNull('ward')->where('ward', '!=', '')
@@ -121,20 +154,23 @@ class OperationalRepository
             ->whereNotNull('billing_category')->where('billing_category', '!=', '')
             ->groupBy('billing_category')->orderByDesc('occupied')->get();
 
-        $avgLos = IpAdmission::where('branch', $branch)
+        $avgLos = $ipBase->clone()
             ->whereDate('discharge_date', '>=', $from)->whereDate('discharge_date', '<=', $date)
             ->whereNotNull('actual_los')->where('actual_los', '>', 0)
             ->avg('actual_los');
 
-        $dischargedToday    = IpAdmission::where('branch', $branch)->whereDate('discharge_date', $date)->count();
+        $dischargedToday = $ipBase->clone()->whereDate('discharge_date', $date)->count();
+
         $expectedDischarges = $this->ipCensusBase($branch, $date)
             ->whereDate('admission_date', '<=', Carbon::parse($date)->subDays(3)->toDateString())->count();
-        $mtdDischarges = IpAdmission::where('branch', $branch)
+
+        $mtdDischarges = $ipBase->clone()
             ->whereDate('discharge_date', '>=', $from)->whereDate('discharge_date', '<=', $date)->count();
-        $mtdAdmissions = IpAdmission::where('branch', $branch)
+
+        $mtdAdmissions = $ipBase->clone()
             ->whereDate('admission_date', '>=', $from)->whereDate('admission_date', '<=', $date)->count();
 
-        $admTrend = IpAdmission::where('branch', $branch)
+        $admTrend = $ipBase->clone()
             ->whereDate('admission_date', '>=', $twoWeekAgo)->whereDate('admission_date', '<=', $date)
             ->select(DB::raw('DATE(admission_date) as day'), DB::raw('COUNT(*) as cnt'))
             ->groupBy('day')->orderBy('day')->get();
@@ -217,13 +253,17 @@ class OperationalRepository
             ->select('payer_type', DB::raw('COUNT(*) as cnt'))
             ->groupBy('payer_type')->orderByDesc('cnt')->get();
 
-        $highRisk = $ipBase->clone()
+        // Consolidate scalar aggregations into a single query to reduce DB round-trips
+        $scalarAgg = $ipBase->clone()
             ->whereDate('admission_date', '>=', $from)->whereDate('admission_date', '<=', $to)
-            ->where('high_risk', true)->count();
+            ->select(
+                DB::raw('SUM(CASE WHEN high_risk = 1 THEN 1 ELSE 0 END) as high_risk'),
+                DB::raw('SUM(CASE WHEN mlc = 1 THEN 1 ELSE 0 END) as mlc_cases')
+            )
+            ->first();
 
-        $mlcCases = $ipBase->clone()
-            ->whereDate('admission_date', '>=', $from)->whereDate('admission_date', '<=', $to)
-            ->where('mlc', true)->count();
+        $highRisk = (int) ($scalarAgg->high_risk ?? 0);
+        $mlcCases = (int) ($scalarAgg->mlc_cases ?? 0);
 
         return [
             'adm_by_type'   => $admByType,
@@ -243,12 +283,14 @@ class OperationalRepository
 
     public function getCensus(string $branch, string $date): array
     {
-        $wardCensus = $this->ipCensusBase($branch, $date)
+        // Reuse ipCensusBase to avoid repeating the same base builder
+        $ipBase = $this->ipCensusBase($branch, $date);
+
+        $wardCensus = $ipBase->clone()
             ->select('ward', DB::raw('COUNT(*) as patients'))
             ->whereNotNull('ward')->where('ward', '!=', '')
             ->groupBy('ward')->orderByDesc('patients')->get();
-
-        $deptCensus = $this->ipCensusBase($branch, $date)
+        $deptCensus = $ipBase->clone()
             ->select(
                 'treating_department',
                 DB::raw('COUNT(*) as patients'),
@@ -257,18 +299,15 @@ class OperationalRepository
             )
             ->whereNotNull('treating_department')->where('treating_department', '!=', '')
             ->groupBy('treating_department')->orderByDesc('patients')->get();
-
-        $doctorCensus = $this->ipCensusBase($branch, $date)
+        $doctorCensus = $ipBase->clone()
             ->select('treating_doctor', 'treating_department', DB::raw('COUNT(*) as patients'))
             ->whereNotNull('treating_doctor')->where('treating_doctor', '!=', '')
             ->groupBy('treating_doctor', 'treating_department')->orderByDesc('patients')->get();
-
-        $genderDist = $this->ipCensusBase($branch, $date)
+        $genderDist = $ipBase->clone()
             ->select('gender', DB::raw('COUNT(*) as cnt'))
             ->whereNotNull('gender')->where('gender', '!=', '')
             ->groupBy('gender')->get();
-
-        $ageDist = $this->ipCensusBase($branch, $date)
+        $ageDist = $ipBase->clone()
             ->select(
                 DB::raw("CASE
                     WHEN age < 1  THEN 'Infant (<1)'
@@ -283,13 +322,11 @@ class OperationalRepository
             )
             ->whereNotNull('age')
             ->groupBy('age_group')->orderBy('min_age')->get();
-
-        $payerDist = $this->ipCensusBase($branch, $date)
+        $payerDist = $ipBase->clone()
             ->select('payer_type', DB::raw('COUNT(*) as cnt'))
             ->whereNotNull('payer_type')
             ->groupBy('payer_type')->orderByDesc('cnt')->get();
-
-        $insuranceDist = $this->ipCensusBase($branch, $date)
+        $insuranceDist = $ipBase->clone()
             ->select('payer_name', 'payer_type', DB::raw('COUNT(*) as cnt'))
             ->whereIn('payer_type', ['tpa', 'insurance', 'corporate'])
             ->whereNotNull('payer_name')->where('payer_name', '!=', '')
@@ -325,21 +362,35 @@ class OperationalRepository
     {
         $today   = Surgery::where('branch', $branch)->whereDate('surgery_date', $date);
         $mtdBase = Surgery::where('branch', $branch)
-                    ->whereDate('surgery_date', '>=', $from)->whereDate('surgery_date', '<=', $date);
+            ->whereDate('surgery_date', '>=', $from)->whereDate('surgery_date', '<=', $date);
+
+        $todayRow = $today->clone()
+            ->select(
+                DB::raw('COUNT(*) as total'),
+                DB::raw('SUM(CASE WHEN status = "Completed" THEN 1 ELSE 0 END) as completed'),
+                DB::raw('SUM(CASE WHEN status = "Cancelled" THEN 1 ELSE 0 END) as cancelled'),
+                DB::raw('SUM(CASE WHEN status = "Postponed" THEN 1 ELSE 0 END) as postponed'),
+                DB::raw('SUM(CASE WHEN ot_surgery_type = "Emergency" THEN 1 ELSE 0 END) as emergency'),
+                DB::raw('SUM(CASE WHEN ot_surgery_type = "Elective" THEN 1 ELSE 0 END) as elective'),
+                DB::raw('SUM(CASE WHEN surgery_category = "Major" THEN 1 ELSE 0 END) as major'),
+                DB::raw('SUM(CASE WHEN surgery_category = "Minor" THEN 1 ELSE 0 END) as minor')
+            )
+            ->first();
 
         $todayStats = [
-            'total'     => $today->clone()->count(),
-            'completed' => $today->clone()->where('status', 'Completed')->count(),
-            'cancelled' => $today->clone()->where('status', 'Cancelled')->count(),
-            'postponed' => $today->clone()->where('status', 'Postponed')->count(),
-            'emergency' => $today->clone()->where('ot_surgery_type', 'Emergency')->count(),
-            'elective'  => $today->clone()->where('ot_surgery_type', 'Elective')->count(),
-            'major'     => $today->clone()->where('surgery_category', 'Major')->count(),
-            'minor'     => $today->clone()->where('surgery_category', 'Minor')->count(),
+            'total'     => (int) ($todayRow->total ?? 0),
+            'completed' => (int) ($todayRow->completed ?? 0),
+            'cancelled' => (int) ($todayRow->cancelled ?? 0),
+            'postponed' => (int) ($todayRow->postponed ?? 0),
+            'emergency' => (int) ($todayRow->emergency ?? 0),
+            'elective'  => (int) ($todayRow->elective ?? 0),
+            'major'     => (int) ($todayRow->major ?? 0),
+            'minor'     => (int) ($todayRow->minor ?? 0),
         ];
 
         $otRooms = $mtdBase->clone()
-            ->select('ot_name',
+            ->select(
+                'ot_name',
                 DB::raw('COUNT(*) as total'),
                 DB::raw('SUM(CASE WHEN status = "Completed" THEN 1 ELSE 0 END) as completed'),
                 DB::raw('SUM(CASE WHEN status = "Cancelled" THEN 1 ELSE 0 END) as cancelled'),
@@ -349,7 +400,9 @@ class OperationalRepository
             ->groupBy('ot_name')->orderByDesc('total')->get();
 
         $surgeonPerf = $mtdBase->clone()
-            ->select('performing_surgeon', 'surgeon_department',
+            ->select(
+                'performing_surgeon',
+                'surgeon_department',
                 DB::raw('COUNT(*) as total'),
                 DB::raw('SUM(CASE WHEN status = "Completed" THEN 1 ELSE 0 END) as completed'),
                 DB::raw('SUM(CASE WHEN ot_surgery_type = "Emergency" THEN 1 ELSE 0 END) as emergency'),
@@ -369,7 +422,8 @@ class OperationalRepository
             ->groupBy('day')->orderBy('day')->get();
 
         $surgByDept = $mtdBase->clone()
-            ->select('surgery_department',
+            ->select(
+                'surgery_department',
                 DB::raw('COUNT(*) as total'),
                 DB::raw('SUM(CASE WHEN surgery_category = "Major" THEN 1 ELSE 0 END) as major'),
                 DB::raw('SUM(CASE WHEN status = "Completed" THEN 1 ELSE 0 END) as completed')
@@ -377,13 +431,24 @@ class OperationalRepository
             ->whereNotNull('surgery_department')->where('surgery_department', '!=', '')
             ->groupBy('surgery_department')->orderByDesc('total')->get();
 
+        $mtdRow = $mtdBase->clone()
+            ->select(
+                DB::raw('COUNT(*) as total'),
+                DB::raw('SUM(CASE WHEN status = "Completed" THEN 1 ELSE 0 END) as completed'),
+                DB::raw('SUM(CASE WHEN status = "Cancelled" THEN 1 ELSE 0 END) as cancelled'),
+                DB::raw('SUM(CASE WHEN ot_surgery_type = "Emergency" THEN 1 ELSE 0 END) as emergency'),
+                DB::raw('SUM(CASE WHEN ot_surgery_type = "Elective" THEN 1 ELSE 0 END) as elective'),
+                DB::raw('SUM(CASE WHEN surgery_category = "Major" THEN 1 ELSE 0 END) as major')
+            )
+            ->first();
+
         $mtdStats = [
-            'total'     => $mtdBase->clone()->count(),
-            'completed' => $mtdBase->clone()->where('status', 'Completed')->count(),
-            'cancelled' => $mtdBase->clone()->where('status', 'Cancelled')->count(),
-            'emergency' => $mtdBase->clone()->where('ot_surgery_type', 'Emergency')->count(),
-            'elective'  => $mtdBase->clone()->where('ot_surgery_type', 'Elective')->count(),
-            'major'     => $mtdBase->clone()->where('surgery_category', 'Major')->count(),
+            'total'     => (int) ($mtdRow->total ?? 0),
+            'completed' => (int) ($mtdRow->completed ?? 0),
+            'cancelled' => (int) ($mtdRow->cancelled ?? 0),
+            'emergency' => (int) ($mtdRow->emergency ?? 0),
+            'elective'  => (int) ($mtdRow->elective ?? 0),
+            'major'     => (int) ($mtdRow->major ?? 0),
         ];
 
         return [
@@ -416,7 +481,8 @@ class OperationalRepository
         $ipStats = IpAdmission::where('branch', $branch)
             ->whereDate('admission_date', '>=', $from)->whereDate('admission_date', '<=', $to)
             ->whereNotNull('treating_department')->where('treating_department', '!=', '')
-            ->select('treating_department',
+            ->select(
+                'treating_department',
                 DB::raw('COUNT(*) as admissions'),
                 DB::raw('AVG(actual_los) as avg_los')
             )
@@ -524,35 +590,58 @@ class OperationalRepository
         if ($bedCount > 0) {
             $pct = ($census / $bedCount) * 100;
             if ($pct >= 90) {
-                $alerts[] = ['type' => 'critical', 'code' => 'HIGH_OCCUPANCY', 'icon' => 'bed',
+                $alerts[] = [
+                    'type' => 'critical',
+                    'code' => 'HIGH_OCCUPANCY',
+                    'icon' => 'bed',
                     'title' => 'Critical Bed Occupancy',
-                    'message' => "Occupancy at " . round($pct) . "% — {$census} of {$bedCount} beds occupied"];
+                    'message' => "Occupancy at " . round($pct) . "% — {$census} of {$bedCount} beds occupied"
+                ];
             } elseif ($pct >= 80) {
-                $alerts[] = ['type' => 'warning', 'code' => 'ELEVATED_OCCUPANCY', 'icon' => 'bed',
+                $alerts[] = [
+                    'type' => 'warning',
+                    'code' => 'ELEVATED_OCCUPANCY',
+                    'icon' => 'bed',
                     'title' => 'Elevated Bed Occupancy',
-                    'message' => "Occupancy at " . round($pct) . "% — {$census} of {$bedCount} beds occupied"];
+                    'message' => "Occupancy at " . round($pct) . "% — {$census} of {$bedCount} beds occupied"
+                ];
             }
         }
 
         // No admissions today
         $todayAdm = IpAdmission::where('branch', $branch)->whereDate('admission_date', $date)->count();
         if ($todayAdm === 0) {
-            $alerts[] = ['type' => 'warning', 'code' => 'NO_ADMISSIONS', 'icon' => 'user-plus',
-                'title' => 'No Admissions Today', 'message' => 'No IP admissions recorded for today'];
+            $alerts[] = [
+                'type' => 'warning',
+                'code' => 'NO_ADMISSIONS',
+                'icon' => 'user-plus',
+                'title' => 'No Admissions Today',
+                'message' => 'No IP admissions recorded for today'
+            ];
         }
 
         // No ER cases
         $todayEr = ErAdmission::where('branch', $branch)->whereDate('admission_date', $date)->count();
         if ($todayEr === 0) {
-            $alerts[] = ['type' => 'info', 'code' => 'NO_ER', 'icon' => 'ambulance',
-                'title' => 'No ER Cases Today', 'message' => 'No emergency admissions recorded today'];
+            $alerts[] = [
+                'type' => 'info',
+                'code' => 'NO_ER',
+                'icon' => 'ambulance',
+                'title' => 'No ER Cases Today',
+                'message' => 'No emergency admissions recorded today'
+            ];
         }
 
         // No surgical cases
         $todaySurg = Surgery::where('branch', $branch)->whereDate('surgery_date', $date)->count();
         if ($todaySurg === 0) {
-            $alerts[] = ['type' => 'info', 'code' => 'NO_SURGERY', 'icon' => 'scissors',
-                'title' => 'No OT Cases Today', 'message' => 'No surgeries recorded for today'];
+            $alerts[] = [
+                'type' => 'info',
+                'code' => 'NO_SURGERY',
+                'icon' => 'scissors',
+                'title' => 'No OT Cases Today',
+                'message' => 'No surgeries recorded for today'
+            ];
         }
 
         // High cancellation rate
@@ -561,9 +650,13 @@ class OperationalRepository
                 ->where('status', 'Cancelled')->count();
             $cancelPct = ($cancelled / $todaySurg) * 100;
             if ($cancelPct >= 20) {
-                $alerts[] = ['type' => 'warning', 'code' => 'HIGH_CANCEL_RATE', 'icon' => 'x-circle',
+                $alerts[] = [
+                    'type' => 'warning',
+                    'code' => 'HIGH_CANCEL_RATE',
+                    'icon' => 'x-circle',
                     'title' => 'High OT Cancellation Rate',
-                    'message' => round($cancelPct) . "% surgeries cancelled today ({$cancelled}/{$todaySurg})"];
+                    'message' => round($cancelPct) . "% surgeries cancelled today ({$cancelled}/{$todaySurg})"
+                ];
             }
         }
 
@@ -572,34 +665,51 @@ class OperationalRepository
             ->whereDate('discharge_date', '>=', $from)->whereDate('discharge_date', '<=', $date)
             ->whereNotNull('actual_los')->avg('actual_los');
         if ($avgLos && $avgLos > 7) {
-            $alerts[] = ['type' => 'warning', 'code' => 'HIGH_LOS', 'icon' => 'clock',
+            $alerts[] = [
+                'type' => 'warning',
+                'code' => 'HIGH_LOS',
+                'icon' => 'clock',
                 'title' => 'High Average LOS',
-                'message' => "Average Length of Stay is " . round($avgLos, 1) . " days this month"];
+                'message' => "Average Length of Stay is " . round($avgLos, 1) . " days this month"
+            ];
         }
 
         // Long-stay patients (admitted > 7 days, still in)
         $pendingDis = $this->ipCensusBase($branch, $date)
             ->whereDate('admission_date', '<=', Carbon::parse($date)->subDays(7)->toDateString())->count();
         if ($pendingDis > 3) {
-            $alerts[] = ['type' => 'warning', 'code' => 'PENDING_DISCHARGE', 'icon' => 'alert-triangle',
+            $alerts[] = [
+                'type' => 'warning',
+                'code' => 'PENDING_DISCHARGE',
+                'icon' => 'alert-triangle',
                 'title' => 'Pending Long-Stay Discharges',
-                'message' => "{$pendingDis} patients admitted 7+ days ago are still in-ward"];
+                'message' => "{$pendingDis} patients admitted 7+ days ago are still in-ward"
+            ];
         }
 
         // Missing bill data
         $billsToday = BillItem::where('branch', $branch)->whereDate('bill_date', $date)->count();
         if ($billsToday === 0) {
-            $alerts[] = ['type' => 'critical', 'code' => 'MISSING_BILLS', 'icon' => 'file-x',
+            $alerts[] = [
+                'type' => 'critical',
+                'code' => 'MISSING_BILLS',
+                'icon' => 'file-x',
                 'title' => 'Missing Bill Data',
-                'message' => 'No bill items found for today. Upload the bill items CSV.'];
+                'message' => 'No bill items found for today. Upload the bill items CSV.'
+            ];
         }
 
         // No cash collection
         $cashToday = CashierCollection::where('branch', $branch)->whereDate('collection_date', $date)
             ->where('payer_type', 'cash')->sum('paid_amount');
         if ((float) $cashToday == 0) {
-            $alerts[] = ['type' => 'warning', 'code' => 'NO_CASH', 'icon' => 'banknote',
-                'title' => 'No Cash Collection Today', 'message' => 'Zero cash collections recorded today'];
+            $alerts[] = [
+                'type' => 'warning',
+                'code' => 'NO_CASH',
+                'icon' => 'banknote',
+                'title' => 'No Cash Collection Today',
+                'message' => 'Zero cash collections recorded today'
+            ];
         }
 
         return $alerts;
@@ -643,7 +753,8 @@ class OperationalRepository
         $deptLoad = BillItem::where('branch', $branch)
             ->whereDate('bill_date', '>=', $from)->whereDate('bill_date', '<=', $to)
             ->saleStatus()->whereNotNull('treating_department')->where('treating_department', '!=', '')
-            ->select('treating_department',
+            ->select(
+                'treating_department',
                 DB::raw('COUNT(DISTINCT uhid) as patients'),
                 DB::raw('SUM(net_amount) as revenue')
             )
@@ -657,7 +768,8 @@ class OperationalRepository
         $doctorWorkload = BillItem::where('branch', $branch)
             ->whereDate('bill_date', '>=', $from)->whereDate('bill_date', '<=', $to)
             ->saleStatus()->whereNotNull('treating_doctor')->where('treating_doctor', '!=', '')
-            ->select('treating_doctor',
+            ->select(
+                'treating_doctor',
                 DB::raw('COUNT(DISTINCT uhid) as patients'),
                 DB::raw('SUM(net_amount) as revenue')
             )
@@ -666,7 +778,8 @@ class OperationalRepository
         $otUtilization = Surgery::where('branch', $branch)
             ->whereDate('surgery_date', '>=', $from)->whereDate('surgery_date', '<=', $to)
             ->whereNotNull('ot_name')
-            ->select('ot_name',
+            ->select(
+                'ot_name',
                 DB::raw('COUNT(*) as total'),
                 DB::raw('SUM(CASE WHEN status="Completed" THEN 1 ELSE 0 END) as completed'),
                 DB::raw('SUM(CASE WHEN ot_surgery_type="Emergency" THEN 1 ELSE 0 END) as emergency')

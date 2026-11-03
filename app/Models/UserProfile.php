@@ -11,8 +11,13 @@ class UserProfile extends Model
     public $incrementing  = false;
 
     protected $fillable = [
-        'user_id', 'display_name', 'emergency_contact_name',
-        'emergency_contact_phone', 'bio', 'notes', 'timezone',
+        'user_id',
+        'display_name',
+        'emergency_contact_name',
+        'emergency_contact_phone',
+        'bio',
+        'notes',
+        'timezone',
     ];
 
     public function user(): BelongsTo

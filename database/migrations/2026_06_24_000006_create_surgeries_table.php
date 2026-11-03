@@ -48,9 +48,14 @@ return new class extends Migration
             $table->string('ot_tat')->nullable();            // "270 Min"
             $table->timestamps();
 
+            // Soft deletes for surgery records
+            $table->softDeletes();
+
             $table->index(['branch', 'surgery_date', 'surgery_category'], 'idx_surg_branch_date_cat');
             $table->index(['branch', 'surgery_date', 'performing_surgeon'], 'idx_surg_branch_date_surgeon');
             $table->index(['branch', 'surgery_date', 'surgery_department'], 'idx_surg_branch_date_dept');
+            $table->index(['branch', 'surgery_date', 'ot_name'], 'idx_surg_branch_date_ot');
+            $table->index(['branch', 'surgery_date', 'status'], 'idx_surg_branch_date_status');
         });
     }
 

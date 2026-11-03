@@ -22,8 +22,10 @@ return new class extends Migration
             $table->integer('total_op')->default(0);
             $table->json('report_data')->nullable();
             $table->timestamps();
+            $table->softDeletes();
 
             $table->unique(['branch', 'report_date']);
+            $table->index(['branch', 'report_date', 'occupancy'], 'idx_mis_branch_date_occupancy');
         });
     }
 

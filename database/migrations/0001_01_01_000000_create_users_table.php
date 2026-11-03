@@ -13,12 +13,85 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
+
+            // Employee Details
+            $table->string('employee_id', 50)->unique()->nullable();
             $table->string('name');
             $table->string('email')->unique();
+            $table->string('mobile', 20)->nullable();
+
+            // Organization
+            $table->string('role', 50)->default('viewer');
+            $table->string('branch', 100)->nullable();
+            $table->string('designation', 100)->nullable();
+            $table->string('department', 100)->nullable();
+            $table->string('speciality', 100)->nullable();
+
+            // Reporting
+            $table->foreignId('reporting_manager_id')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+
+            $table->date('date_of_joining')->nullable();
+
+            // Employment
+            $table->enum('employment_status', [
+                'active',
+                'on_leave',
+                'resigned',
+                'terminated',
+                'probation'
+            ])->default('active');
+
+            $table->date('date_of_exit')->nullable();
+            $table->text('exit_reason')->nullable();
+
+            // Account Status
+            $table->boolean('is_active')->default(true);
             $table->timestamp('email_verified_at')->nullable();
+
+            // Authentication
             $table->string('password');
+
+            $table->unsignedTinyInteger('failed_login_attempts')->default(0);
+            $table->timestamp('locked_at')->nullable();
+            $table->timestamp('last_login_at')->nullable();
+            $table->timestamp('last_logout_at')->nullable();
+
+            // Password Security
+            $table->timestamp('password_changed_at')->nullable();
+            $table->timestamp('password_expires_at')->nullable();
+
+            // MFA
+            $table->boolean('mfa_enabled')->default(false);
+            $table->string('mfa_secret', 255)->nullable();
+
+            // Profile
+            $table->string('avatar', 500)->nullable();
+
+            // User Preferences
+            $table->string('timezone', 50)->default('Asia/Kolkata');
+            $table->string('locale', 10)->default('en');
+            $table->string('theme', 20)->default('light');
+
+            // Audit
+            $table->timestamp('last_activity_at')->nullable();
+            $table->ipAddress('last_login_ip')->nullable();
+            $table->ipAddress('last_logout_ip')->nullable();
+
+            // Laravel
             $table->rememberToken();
             $table->timestamps();
+            $table->softDeletes();
+
+            // Indexes
+            $table->index('department');
+            $table->index('branch');
+            $table->index('role');
+            $table->index('employment_status');
+            $table->index('locked_at');
+            $table->index('last_activity_at');
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {

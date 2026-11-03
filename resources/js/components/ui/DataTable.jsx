@@ -31,6 +31,8 @@ export default function DataTable({
     searchable = true,
     className,
     emptyText = 'No data',
+    loading = false,
+    server = null,
 }) {
     const [globalFilter, setGlobalFilter] = useState('');
     const [sorting, setSorting] = useState([]);
@@ -46,12 +48,15 @@ export default function DataTable({
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
+        getPaginationRowModel: server ? undefined : getPaginationRowModel(),
+        manualPagination: !!server,
+        pageCount: server?.pageCount,
+        rowCount: server?.total,
         globalFilterFn: 'includesString',
     });
 
     const { rows } = table.getRowModel();
-    const totalFiltered = table.getFilteredRowModel().rows.length;
+    const totalFiltered = server?.total ?? table.getFilteredRowModel().rows.length;
     const pageCount = table.getPageCount();
 
     return (
@@ -73,7 +78,7 @@ export default function DataTable({
                 <table className="w-full text-[12px]">
                     <thead>
                         {table.getHeaderGroups().map(hg => (
-                            <tr key={hg.id} className="border-b border-slate-100 bg-slate-50/60">
+                                <tr key={hg.id} className="border-b border-slate-100 bg-slate-50 sticky top-0 z-10">
                                 {hg.headers.map(header => (
                                     <th
                                         key={header.id}
@@ -100,7 +105,13 @@ export default function DataTable({
                         ))}
                     </thead>
                     <tbody>
-                        {rows.length === 0 ? (
+                        {loading ? (
+                            <tr>
+                                <td colSpan={columns.length} className="py-10 text-center text-[12px] text-slate-400" role="status">
+                                    Loading records…
+                                </td>
+                            </tr>
+                        ) : rows.length === 0 ? (
                             <tr>
                                 <td colSpan={columns.length} className="py-8 text-center text-[12px] text-slate-400">{emptyText}</td>
                             </tr>
@@ -132,14 +143,20 @@ export default function DataTable({
                         {globalFilter && ` (filtered)`}
                     </span>
                     <div className="flex items-center gap-1">
-                        <button onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}
+                        <button aria-label="Previous page" onClick={() => {
+                            table.previousPage();
+                            server?.onPageChange?.(table.getState().pagination.pageIndex);
+                        }} disabled={!table.getCanPreviousPage()}
                             className="w-7 h-7 flex items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 cursor-pointer bg-white">
                             <ChevronLeft className="w-3.5 h-3.5" />
                         </button>
                         <span className="text-[11px] text-slate-600 px-2">
                             {table.getState().pagination.pageIndex + 1} / {pageCount}
                         </span>
-                        <button onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}
+                        <button aria-label="Next page" onClick={() => {
+                            table.nextPage();
+                            server?.onPageChange?.(table.getState().pagination.pageIndex + 2);
+                        }} disabled={!table.getCanNextPage()}
                             className="w-7 h-7 flex items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 cursor-pointer bg-white">
                             <ChevronRight className="w-3.5 h-3.5" />
                         </button>

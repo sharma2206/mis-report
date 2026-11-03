@@ -79,7 +79,7 @@ class UserService
                 'target_id' => $user->id,
                 'email'     => $user->email,
                 'role'      => $user->role,
-            ], null, $byUserId, $request);
+            ], null, null, $request);
 
             return $user;
         });
@@ -126,7 +126,7 @@ class UserService
             AuditLog::record('user_updated', [
                 'target_id' => $id,
                 'changes'   => array_keys($userFields),
-            ], null, $byUserId, $request);
+            ], null, null, $request);
 
             return $this->repo->find($id);
         });
@@ -139,7 +139,7 @@ class UserService
             throw new \RuntimeException('You cannot delete your own account.');
         }
 
-        AuditLog::record('user_deleted', ['target_id' => $id, 'email' => $user->email], null, $byUserId, $request);
+        AuditLog::record('user_deleted', ['target_id' => $id, 'email' => $user->email], null, null, $request);
         $this->repo->delete($user);
     }
 
@@ -147,7 +147,7 @@ class UserService
     {
         $user = User::findOrFail($id);
         $this->repo->update($user, ['is_active' => true]);
-        AuditLog::record('user_activated', ['target_id' => $id], null, $byUserId, $request);
+        AuditLog::record('user_activated', ['target_id' => $id], null, null, $request);
         return $user->fresh();
     }
 
@@ -158,7 +158,7 @@ class UserService
             throw new \RuntimeException('You cannot deactivate your own account.');
         }
         $this->repo->update($user, ['is_active' => false]);
-        AuditLog::record('user_deactivated', ['target_id' => $id], null, $byUserId, $request);
+        AuditLog::record('user_deactivated', ['target_id' => $id], null, null, $request);
         return $user->fresh();
     }
 
@@ -167,7 +167,7 @@ class UserService
         $user = User::findOrFail($id);
         $this->repo->update($user, ['locked_at' => now()]);
         $this->repo->recordLoginLog($id, 'locked', ['ip' => $request?->ip()]);
-        AuditLog::record('user_locked', ['target_id' => $id], null, $byUserId, $request);
+        AuditLog::record('user_locked', ['target_id' => $id], null, null, $request);
         return $user->fresh();
     }
 
@@ -176,7 +176,7 @@ class UserService
         $user = User::findOrFail($id);
         $this->repo->update($user, ['locked_at' => null, 'failed_login_attempts' => 0]);
         $this->repo->recordLoginLog($id, 'unlocked', ['ip' => $request?->ip()]);
-        AuditLog::record('user_unlocked', ['target_id' => $id], null, $byUserId, $request);
+        AuditLog::record('user_unlocked', ['target_id' => $id], null, null, $request);
         return $user->fresh();
     }
 
@@ -189,7 +189,7 @@ class UserService
         ]);
         $this->repo->addPasswordHistory($id, Hash::make($newPassword));
         $this->repo->recordLoginLog($id, 'password_reset', ['ip' => $request?->ip(), 'meta' => ['by' => $byUserId]]);
-        AuditLog::record('password_reset', ['target_id' => $id, 'by' => $byUserId], null, $byUserId, $request);
+        AuditLog::record('password_reset', ['target_id' => $id, 'by' => $byUserId], null, null, $request);
     }
 
     public function clone(int $id, array $overrides, int $byUserId, ?object $request = null): User
@@ -212,7 +212,7 @@ class UserService
         ];
 
         $user = $this->create($cloneData, $byUserId, $request);
-        AuditLog::record('user_cloned', ['source_id' => $id, 'target_id' => $user->id], null, $byUserId, $request);
+        AuditLog::record('user_cloned', ['source_id' => $id, 'target_id' => $user->id], null, null, $request);
         return $user;
     }
 

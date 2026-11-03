@@ -46,6 +46,12 @@ class PackageConsumptionImport implements ToCollection, WithHeadingRow, WithChun
             $consumptionDate = $this->parseDateOnly(
                 $row['bill_date_time'] ?? $row['consumption_date_time'] ?? $row['order_date_time'] ?? null
             ) ?? $this->date;
+            if ($consumptionDate !== $this->date) {
+                $billNo = trim($row['bill_no'] ?? '') ?: 'Unknown bill';
+                throw new \RuntimeException(
+                    "Package consumption date {$consumptionDate} for {$billNo} does not match selected import date {$this->date}."
+                );
+            }
 
             $insert[] = [
                 'branch'               => $this->branch->value,
@@ -75,7 +81,7 @@ class PackageConsumptionImport implements ToCollection, WithHeadingRow, WithChun
 
         if (!empty($insert)) {
             foreach (array_chunk($insert, 500) as $chunk) {
-                PackageConsumption::insert($chunk);
+                PackageConsumption::insert(\App\Support\TenantContext::stamp($chunk));
             }
             $this->rowCount += count($insert);
         }

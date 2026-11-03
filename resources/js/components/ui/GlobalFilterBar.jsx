@@ -3,18 +3,18 @@ import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     CalendarDays, ChevronDown, Check, SlidersHorizontal, X,
-    RefreshCw, Download, Save, CheckCircle2, ListFilter
+    CheckCircle2, ListFilter
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { today, resolvePresetRange } from '../../utils/dateHelpers';
 import {
-    selectGlobalPreset, selectGlobalFrom, selectGlobalTo,
-    selectGfDepartments, selectGfPatientTypes, selectGfGenders,
+    selectGlobalFrom, selectGlobalTo,
+    selectGfDepartments, selectGfDoctors, selectGfPatientTypes, selectGfGenders,
     selectGfAgeGroups, selectGfPaymentTypes, selectGfSpecialties,
-    selectGfCorporate, selectGfInsurance, selectGfReferralSource,
+    selectGfWards, selectGfCorporate, selectGfInsurance, selectGfPayers,
+    selectGfServiceCategories, selectGfReferralSource,
     selectGfFiltersOpen, toggleGfFiltersOpen, resetAdvancedFilters,
-    selectBranch, setDraftFilters, applyDraftFilters, selectDraftFilters,
-    setGlobalPreset
+    selectBranch, setDraftFilters, applyDraftFilters, selectDraftFilters
 } from '../../store/reportSlice';
 import { MultiSelectDropdown } from './MultiSelectDropdown';
 import { useBranches } from '../../hooks/useBranches';
@@ -35,16 +35,18 @@ const GENDERS        = ['Male', 'Female', 'Other'];
 const AGE_GROUPS     = ['0-18', '19-40', '41-60', '61+'];
 const PAYMENT_TYPES  = ['Cash', 'UPI', 'Card', 'Insurance', 'Corporate', 'TPA'];
 
-// Fetch dynamic options using the branch (for departments, doctors, etc)
 const useFilterOptions = (branches) => {
-    // For a real app, this might call an API. Using static lists for demo or basic DB fetch if implemented.
+    const branch = Array.isArray(branches) ? branches.join(',') : branches;
+    const { data, isLoading } = useQuery({
+        queryKey: ['analytics-filter-options', branch],
+        queryFn: () => analyticsApi.filterOptions({ branch }).then(r => r.data),
+        enabled: !!branch,
+        staleTime: 1000 * 60 * 15,
+    });
+
     return {
-        departments: ['Cardiology', 'Neurology', 'Orthopedics', 'Pediatrics', 'Oncology', 'Emergency', 'General Medicine'],
-        specialties: ['Cardiologist', 'Neurologist', 'Orthopedic Surgeon', 'Pediatrician', 'Oncologist', 'General Physician'],
-        doctors:     ['Dr. Smith', 'Dr. Johnson', 'Dr. Williams', 'Dr. Brown', 'Dr. Jones', 'Dr. Garcia', 'Dr. Miller'],
-        corporate:   ['TCS', 'Infosys', 'Wipro', 'HCL', 'Cognizant'],
-        insurance:   ['Star Health', 'HDFC Ergo', 'ICICI Lombard', 'Bajaj Allianz', 'Max Bupa'],
-        referral:    ['Direct', 'Local Clinic', 'Campaign', 'Agent'],
+        options: data?.success ? data.data : {},
+        isLoading,
     };
 };
 
@@ -66,17 +68,19 @@ export const GlobalFilterBar = () => {
         branch:         useSelector(selectBranch),
         dateRange:      { from: useSelector(selectGlobalFrom), to: useSelector(selectGlobalTo) },
         gfDepartments:  useSelector(selectGfDepartments),
+        gfDoctors:      useSelector(selectGfDoctors),
         gfPatientTypes: useSelector(selectGfPatientTypes),
         gfGenders:      useSelector(selectGfGenders),
         gfAgeGroups:    useSelector(selectGfAgeGroups),
         gfPaymentTypes: useSelector(selectGfPaymentTypes),
         gfSpecialties:  useSelector(selectGfSpecialties),
+        gfWards:        useSelector(selectGfWards),
         gfCorporate:    useSelector(selectGfCorporate),
         gfInsurance:    useSelector(selectGfInsurance),
+        gfPayers:       useSelector(selectGfPayers),
+        gfServiceCategories: useSelector(selectGfServiceCategories),
         gfReferralSource: useSelector(selectGfReferralSource),
-        gfDoctors:      [], // If we add doctors to redux
     };
-    const preset = useSelector(selectGlobalPreset);
     const advOpen = useSelector(selectGfFiltersOpen);
     const draftFilters = useSelector(selectDraftFilters);
 
@@ -94,7 +98,7 @@ export const GlobalFilterBar = () => {
         // Reset to default branch/date if desired, or just clear advanced.
     };
 
-    const dynOptions = useFilterOptions(current.branch);
+    const { options: dynOptions, isLoading: optionsLoading } = useFilterOptions(current.branch);
 
     // Date Picker state (Local to date dropdown)
     const [dateOpen, setDateOpen] = useState(false);
@@ -110,11 +114,12 @@ export const GlobalFilterBar = () => {
     const activeAdvCount = [
         ...current.gfDepartments, ...current.gfPatientTypes, ...current.gfGenders,
         ...current.gfAgeGroups, ...current.gfPaymentTypes, ...current.gfSpecialties,
-        ...current.gfCorporate, ...current.gfInsurance, ...current.gfReferralSource
+        ...current.gfWards, ...current.gfCorporate, ...current.gfInsurance,
+        ...current.gfPayers, ...current.gfServiceCategories, ...current.gfReferralSource
     ].length;
 
     return (
-        <div className="sticky top-[54px] z-30 bg-white border-b border-slate-200 shadow-sm transition-all">
+        <div className="sticky top-[52px] z-30 bg-white border-b border-slate-200 transition-all">
             {/* ROW 1 - Primary Filters */}
             <div className="px-4 py-2.5 flex flex-wrap items-center gap-3">
                 <MultiSelectDropdown
@@ -129,7 +134,7 @@ export const GlobalFilterBar = () => {
                 
                 <MultiSelectDropdown
                     label="Department"
-                    options={dynOptions.departments}
+                    options={dynOptions.departments || []}
                     selected={current.gfDepartments}
                     onChange={v => setDraft('gfDepartments', v)}
                     defaultLabel="All Depts"
@@ -139,7 +144,7 @@ export const GlobalFilterBar = () => {
 
                 <MultiSelectDropdown
                     label="Specialty"
-                    options={dynOptions.specialties}
+                    options={dynOptions.specialties || []}
                     selected={current.gfSpecialties}
                     onChange={v => setDraft('gfSpecialties', v)}
                     defaultLabel="All Specialties"
@@ -149,7 +154,7 @@ export const GlobalFilterBar = () => {
 
                 <MultiSelectDropdown
                     label="Doctor"
-                    options={dynOptions.doctors}
+                    options={dynOptions.doctors || []}
                     selected={current.gfDoctors || []}
                     onChange={v => setDraft('gfDoctors', v)}
                     defaultLabel="All Doctors"
@@ -196,7 +201,6 @@ export const GlobalFilterBar = () => {
                                             onClick={() => {
                                                 const r = resolvePresetRange(p.key);
                                                 setDraft('dateRange', { from: r.from, to: r.to });
-                                                dispatch(setGlobalPreset(p.key)); // just for label
                                                 setDateOpen(false);
                                             }}
                                             className="px-2 py-1.5 rounded-lg text-[11px] font-600 bg-slate-50 text-slate-600 border border-slate-200 hover:border-blue-300 hover:text-blue-700 transition-colors"
@@ -245,9 +249,7 @@ export const GlobalFilterBar = () => {
                         <ChevronDown className={cn("w-3 h-3 transition-transform ml-1", advOpen && "rotate-180")} />
                     </button>
                     
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-600 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50">
-                        <Save className="w-3.5 h-3.5 text-slate-400" /> Save View
-                    </button>
+                    {optionsLoading && <span className="text-[11px] text-slate-400">Loading filter options…</span>}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -274,10 +276,6 @@ export const GlobalFilterBar = () => {
                     >
                         <CheckCircle2 className="w-3.5 h-3.5" /> Apply Filters
                     </button>
-                    <div className="w-px h-5 bg-slate-200 mx-1" />
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-600 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50">
-                        <Download className="w-3.5 h-3.5 text-slate-400" /> Export
-                    </button>
                 </div>
             </div>
 
@@ -293,9 +291,11 @@ export const GlobalFilterBar = () => {
                     >
                         <div className="px-4 py-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                             <MultiSelectDropdown label="Payment Type" options={PAYMENT_TYPES} selected={current.gfPaymentTypes} onChange={v => setDraft('gfPaymentTypes', v)} defaultLabel="All Payments" />
-                            <MultiSelectDropdown label="Insurance" options={dynOptions.insurance} selected={current.gfInsurance} onChange={v => setDraft('gfInsurance', v)} defaultLabel="All Insurance" searchable />
-                            <MultiSelectDropdown label="Corporate" options={dynOptions.corporate} selected={current.gfCorporate} onChange={v => setDraft('gfCorporate', v)} defaultLabel="All Corporate" searchable />
-                            <MultiSelectDropdown label="Referral" options={dynOptions.referral} selected={current.gfReferralSource} onChange={v => setDraft('gfReferralSource', v)} defaultLabel="All Sources" />
+                            <MultiSelectDropdown label="Payer" options={dynOptions.payers || []} selected={current.gfPayers} onChange={v => setDraft('gfPayers', v)} defaultLabel="All Payers" searchable />
+                            <MultiSelectDropdown label="Insurance" options={dynOptions.insurance || []} selected={current.gfInsurance} onChange={v => setDraft('gfInsurance', v)} defaultLabel="All Insurance" searchable />
+                            <MultiSelectDropdown label="Corporate" options={dynOptions.corporate || []} selected={current.gfCorporate} onChange={v => setDraft('gfCorporate', v)} defaultLabel="All Corporate" searchable />
+                            <MultiSelectDropdown label="Ward" options={dynOptions.wards || []} selected={current.gfWards} onChange={v => setDraft('gfWards', v)} defaultLabel="All Wards" searchable />
+                            <MultiSelectDropdown label="Service Category" options={dynOptions.service_categories || []} selected={current.gfServiceCategories} onChange={v => setDraft('gfServiceCategories', v)} defaultLabel="All Services" searchable />
                             <MultiSelectDropdown label="Gender" options={GENDERS} selected={current.gfGenders} onChange={v => setDraft('gfGenders', v)} defaultLabel="All Genders" />
                             <MultiSelectDropdown label="Age Group" options={AGE_GROUPS} selected={current.gfAgeGroups} onChange={v => setDraft('gfAgeGroups', v)} defaultLabel="All Ages" />
                         </div>

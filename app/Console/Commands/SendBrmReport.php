@@ -5,7 +5,9 @@ namespace App\Console\Commands;
 use App\Enums\Branch;
 use App\Jobs\EmailBrmReportJob;
 use App\Models\AuditLog;
+use App\Models\Tenant;
 use App\Models\User;
+use App\Support\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 
@@ -21,6 +23,29 @@ class SendBrmReport extends Command
     protected $description = 'Generate and email BRM (Business Revenue Management) reports — weekly or monthly';
 
     public function handle(): int
+    {
+        $ids = Tenant::query()->where('is_active', true)->pluck('id');
+
+        if ($ids->isEmpty()) {
+            return $this->dispatchReports();
+        }
+
+        foreach ($ids as $id) {
+            TenantContext::set((int) $id);
+            try {
+                $code = $this->dispatchReports();
+                if ($code !== Command::SUCCESS) {
+                    return $code;
+                }
+            } finally {
+                TenantContext::forget();
+            }
+        }
+
+        return Command::SUCCESS;
+    }
+
+    private function dispatchReports(): int
     {
         $period     = $this->argument('period');
         $branchArg  = $this->argument('branch');
@@ -44,7 +69,7 @@ class SendBrmReport extends Command
 
             foreach ($recipients as $email) {
                 EmailBrmReportJob::dispatch(
-                    $branchEnum->value, $from, $to, $period, $email
+                    $branchEnum->value, $from, $to, $period, $email, TenantContext::id()
                 );
                 $this->line("    → Queued to {$email}");
             }
@@ -96,7 +121,9 @@ class SendBrmReport extends Command
 
     private function recipientsFor(Branch $branch): array
     {
-        return User::where('is_active', true)
+        return User::query()
+            ->forCurrentTenant()
+            ->where('is_active', true)
             ->where(fn($q) => $q->whereNull('branch')->orWhere('branch', $branch->value))
             ->whereIn('role', ['admin', 'manager'])
             ->pluck('email')

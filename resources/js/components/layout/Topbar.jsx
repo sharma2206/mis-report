@@ -108,8 +108,8 @@ export const Topbar = ({ onPrint, isLoading, dataUpdatedAt }) => {
     const toggleDrop   = () => dropRef.current?.classList.toggle('hidden');
 
     return (
-        <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm flex-shrink-0 no-print">
-            <div className="flex items-center gap-2.5 px-4 h-[54px]">
+        <header className="sticky top-0 z-30 flex-shrink-0 no-print" style={{ background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)' }}>
+            <div className="flex items-center gap-2.5 px-4 h-[52px]">
                 {/* Branch selector pills — rendered from API / fallback constant */}
                 <div className="flex gap-1.5 flex-shrink-0">
                     {branches.map(({ key, label }) => {
@@ -119,11 +119,12 @@ export const Topbar = ({ onPrint, isLoading, dataUpdatedAt }) => {
                                 key={key}
                                 onClick={() => handleBranch(key)}
                                 className={cn(
-                                    'px-3 py-1.5 rounded-full text-[12px] font-600 border-[1.5px] transition-all duration-150 cursor-pointer whitespace-nowrap',
+                                    'px-3 py-1.5 rounded-md text-[12px] font-600 border transition-colors duration-150 cursor-pointer whitespace-nowrap',
                                     isSelected
-                                        ? 'bg-blue-700 border-blue-700 text-white shadow-sm shadow-blue-200'
-                                        : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-700',
+                                        ? 'text-white'
+                                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300',
                                 )}
+                                style={isSelected ? { background: 'var(--color-primary)', borderColor: 'var(--color-primary)' } : undefined}
                             >
                                 {label}
                             </button>

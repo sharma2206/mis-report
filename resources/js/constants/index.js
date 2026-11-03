@@ -1,5 +1,5 @@
 export const BRANCHES = {
-    chromepet: { label: 'Chromepet', beds: 74 },
+    chromepet: { label: 'Chromepet', beds: 75 },
     oragadam:  { label: 'Oragadam',  beds: 14 },
 };
 

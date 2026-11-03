@@ -5,8 +5,8 @@ import { cn } from '../../utils/cn';
  * Consistent header with icon + title, optional action slot, padded body.
  */
 export const Section = ({ title, icon: Icon, children, action, className, compact = false }) => (
-    <div className={cn('bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden', className)}>
-        <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/60 to-white">
+    <div className={cn('bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-card)] overflow-hidden', className)} style={{ boxShadow: 'var(--shadow-card)' }}>
+        <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-[var(--color-border)]">
             {Icon && (
                 <div className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center flex-shrink-0">
                     <Icon className="w-3.5 h-3.5 text-slate-500" />

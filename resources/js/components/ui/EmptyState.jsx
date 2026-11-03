@@ -8,12 +8,10 @@ export const EmptyState = ({ icon: Icon = FileSearch, title, description, action
         transition={{ duration: 0.2 }}
         className="flex flex-col items-center justify-center py-12 px-8 text-center"
     >
-        <div className="relative mb-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 border border-slate-200 flex items-center justify-center shadow-sm">
-                <Icon className="w-6 h-6 text-slate-400" />
+        <div className="mb-4">
+            <div className="w-12 h-12 rounded-lg bg-[var(--color-hover-bg)] border border-[var(--color-border)] flex items-center justify-center">
+                <Icon className="w-5 h-5 text-[var(--color-muted)]" />
             </div>
-            {/* Decorative ring */}
-            <div className="absolute -inset-2 rounded-3xl border border-dashed border-slate-200 opacity-50" />
         </div>
         <h3 className="text-[14px] font-700 text-slate-700 mb-1.5">{title}</h3>
         {description && (

@@ -23,6 +23,17 @@ class MisServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // MISService::buildMtdVolume() uses MySQL-specific raw SQL functions
+        // (GREATEST, LEAST, DATEDIFF) that are not available in SQLite.
+        // Skip the entire test class on SQLite and run it in CI against MySQL.
+        if (config('database.default') === 'sqlite') {
+            $this->markTestSkipped(
+                'MisServiceTest requires MySQL for GREATEST/DATEDIFF/LEAST raw SQL. ' .
+                'Set DB_CONNECTION=mysql in phpunit.xml to run these tests.'
+            );
+        }
+
         $this->service = new MISService(new MisRepository(), new DashboardKpiService());
     }
 

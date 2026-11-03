@@ -2,15 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PackageConsumption extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, BelongsToTenant;
 
     /**
      * The attributes that are mass assignable.
@@ -18,11 +20,27 @@ class PackageConsumption extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'branch', 'consumption_date',
-        'uhid', 'patient_name', 'bill_no', 'patient_type', 'payer_type', 'payer_name',
-        'package_type', 'package_sub_type', 'package_name', 'package_codes',
-        'department', 'sub_department', 'billing_category',
-        'package_service_type', 'package_service_item', 'amount', 'service_item_amount', 'order_by',
+        'tenant_id',
+        'branch',
+        'consumption_date',
+        'uhid',
+        'patient_name',
+        'bill_no',
+        'patient_type',
+        'payer_type',
+        'payer_name',
+        'package_type',
+        'package_sub_type',
+        'package_name',
+        'package_codes',
+        'department',
+        'sub_department',
+        'billing_category',
+        'package_service_type',
+        'package_service_item',
+        'amount',
+        'service_item_amount',
+        'order_by',
     ];
 
     /**
@@ -72,8 +90,18 @@ class PackageConsumption extends Model
     public function scopeForMonth(Builder $query, string $date): Builder
     {
         $carbonDate = Carbon::parse($date);
-        
+
         return $query->whereYear('consumption_date', $carbonDate->year)
-                     ->whereMonth('consumption_date', $carbonDate->month);
+            ->whereMonth('consumption_date', $carbonDate->month);
+    }
+
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    public function hospitalBranch(): BelongsTo
+    {
+        return $this->belongsTo(HospitalBranch::class, 'branch', 'key');
     }
 }

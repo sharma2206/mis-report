@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Settings2, RefreshCw, Server, GitBranch, Shield, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
+import { useBranches } from '../hooks/useBranches';
 import { Section } from '../components/ui/Section';
 import { selectToken } from '../store/authSlice';
 import { cn } from '../utils/cn';
@@ -20,13 +21,11 @@ const Row = ({ label, value, status }) => (
     </div>
 );
 
-const BRANCHES_INFO = [
-    { key: 'chromepet', name: 'Chromepet', beds: 150, color: 'bg-blue-100 text-blue-700' },
-    { key: 'oragadam',  name: 'Oragadam',  beds: 100, color: 'bg-violet-100 text-violet-700' },
-];
+const BRANCH_COLORS = ['bg-blue-100 text-blue-700', 'bg-violet-100 text-violet-700'];
 
 export default function Settings() {
     const token = useSelector(selectToken);
+    const { branches } = useBranches();
 
     const healthQ = useQuery({
         queryKey: ['health-check'],
@@ -74,15 +73,15 @@ export default function Settings() {
                 {/* Branch configuration */}
                 <Section title="Branches" icon={GitBranch}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {BRANCHES_INFO.map((b, i) => (
+                        {branches.map((b, i) => (
                             <motion.div key={b.key} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                                 className="border border-slate-200 rounded-xl p-4">
                                 <div className="flex items-center gap-3 mb-3">
-                                    <span className={cn('text-[10px] font-700 uppercase px-2 py-0.5 rounded-full', b.color)}>{b.key}</span>
-                                    <span className="text-[13px] font-700 text-slate-800">{b.name}</span>
+                                    <span className={cn('text-[10px] font-700 uppercase px-2 py-0.5 rounded-full', BRANCH_COLORS[i % BRANCH_COLORS.length])}>{b.key}</span>
+                                    <span className="text-[13px] font-700 text-slate-800">{b.label}</span>
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Row label="Hospital name" value={`${b.name} Hospital`} />
+                                    <Row label="Hospital name" value={`${b.label} Hospital`} />
                                     <Row label="Bed capacity"  value={`${b.beds} beds`} />
                                     <Row label="Status"        value="Active" status="ok" />
                                 </div>

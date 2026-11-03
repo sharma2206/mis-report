@@ -2,15 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class MisReport extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, BelongsToTenant;
 
     /**
      * The attributes that are mass assignable.
@@ -18,6 +20,7 @@ class MisReport extends Model
      * @var array<int, string>
      */
     protected $fillable = [
+        'tenant_id',
         'branch',
         'report_date',
         'occupancy',
@@ -83,5 +86,15 @@ class MisReport extends Model
 
         return $query->whereDate('report_date', '>=', $monthStart)
             ->whereDate('report_date', '<=', $date);
+    }
+
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    public function hospitalBranch(): BelongsTo
+    {
+        return $this->belongsTo(HospitalBranch::class, 'branch', 'key');
     }
 }

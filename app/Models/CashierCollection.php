@@ -2,15 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CashierCollection extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, BelongsToTenant;
 
     /**
      * The attributes that are mass assignable.
@@ -18,11 +20,21 @@ class CashierCollection extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'branch', 'collection_date',
-        'uhid', 'patient_name', 'visit_id', 'receipt_no',
-        'patient_type', 'user_department', 'paid_amount',
-        'transaction_type', 'transaction_category',
-        'payment_mode', 'payer_type', 'payer_name',
+        'tenant_id',
+        'branch',
+        'collection_date',
+        'uhid',
+        'patient_name',
+        'visit_id',
+        'receipt_no',
+        'patient_type',
+        'user_department',
+        'paid_amount',
+        'transaction_type',
+        'transaction_category',
+        'payment_mode',
+        'payer_type',
+        'payer_name',
     ];
 
     /**
@@ -60,7 +72,8 @@ class CashierCollection extends Model
         if (!empty($filters['departments']))  $query->whereIn('user_department', $filters['departments']);
         if (!empty($filters['patient_types'])) $query->whereIn('patient_type', $filters['patient_types']);
         if (!empty($filters['payment_types'])) $query->whereIn('payment_mode', $filters['payment_types']);
-        
+        if (!empty($filters['payers']))        $query->whereIn('payer_name', $filters['payers']);
+
         return $query;
     }
 
@@ -76,6 +89,16 @@ class CashierCollection extends Model
         return $query->whereDate('collection_date', $date);
     }
 
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    public function hospitalBranch(): BelongsTo
+    {
+        return $this->belongsTo(HospitalBranch::class, 'branch', 'key');
+    }
+
     /**
      * Scope a query to only include records for a specific month.
      *
@@ -86,8 +109,8 @@ class CashierCollection extends Model
     public function scopeForMonth(Builder $query, string $date): Builder
     {
         $carbonDate = Carbon::parse($date);
-        
+
         return $query->whereYear('collection_date', $carbonDate->year)
-                     ->whereMonth('collection_date', $carbonDate->month);
+            ->whereMonth('collection_date', $carbonDate->month);
     }
 }

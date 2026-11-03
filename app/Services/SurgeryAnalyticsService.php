@@ -22,31 +22,63 @@ class SurgeryAnalyticsService
     {
         $b = $this->base($branch, $from, $to, $filters);
 
-        $total      = (clone $b)->count();
-        $completed  = (clone $b)->where('status', 'like', '%Completed%')->count();
-        $cancelled  = (clone $b)->where('status', 'like', '%Cancel%')->count();
-        $scheduled  = (clone $b)->where('status', 'like', '%Schedul%')->count();
-        $emergency  = (clone $b)->where('surgery_category', 'like', '%Emergency%')->count();
-        $elective   = (clone $b)->where('surgery_category', 'like', '%Elective%')->count();
-        $major      = (clone $b)->where('surgery_category', 'like', '%Major%')->count();
-        $minor      = (clone $b)->where('surgery_category', 'like', '%Minor%')->count();
-        $implant    = (clone $b)->where('implant_required', true)->count();
-        $blood      = (clone $b)->where('blood_required', true)->count();
+        // Single aggregated query for counts and averages to reduce round-trips
+        $agg = (clone $b)
+            ->selectRaw(implode(', ', [
+                'COUNT(*) as total',
+                "SUM(CASE WHEN status LIKE '%Completed%' THEN 1 ELSE 0 END) as completed",
+                "SUM(CASE WHEN status LIKE '%Cancel%' THEN 1 ELSE 0 END) as cancelled",
+                "SUM(CASE WHEN status LIKE '%Schedul%' THEN 1 ELSE 0 END) as scheduled",
+                "SUM(CASE WHEN surgery_category LIKE '%Emergency%' THEN 1 ELSE 0 END) as emergency",
+                "SUM(CASE WHEN surgery_category LIKE '%Elective%' THEN 1 ELSE 0 END) as elective",
+                "SUM(CASE WHEN surgery_category LIKE '%Major%' THEN 1 ELSE 0 END) as major",
+                "SUM(CASE WHEN surgery_category LIKE '%Minor%' THEN 1 ELSE 0 END) as minor",
+                'SUM(CASE WHEN implant_required = 1 THEN 1 ELSE 0 END) as implant',
+                'SUM(CASE WHEN blood_required = 1 THEN 1 ELSE 0 END) as blood',
+                'AVG(surgery_duration_min) as avgDuration',
+                'AVG(ot_duration_min) as avgOtDuration',
+                'AVG(los) as avgLos',
+                'AVG(icu_los) as avgIcuLos',
+            ]))
+            ->first();
 
-        $avgDuration = round((float)(clone $b)->whereNotNull('surgery_duration_min')->avg('surgery_duration_min') ?? 0, 1);
-        $avgOtDuration = round((float)(clone $b)->whereNotNull('ot_duration_min')->avg('ot_duration_min') ?? 0, 1);
-        $avgLos     = round((float)(clone $b)->whereNotNull('los')->avg('los') ?? 0, 2);
-        $avgIcuLos  = round((float)(clone $b)->whereNotNull('icu_los')->avg('icu_los') ?? 0, 2);
+        $total      = (int) ($agg->total ?? 0);
+        $completed  = (int) ($agg->completed ?? 0);
+        $cancelled  = (int) ($agg->cancelled ?? 0);
+        $scheduled  = (int) ($agg->scheduled ?? 0);
+        $emergency  = (int) ($agg->emergency ?? 0);
+        $elective   = (int) ($agg->elective ?? 0);
+        $major      = (int) ($agg->major ?? 0);
+        $minor      = (int) ($agg->minor ?? 0);
+        $implant    = (int) ($agg->implant ?? 0);
+        $blood      = (int) ($agg->blood ?? 0);
 
+        $avgDuration = round((float) ($agg->avgDuration ?? 0), 1);
+        $avgOtDuration = round((float) ($agg->avgOtDuration ?? 0), 1);
+        $avgLos     = round((float) ($agg->avgLos ?? 0), 2);
+        $avgIcuLos  = round((float) ($agg->avgIcuLos ?? 0), 2);
+
+        // delayed cases still require the cross-table average comparison; keep as-is
         $delayed = (clone $b)->whereNotNull('surgery_duration_min')
             ->where('surgery_duration_min', '>', DB::raw('(SELECT AVG(surgery_duration_min)*1.5 FROM surgeries WHERE surgery_duration_min IS NOT NULL)'))
             ->count();
 
         return compact(
-            'total', 'completed', 'cancelled', 'scheduled',
-            'emergency', 'elective', 'major', 'minor',
-            'implant', 'blood',
-            'avgDuration', 'avgOtDuration', 'avgLos', 'avgIcuLos', 'delayed'
+            'total',
+            'completed',
+            'cancelled',
+            'scheduled',
+            'emergency',
+            'elective',
+            'major',
+            'minor',
+            'implant',
+            'blood',
+            'avgDuration',
+            'avgOtDuration',
+            'avgLos',
+            'avgIcuLos',
+            'delayed'
         );
     }
 
@@ -169,7 +201,7 @@ class SurgeryAnalyticsService
 
         return [
             'by_gender'      => (clone $b)->select(DB::raw('IFNULL(gender,"Unknown") as label'), DB::raw('COUNT(*) as count'))->groupBy('label')->orderByDesc('count')->get(),
-            'by_patient_type'=> (clone $b)->select(DB::raw('IFNULL(patient_type,"Unknown") as label'), DB::raw('COUNT(*) as count'))->groupBy('label')->orderByDesc('count')->get(),
+            'by_patient_type' => (clone $b)->select(DB::raw('IFNULL(patient_type,"Unknown") as label'), DB::raw('COUNT(*) as count'))->groupBy('label')->orderByDesc('count')->get(),
             'by_blood_group' => (clone $b)->select(DB::raw('IFNULL(blood_group,"Unknown") as label'), DB::raw('COUNT(*) as count'))->whereNotNull('blood_group')->groupBy('label')->orderByDesc('count')->get(),
             'by_age_group'   => (clone $b)->select(
                 DB::raw("CASE WHEN CAST(age AS UNSIGNED) <= 18 THEN '0-18' WHEN CAST(age AS UNSIGNED) <= 40 THEN '19-40' WHEN CAST(age AS UNSIGNED) <= 60 THEN '41-60' ELSE '61+' END as label"),
@@ -209,7 +241,7 @@ class SurgeryAnalyticsService
         return [
             'by_payer_type'     => (clone $b)->select(DB::raw('IFNULL(payer_type,"Unknown") as label'), DB::raw('COUNT(*) as count'))->groupBy('label')->orderByDesc('count')->get(),
             'by_payer_name'     => (clone $b)->select(DB::raw('IFNULL(payer_name,"Unknown") as label'), DB::raw('COUNT(*) as count'))->whereNotNull('payer_name')->groupBy('label')->orderByDesc('count')->limit(15)->get(),
-            'by_billing_category'=> (clone $b)->select(DB::raw('IFNULL(billing_category,"Unknown") as label'), DB::raw('COUNT(*) as count'))->groupBy('label')->orderByDesc('count')->get(),
+            'by_billing_category' => (clone $b)->select(DB::raw('IFNULL(billing_category,"Unknown") as label'), DB::raw('COUNT(*) as count'))->groupBy('label')->orderByDesc('count')->get(),
         ];
     }
 

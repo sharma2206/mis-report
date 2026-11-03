@@ -2,15 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BillItem extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, BelongsToTenant;
 
     /**
      * The attributes that are mass assignable.
@@ -18,12 +20,39 @@ class BillItem extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'branch', 'bill_date', 'bill_no', 'uhid', 'patient_id', 'patient_name',
-        'age', 'gender', 'ward', 'bed', 'visit_id',
-        'patient_type', 'payer_type', 'payer_name', 'payer_group', 'insurance_company', 'corporate_name',
-        'service_type', 'sub_department', 'service_item_code', 'service_item_name',
-        'treating_doctor', 'treating_doctor_speciality', 'treating_department', 'treating_sub_department',
-        'billing_category', 'amount', 'discount_amount', 'net_amount', 'quantity', 'payment_mode', 'status',
+        'tenant_id',
+        'branch',
+        'bill_date',
+        'bill_no',
+        'uhid',
+        'patient_id',
+        'patient_name',
+        'age',
+        'gender',
+        'ward',
+        'bed',
+        'visit_id',
+        'patient_type',
+        'payer_type',
+        'payer_name',
+        'payer_group',
+        'insurance_company',
+        'corporate_name',
+        'service_type',
+        'sub_department',
+        'service_item_code',
+        'service_item_name',
+        'treating_doctor',
+        'treating_doctor_speciality',
+        'treating_department',
+        'treating_sub_department',
+        'billing_category',
+        'amount',
+        'discount_amount',
+        'net_amount',
+        'quantity',
+        'payment_mode',
+        'status',
     ];
 
     /**
@@ -77,8 +106,8 @@ class BillItem extends Model
         if (!empty($filters['genders']))      $query->whereIn('gender', $filters['genders']);
         if (!empty($filters['age_groups'])) {
             // Simplified age group mapping assuming age is stored as integer
-            $query->where(function($q) use ($filters) {
-                foreach($filters['age_groups'] as $group) {
+            $query->where(function ($q) use ($filters) {
+                foreach ($filters['age_groups'] as $group) {
                     if ($group === '0-18') $q->orWhereBetween('age', [0, 18]);
                     elseif ($group === '19-40') $q->orWhereBetween('age', [19, 40]);
                     elseif ($group === '41-60') $q->orWhereBetween('age', [41, 60]);
@@ -91,7 +120,9 @@ class BillItem extends Model
         if (!empty($filters['wards']))         $query->whereIn('ward', $filters['wards']);
         if (!empty($filters['insurance']))     $query->whereIn('insurance_company', $filters['insurance']);
         if (!empty($filters['corporate']))     $query->whereIn('corporate_name', $filters['corporate']);
-        
+        if (!empty($filters['payers']))        $query->whereIn('payer_name', $filters['payers']);
+        if (!empty($filters['service_categories'])) $query->whereIn('service_type', $filters['service_categories']);
+
         return $query;
     }
 
@@ -119,7 +150,7 @@ class BillItem extends Model
         $carbonDate = Carbon::parse($date);
 
         return $query->whereYear('bill_date', $carbonDate->year)
-                     ->whereMonth('bill_date', $carbonDate->month);
+            ->whereMonth('bill_date', $carbonDate->month);
     }
 
     /**
@@ -129,5 +160,18 @@ class BillItem extends Model
     public function scopeSaleStatus(Builder $query): Builder
     {
         return $query->whereIn('status', ['Sale', 'Active']);
+    }
+
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    /**
+     * Relation to the branch master using the string `branch` key.
+     */
+    public function hospitalBranch(): BelongsTo
+    {
+        return $this->belongsTo(HospitalBranch::class, 'branch', 'key');
     }
 }

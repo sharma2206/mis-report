@@ -31,9 +31,18 @@ class ErAdmissionImport implements ToCollection, WithHeadingRow, WithChunkReadin
                 continue;
             }
 
+            $admissionDate = $this->parseDateOnly($row['admission_date_time'] ?? null) ?? $this->date;
+            if ($admissionDate !== $this->date) {
+                throw new \RuntimeException(
+                    "ER admission date {$admissionDate} for "
+                    . ($admissionNo ?: $uhid)
+                    . " does not match selected import date {$this->date}."
+                );
+            }
+
             $insert[] = [
                 'branch'              => $this->branch->value,
-                'admission_date'      => $this->parseDateOnly($row['admission_date_time'] ?? null) ?? $this->date,
+                'admission_date'      => $admissionDate,
                 'admission_no'        => $admissionNo ?: null,
                 'uhid'                => $uhid ?: null,
                 'patient_name'        => trim($row['patient_name'] ?? '') ?: null,
@@ -63,7 +72,7 @@ class ErAdmissionImport implements ToCollection, WithHeadingRow, WithChunkReadin
 
         if (!empty($insert)) {
             foreach (array_chunk($insert, 500) as $chunk) {
-                ErAdmission::insert($chunk);
+                ErAdmission::insert(\App\Support\TenantContext::stamp($chunk));
             }
             $this->rowCount += count($insert);
         }

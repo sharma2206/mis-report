@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Exports\BRMExport;
+use App\Support\TenantContext;
 use App\Mail\BrmReportMail;
 use App\Models\AuditLog;
 use Illuminate\Bus\Queueable;
@@ -26,9 +27,23 @@ class EmailBrmReportJob implements ShouldQueue
         private readonly string $to,
         private readonly string $period,
         private readonly string $toEmail,
+        private readonly ?int $tenantId = null,
     ) {}
 
     public function handle(): void
+    {
+        if ($this->tenantId) {
+            TenantContext::set($this->tenantId);
+        }
+
+        try {
+            $this->send();
+        } finally {
+            TenantContext::forget();
+        }
+    }
+
+    private function send(): void
     {
         $branchShort = strtoupper(substr($this->branch, 0, 3));
         $fromFmt     = \Carbon\Carbon::parse($this->from)->format('dMY');
@@ -66,9 +81,17 @@ class EmailBrmReportJob implements ShouldQueue
 
     public function failed(\Throwable $e): void
     {
-        AuditLog::record('brm_email_failed', [
-            'to'    => $this->toEmail,
-            'error' => $e->getMessage(),
-        ], $this->branch, $this->from);
+        if ($this->tenantId) {
+            TenantContext::set($this->tenantId);
+        }
+
+        try {
+            AuditLog::record('brm_email_failed', [
+                'to'    => $this->toEmail,
+                'error' => $e->getMessage(),
+            ], $this->branch, $this->from);
+        } finally {
+            TenantContext::forget();
+        }
     }
 }

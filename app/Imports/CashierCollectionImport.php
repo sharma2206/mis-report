@@ -33,10 +33,14 @@ class CashierCollectionImport implements ToCollection, WithHeadingRow, WithChunk
 
             // Build individual payment mode string from breakdown columns
             $paymentMode = $this->resolvePaymentMode($row);
+            $collectionDate = $this->parseDateOnly(
+                $this->getValue($row, ['receiptrefund_date_time', 'receipt_refund_date_time', 'receipt_date_time'], null)
+            ) ?? $this->date;
+            $this->assertExpectedDate($collectionDate, $receiptNo ?: 'Unknown receipt');
 
             $insert[] = [
                 'branch'               => $this->branch->value,
-                'collection_date'      => $this->parseDateOnly($this->getValue($row, ['receiptrefund_date_time', 'receipt_refund_date_time', 'receipt_date_time'], null)) ?? $this->date,
+                'collection_date'      => $collectionDate,
                 'uhid'                 => trim($row['uhid'] ?? '') ?: null,
                 'patient_name'         => trim($row['patient_name'] ?? '') ?: null,
                 'visit_id'             => trim($row['visit_id'] ?? '') ?: null,
@@ -56,7 +60,7 @@ class CashierCollectionImport implements ToCollection, WithHeadingRow, WithChunk
 
         if (!empty($insert)) {
             foreach (array_chunk($insert, 500) as $chunk) {
-                CashierCollection::insert($chunk);
+                CashierCollection::insert(\App\Support\TenantContext::stamp($chunk));
             }
             $this->rowCount += count($insert);
         }
@@ -65,6 +69,15 @@ class CashierCollectionImport implements ToCollection, WithHeadingRow, WithChunk
     public function chunkSize(): int
     {
         return 1000;
+    }
+
+    private function assertExpectedDate(string $rowDate, string $identifier): void
+    {
+        if ($rowDate !== $this->date) {
+            throw new \RuntimeException(
+                "Collection date {$rowDate} for {$identifier} does not match selected import date {$this->date}."
+            );
+        }
     }
 
     private function parseDateOnly($value): ?string

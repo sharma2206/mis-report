@@ -15,11 +15,8 @@ class NotificationController extends Controller
             ->orderByDesc('created_at');
 
         // Scope to branches the requesting user can access.
-        if ($user->branch) {
-            $accessible = array_merge(
-                [$user->branch],
-                $user->branches ?? [],
-            );
+        if ($user->restrictsBranches()) {
+            $accessible = $user->branch_list;
             $q->where(function ($sub) use ($accessible) {
                 $sub->whereIn('branch', $accessible)->orWhereNull('branch');
             });
@@ -61,8 +58,8 @@ class NotificationController extends Controller
         $user = $request->user();
         $q    = AuditLog::whereDate('created_at', '>=', now()->subDay());
 
-        if ($user->branch) {
-            $accessible = array_merge([$user->branch], $user->branches ?? []);
+        if ($user->restrictsBranches()) {
+            $accessible = $user->branch_list;
             $q->where(function ($sub) use ($accessible) {
                 $sub->whereIn('branch', $accessible)->orWhereNull('branch');
             });

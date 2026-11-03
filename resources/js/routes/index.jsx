@@ -1,7 +1,8 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { selectToken, selectUser } from '../store/authSlice';
+import { selectToken } from '../store/authSlice';
+import { usePermissions } from '../hooks/usePermissions';
 
 // ── Eager: tiny auth page — no point splitting it
 import Login from '../pages/Login';
@@ -35,26 +36,22 @@ const PageLoader = () => (
     </div>
 );
 
-// ── Route access levels
-// Roles in ascending privilege order: viewer < staff < manager < admin
-const ROLE_RANK = { viewer: 0, staff: 1, manager: 2, admin: 3 };
-
-const ProtectedRoute = ({ children, minRole = 'viewer' }) => {
+const ProtectedRoute = ({ children, permission }) => {
     const token = useSelector(selectToken);
-    const user  = useSelector(selectUser);
+    const { canAny } = usePermissions();
 
     if (!token) return <Navigate to="/login" replace />;
 
-    const userRank    = ROLE_RANK[user?.role] ?? 0;
-    const requiredRank = ROLE_RANK[minRole]   ?? 0;
-
-    if (userRank < requiredRank) return <Navigate to="/dashboard" replace />;
+    if (permission) {
+        const allowed = permission.split('|');
+        if (!canAny(...allowed)) return <Navigate to="/dashboard" replace />;
+    }
 
     return children;
 };
 
-const Wrap = ({ children, minRole = 'viewer' }) => (
-    <ProtectedRoute minRole={minRole}>
+const Wrap = ({ children, permission }) => (
+    <ProtectedRoute permission={permission}>
         <Suspense fallback={<PageLoader />}>
             {children}
         </Suspense>
@@ -67,32 +64,32 @@ export const AppRoutes = () => (
         <Route path="/login" element={<Login />} />
 
         {/* Core */}
-        <Route path="/dashboard" element={<Wrap><Dashboard /></Wrap>} />
-        <Route path="/import"    element={<Wrap minRole="staff"><ImportCenter /></Wrap>} />
-        <Route path="/reports"   element={<Wrap><ReportCenter /></Wrap>} />
+        <Route path="/dashboard" element={<Wrap permission="dashboard.view"><Dashboard /></Wrap>} />
+        <Route path="/import"    element={<Wrap permission="import_center.view"><ImportCenter /></Wrap>} />
+        <Route path="/reports"   element={<Wrap permission="report_center.view"><ReportCenter /></Wrap>} />
 
         {/* Reports */}
-        <Route path="/mis"         element={<Wrap><MISReport /></Wrap>} />
-        <Route path="/brm"         element={<Wrap minRole="staff"><BRMReport /></Wrap>} />
-        <Route path="/financial"   element={<Wrap minRole="manager"><Financial /></Wrap>} />
-        <Route path="/operational" element={<Wrap minRole="staff"><Operational /></Wrap>} />
+        <Route path="/mis"         element={<Wrap permission="mis_report.view"><MISReport /></Wrap>} />
+        <Route path="/brm"         element={<Wrap permission="brm_report.view"><BRMReport /></Wrap>} />
+        <Route path="/financial"   element={<Wrap permission="financial.view"><Financial /></Wrap>} />
+        <Route path="/operational" element={<Wrap permission="operational.view"><Operational /></Wrap>} />
 
         {/* Analytics */}
-        <Route path="/doctors"             element={<Wrap><Doctors /></Wrap>} />
-        <Route path="/departments"         element={<Wrap><Departments /></Wrap>} />
-        <Route path="/surgery"             element={<Wrap><Surgery /></Wrap>} />
-        <Route path="/pharmacy"            element={<Wrap><Pharmacy /></Wrap>} />
-        <Route path="/branch-comparison"   element={<Wrap minRole="manager"><BranchComparison /></Wrap>} />
-        <Route path="/patient-analytics"   element={<Wrap><PatientAnalytics /></Wrap>} />
-        <Route path="/payment-analytics"   element={<Wrap><PaymentAnalytics /></Wrap>} />
+        <Route path="/doctors"             element={<Wrap permission="doctors.view"><Doctors /></Wrap>} />
+        <Route path="/departments"         element={<Wrap permission="departments.view"><Departments /></Wrap>} />
+        <Route path="/surgery"             element={<Wrap permission="surgery.view"><Surgery /></Wrap>} />
+        <Route path="/pharmacy"            element={<Wrap permission="pharmacy.view"><Pharmacy /></Wrap>} />
+        <Route path="/branch-comparison"   element={<Wrap permission="dashboard.drill_down"><BranchComparison /></Wrap>} />
+        <Route path="/patient-analytics"   element={<Wrap permission="dashboard.view"><PatientAnalytics /></Wrap>} />
+        <Route path="/payment-analytics"   element={<Wrap permission="dashboard.view|financial.view"><PaymentAnalytics /></Wrap>} />
 
         {/* Administration */}
-        <Route path="/notifications" element={<Wrap><Notifications /></Wrap>} />
-        <Route path="/users"         element={<Wrap minRole="admin"><Users /></Wrap>} />
-        <Route path="/roles"         element={<Wrap minRole="admin"><Roles /></Wrap>} />
-        <Route path="/scheduler"     element={<Wrap minRole="admin"><Scheduler /></Wrap>} />
-        <Route path="/audit-logs"    element={<Wrap minRole="admin"><AuditLogs /></Wrap>} />
-        <Route path="/settings"      element={<Wrap minRole="admin"><Settings /></Wrap>} />
+        <Route path="/notifications" element={<Wrap permission="notifications.view"><Notifications /></Wrap>} />
+        <Route path="/users"         element={<Wrap permission="users.view"><Users /></Wrap>} />
+        <Route path="/roles"         element={<Wrap permission="roles.view"><Roles /></Wrap>} />
+        <Route path="/scheduler"     element={<Wrap permission="scheduler.view"><Scheduler /></Wrap>} />
+        <Route path="/audit-logs"    element={<Wrap permission="audit_logs.view"><AuditLogs /></Wrap>} />
+        <Route path="/settings"      element={<Wrap permission="settings.view"><Settings /></Wrap>} />
 
         {/* Legacy redirect */}
         <Route path="/upload" element={<Navigate to="/import" replace />} />

@@ -6,6 +6,7 @@ use App\Enums\Branch;
 use App\Models\BillItem;
 use App\Models\CashierCollection;
 use App\Models\ErAdmission;
+use App\Models\HospitalBranch;
 use App\Models\IpAdmission;
 use App\Models\MisReport;
 use App\Models\PackageConsumption;
@@ -33,14 +34,14 @@ class DashboardKpiService
         'surgery' => false,
     ];
 
-    public function calculateRevenue(Branch $branch, string $from, ?string $to = null, array $filters = []): ?float
+    public function calculateRevenue(Branch|string $branch, string $from, ?string $to = null, array $filters = []): ?float
     {
         if (!$this->sourceAvailable($branch, $from, $to, 'bill')) return null;
 
         return round((float) $this->billBase($branch, $from, $to, $filters)->saleStatus()->sum('net_amount'), 2);
     }
 
-    public function calculatePharmacyRevenue(Branch $branch, string $from, ?string $to = null, array $filters = []): ?float
+    public function calculatePharmacyRevenue(Branch|string $branch, string $from, ?string $to = null, array $filters = []): ?float
     {
         if (!$this->sourceAvailable($branch, $from, $to, 'bill')) return null;
 
@@ -50,31 +51,31 @@ class DashboardKpiService
             ->sum('net_amount'), 2);
     }
 
-    public function calculateCashCollection(Branch $branch, string $from, ?string $to = null, array $filters = []): ?float
+    public function calculateCashCollection(Branch|string $branch, string $from, ?string $to = null, array $filters = []): ?float
     {
         if (!$this->sourceAvailable($branch, $from, $to, 'cashier')) return null;
         $to ??= $from;
 
-        return round((float) CashierCollection::where('branch', $branch->value)
+        return round((float) CashierCollection::where('branch', $this->branchValue($branch))
             ->applyFilters($filters)
             ->whereDate('collection_date', '>=', $from)
             ->whereDate('collection_date', '<=', $to)
             ->sum('paid_amount'), 2);
     }
 
-    public function calculatePackageRevenue(Branch $branch, string $from, ?string $to = null, array $filters = []): ?float
+    public function calculatePackageRevenue(Branch|string $branch, string $from, ?string $to = null, array $filters = []): ?float
     {
         if (!$this->sourceAvailable($branch, $from, $to, 'package')) return null;
         $to ??= $from;
 
-        return round((float) PackageConsumption::where('branch', $branch->value)
+        return round((float) PackageConsumption::where('branch', $this->branchValue($branch))
             // Note: If you implement applyFilters in PackageConsumption, add it here.
             ->whereDate('consumption_date', '>=', $from)
             ->whereDate('consumption_date', '<=', $to)
             ->sum('amount'), 2);
     }
 
-    public function calculateOpCount(Branch $branch, string $from, ?string $to = null, array $filters = []): ?int
+    public function calculateOpCount(Branch|string $branch, string $from, ?string $to = null, array $filters = []): ?int
     {
         if (!$this->sourceAvailable($branch, $from, $to, 'bill')) return null;
 
@@ -82,8 +83,8 @@ class DashboardKpiService
             ->where('patient_type', 'OP')
             ->saleStatus()
             ->whereNotNull('uhid')
-            ->distinct('uhid')
-            ->count('uhid');
+            ->selectRaw('COUNT(DISTINCT COALESCE(NULLIF(visit_id, ""), uhid)) as visit_count')
+            ->value('visit_count');
     }
 
     /**
@@ -91,43 +92,43 @@ class DashboardKpiService
      *                             upload currently in flight, before it's persisted).
      *                             When omitted, falls back to what's already stored.
      */
-    public function calculateIpCount(Branch $branch, string $from, ?string $to = null, ?array $sources = null, array $filters = []): ?int
+    public function calculateIpCount(Branch|string $branch, string $from, ?string $to = null, ?array $sources = null, array $filters = []): ?int
     {
         if (!$this->sourceAvailable($branch, $from, $to, 'ip', $sources)) return null;
         $to ??= $from;
 
-        return IpAdmission::where('branch', $branch->value)
+        return IpAdmission::where('branch', $this->branchValue($branch))
             ->applyFilters($filters)
             ->whereDate('admission_date', '>=', $from)
             ->whereDate('admission_date', '<=', $to)
             ->count();
     }
 
-    public function calculateAdmissions(Branch $branch, string $from, ?string $to = null, ?array $sources = null): ?int
+    public function calculateAdmissions(Branch|string $branch, string $from, ?string $to = null, ?array $sources = null): ?int
     {
         return $this->calculateIpCount($branch, $from, $to, $sources);
     }
 
-    public function calculateDischarges(Branch $branch, string $from, ?string $to = null, ?array $sources = null): ?int
+    public function calculateDischarges(Branch|string $branch, string $from, ?string $to = null, ?array $sources = null): ?int
     {
         if (!$this->sourceAvailable($branch, $from, $to, 'ip', $sources)) return null;
         $to ??= $from;
 
-        return IpAdmission::where('branch', $branch->value)
+        return IpAdmission::where('branch', $this->branchValue($branch))
             ->whereDate('discharge_date', '>=', $from)
             ->whereDate('discharge_date', '<=', $to)
             ->count();
     }
 
-    public function calculateErCount(Branch $branch, string $from, ?string $to = null, ?array $sources = null, array $filters = []): ?int
+    public function calculateErCount(Branch|string $branch, string $from, ?string $to = null, ?array $sources = null, array $filters = []): ?int
     {
         if (!$this->sourceAvailable($branch, $from, $to, 'er', $sources)) return null;
         $to ??= $from;
 
-        return ErAdmission::where('branch', $branch->value)
+        return ErAdmission::where('branch', $this->branchValue($branch))
             ->applyFilters($filters)
-            ->whereDate('discharge_date', '>=', $from)
-            ->whereDate('discharge_date', '<=', $to)
+            ->whereDate('admission_date', '>=', $from)
+            ->whereDate('admission_date', '<=', $to)
             ->count();
     }
 
@@ -135,11 +136,11 @@ class DashboardKpiService
      * Currently admitted patients as of $date: admitted on/before $date and
      * not yet discharged (or discharged after $date).
      */
-    public function calculateBedsOccupied(Branch $branch, string $date, ?array $sources = null): ?int
+    public function calculateBedsOccupied(Branch|string $branch, string $date, ?array $sources = null): ?int
     {
         if (!$this->everUploaded($branch, 'ip')) return null;
 
-        return IpAdmission::where('branch', $branch->value)
+        return IpAdmission::where('branch', $this->branchValue($branch))
             ->whereDate('admission_date', '<=', $date)
             ->where(function (Builder $q) use ($date) {
                 $q->whereNull('discharge_date')->orWhereDate('discharge_date', '>', $date);
@@ -147,12 +148,14 @@ class DashboardKpiService
             ->count();
     }
 
-    public function calculateOccupancy(Branch $branch, string $date, ?array $sources = null): ?float
+    public function calculateOccupancy(Branch|string $branch, string $date, ?array $sources = null): ?float
     {
         $occupied = $this->calculateBedsOccupied($branch, $date, $sources);
         if ($occupied === null) return null;
 
-        $beds = $branch->bedCount();
+        $beds = (int) HospitalBranch::query()
+            ->where('key', $this->branchValue($branch))
+            ->value('bed_count');
         return $beds > 0 ? round(($occupied / $beds) * 100, 2) : 0.0;
     }
 
@@ -160,9 +163,9 @@ class DashboardKpiService
      * Normalised source-availability flags for a branch+date, as persisted at upload time.
      * No report row at all means nothing has ever been imported for that date.
      */
-    public function sourcesFor(Branch $branch, string $date): array
+    public function sourcesFor(Branch|string $branch, string $date): array
     {
-        $report = MisReport::where('branch', $branch->value)->whereDate('report_date', $date)->first();
+        $report = MisReport::where('branch', $this->branchValue($branch))->whereDate('report_date', $date)->first();
         if (!$report) {
             return array_fill_keys(array_keys(self::DEFAULT_SOURCES), false);
         }
@@ -172,11 +175,11 @@ class DashboardKpiService
 
     // ─── Private helpers ─────────────────────────────────────────────────────
 
-    private function billBase(Branch $branch, string $from, ?string $to, array $filters = []): Builder
+    private function billBase(Branch|string $branch, string $from, ?string $to, array $filters = []): Builder
     {
         $to ??= $from;
 
-        return BillItem::where('branch', $branch->value)
+        return BillItem::where('branch', $this->branchValue($branch))
             ->applyFilters($filters)
             ->whereDate('bill_date', '>=', $from)
             ->whereDate('bill_date', '<=', $to);
@@ -195,14 +198,14 @@ class DashboardKpiService
      * data for this branch, so a monthly rollup isn't blocked by a single day
      * that only had the required bill/cashier files.
      */
-    private function sourceAvailable(Branch $branch, string $from, ?string $to, string $key, ?array $sources = null): bool
+    private function sourceAvailable(Branch|string $branch, string $from, ?string $to, string $key, ?array $sources = null): bool
     {
         if (in_array($key, ['bill', 'cashier'], true)) {
             return true;
         }
 
         if ($key === 'package') {
-            return $branch === Branch::CHROMEPET;
+            return $this->branchValue($branch) === Branch::CHROMEPET->value;
         }
 
         // ip/er data spans date ranges — if data exists in the DB for this branch,
@@ -216,15 +219,22 @@ class DashboardKpiService
         return $this->everUploaded($branch, $key);
     }
 
-    private function everUploaded(Branch $branch, string $key): bool
+    private function everUploaded(Branch|string $branch, string $key): bool
     {
+        $branchKey = $this->branchValue($branch);
+
         return match ($key) {
-            'bill'    => BillItem::where('branch', $branch->value)->exists(),
-            'cashier' => CashierCollection::where('branch', $branch->value)->exists(),
-            'package' => $branch === Branch::CHROMEPET && PackageConsumption::where('branch', $branch->value)->exists(),
-            'er'      => ErAdmission::where('branch', $branch->value)->exists(),
-            'ip'      => IpAdmission::where('branch', $branch->value)->exists(),
+            'bill'    => BillItem::where('branch', $branchKey)->exists(),
+            'cashier' => CashierCollection::where('branch', $branchKey)->exists(),
+            'package' => $branchKey === Branch::CHROMEPET->value && PackageConsumption::where('branch', $branchKey)->exists(),
+            'er'      => ErAdmission::where('branch', $branchKey)->exists(),
+            'ip'      => IpAdmission::where('branch', $branchKey)->exists(),
             default   => false,
         };
+    }
+
+    private function branchValue(Branch|string $branch): string
+    {
+        return $branch instanceof Branch ? $branch->value : $branch;
     }
 }

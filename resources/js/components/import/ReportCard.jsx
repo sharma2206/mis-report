@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { scanCsvFile, tsToYMD } from '../../utils/csvScanner';
+import { waitForImport } from '../../utils/importPoll';
 import { fmtSize } from '../../utils/fileDetect';
 
 // ── Status configuration ──────────────────────────────────────────────────────
@@ -13,6 +14,7 @@ const STATUS_CFG = {
     pending:    { label: 'Pending',    badge: 'bg-slate-100 text-slate-500',   border: 'border-slate-200', dot: 'bg-slate-400' },
     scanning:   { label: 'Scanning…', badge: 'bg-blue-100  text-blue-600',    border: 'border-blue-300',  dot: 'bg-blue-500 animate-pulse' },
     uploading:  { label: 'Uploading…',badge: 'bg-violet-100 text-violet-600', border: 'border-violet-300',dot: 'bg-violet-500 animate-pulse' },
+    processing: { label: 'Processing…', badge: 'bg-violet-100 text-violet-600', border: 'border-violet-300', dot: 'bg-violet-500 animate-pulse' },
     success:    { label: 'Imported',   badge: 'bg-green-100 text-green-700',   border: 'border-green-300', dot: 'bg-green-500' },
     partial:    { label: 'Warning',    badge: 'bg-amber-100 text-amber-700',   border: 'border-amber-300', dot: 'bg-amber-500' },
     failed:     { label: 'Failed',     badge: 'bg-red-100   text-red-700',     border: 'border-red-300',   dot: 'bg-red-500' },
@@ -132,6 +134,16 @@ export const ReportCard = ({
             setUploadProgress(100);
             if (!data.success) throw new Error(data.message || 'Import failed');
 
+            if (data.queued) {
+                setLocalStatus('processing');
+                await waitForImport(branch, [typeKey]);
+                onSuccess?.();
+                setLocalStatus(null);
+                setFilePreview(null);
+                setLastFingerprint(`${file.name}|${file.size}`);
+                return;
+            }
+
             // Extract rows
             const typeRows = data.imported?.[typeKey];
             const count    = typeof typeRows === 'object'
@@ -145,6 +157,11 @@ export const ReportCard = ({
             setLastFingerprint(`${file.name}|${file.size}`);
             onSuccess?.();
         } catch (err) {
+            if (err.code === 'IMPORT_TIMEOUT') {
+                setLocalStatus('processing');
+                setErrorMsg(err.message);
+                return;
+            }
             const msg = err.response?.data?.message || err.message || 'Upload failed';
             setErrorMsg(msg);
             setLocalStatus('error');

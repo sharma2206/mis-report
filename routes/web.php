@@ -3,7 +3,9 @@
 use App\Http\Controllers\Api\MISController;
 use Illuminate\Support\Facades\Route;
 
-// Print preview (web, auth not required for now — token passed in URL)
+// Print preview. Session cookie from the SPA login is sent on same-origin window.open.
+// Authorization is enforced inside printPreview (auth + branch scope) so a missing
+// named login route does not turn this into an open redirect.
 Route::get('/print/{branch}/{date}', [MISController::class, 'printPreview'])
     ->where('branch', 'chromepet|oragadam')
     ->where('date', '\d{4}-\d{2}-\d{2}');

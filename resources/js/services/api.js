@@ -11,8 +11,14 @@ const client = axios.create({
     xsrfHeaderName: "X-XSRF-TOKEN",
 });
 
+// Module-level flag to prevent cascading logout calls.
+// Reset when a new login request is initiated.
 let logoutInProgress = false;
 
+/**
+ * Returns true when the request URL is part of the auth bootstrap flow.
+ * These requests should not trigger automatic logout handling.
+ */
 const isAuthBootstrapRequest = (url = "") => {
     const normalized = String(url).replace(/^\/+/, "");
 
@@ -22,6 +28,13 @@ const isAuthBootstrapRequest = (url = "") => {
     );
 };
 
+/**
+ * Handle a genuine 401 Unauthenticated response.
+ *
+ * - Clears local auth state and redirects to login.
+ * - Only runs once per session (logoutInProgress guard).
+ * - Never runs for auth bootstrap requests (login/logout/me).
+ */
 const handleUnauthorized = (config = {}) => {
     if (logoutInProgress || isAuthBootstrapRequest(config.url)) {
         return;
@@ -43,25 +56,23 @@ client.interceptors.response.use(
         const status = err?.response?.status;
 
         if (status === 401) {
+            // Unauthenticated — session expired or not logged in.
             handleUnauthorized(err?.config);
             return Promise.reject(err);
         }
 
-        if (
-            status === 403 ||
-            status === 419 ||
-            status === 500 ||
-            !err.response
-        ) {
-            return Promise.reject(err);
-        }
-
+        // 403 MUST NOT trigger logout — the user IS authenticated but lacks
+        // permission or their account is disabled.  Let callers handle it.
+        //
+        // 419 (CSRF token mismatch) and other server errors are also passed
+        // through without touching auth state so callers can display the error.
         return Promise.reject(err);
     },
 );
 
 client.interceptors.request.use(
     (config) => {
+        // Reset the logout guard when the user initiates a new login.
         if (config.url && config.url.includes("/auth/login")) {
             logoutInProgress = false;
         }
@@ -80,7 +91,6 @@ export const authApi = {
     login: (data) => client.post("/auth/login", data),
     logout: () => client.post("/auth/logout"),
     me: () => client.get("/auth/me"),
-    register: (data) => client.post("/auth/register", data),
 };
 
 export const misApi = {
@@ -230,4 +240,30 @@ export const rbacApi = {
     getStats: () => client.get("/rbac/stats"),
     audit: (params) => client.get("/rbac/audit", { params }),
     getAudit: (params) => client.get("/rbac/audit", { params }),
+};
+
+export const auditLogsApi = {
+    list: (params) => client.get("/audit-logs", { params }),
+    events: () => client.get("/audit-logs/events"),
+};
+
+export const notificationsApi = {
+    list: (params) => client.get("/notifications", { params }),
+    unread: () => client.get("/notifications/unread"),
+};
+
+export const schedulerApi = {
+    status: () => client.get("/scheduler/status"),
+};
+
+export const operationalApi = {
+    kpis: (params) => client.get("/operational/kpis", { params }),
+    bedOccupancy: (params) => client.get("/operational/bed-occupancy", { params }),
+    admissions: (params) => client.get("/operational/admissions", { params }),
+    census: (params) => client.get("/operational/census", { params }),
+    surgery: (params) => client.get("/operational/surgery", { params }),
+    departments: (params) => client.get("/operational/departments", { params }),
+    doctors: (params) => client.get("/operational/doctors", { params }),
+    alerts: (params) => client.get("/operational/alerts", { params }),
+    analytics: (params) => client.get("/operational/analytics", { params }),
 };

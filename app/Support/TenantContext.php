@@ -2,15 +2,17 @@
 
 namespace App\Support;
 
-use Illuminate\Support\Facades\DB;
-
 /**
  * Request-scoped tenant id.
  *
- * HTTP middleware sets this from the authenticated user.
- * Console commands and queued jobs set it explicitly.
- * When it is empty, tenant scopes do not filter, so unauthenticated
- * work such as login still runs.
+ * HTTP middleware sets this from the authenticated user (the ONLY trusted source).
+ * Console commands and queued jobs must set it explicitly before querying.
+ * When it is null, tenant scopes do not filter — this is intentional for
+ * pre-authentication steps such as login.
+ *
+ * Security note:
+ * - Incoming request data (body/query params) MUST NEVER be passed to set().
+ * - stamp() always overwrites incoming tenant_id with the trusted context value.
  */
 final class TenantContext
 {
@@ -31,42 +33,56 @@ final class TenantContext
         self::$id = null;
     }
 
+    /**
+     * Add tenant_id to each row of a bulk insert, always using the trusted
+     * context value (overwrites any incoming tenant_id from request data).
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array<int, array<string, mixed>>
+     * @throws \RuntimeException when tenant context is required but not set.
+     */
+    public static function stamp(array $rows, bool $requireContext = true): array
+    {
+        $tenantId = self::$id;
+
+        if ($tenantId === null) {
+            if ($requireContext) {
+                throw new \RuntimeException(
+                    'Bulk insert attempted without tenant context. ' .
+                    'Set TenantContext before running bulk operations.'
+                );
+            }
+            return $rows;
+        }
+
+        return array_map(function (array $row) use ($tenantId) {
+            // Always overwrite — never allow incoming data to dictate tenant ownership.
+            $row['tenant_id'] = $tenantId;
+            return $row;
+        }, $rows);
+    }
+
     public static function defaultId(): ?int
     {
-        $id = DB::table('tenants')->where('slug', 'default')->value('id');
+        try {
+            $id = \Illuminate\Support\Facades\DB::table('tenants')->where('slug', 'default')->value('id');
 
-        return $id !== null ? (int) $id : null;
+            return $id !== null ? (int) $id : null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**
-     * Tenant id to stamp on a new row: current context, then the
-     * authenticated user, then the default tenant created by migration.
+     * Resolve tenant id for auto-stamping on model creation.
+     *
+     * Falls back to the authenticated user's tenant_id, then to the
+     * seeded default tenant if available (e.g. for system events or testing).
      */
     public static function resolveId(): ?int
     {
         return self::$id
             ?? (auth()->user()?->tenant_id ? (int) auth()->user()->tenant_id : null)
             ?? self::defaultId();
-    }
-
-    /**
-     * Add tenant_id to each row of a bulk insert.
-     *
-     * @param  array<int, array<string, mixed>>  $rows
-     * @return array<int, array<string, mixed>>
-     */
-    public static function stamp(array $rows): array
-    {
-        $tenantId = self::resolveId();
-
-        if ($tenantId === null) {
-            return $rows;
-        }
-
-        return array_map(function (array $row) use ($tenantId) {
-            $row['tenant_id'] ??= $tenantId;
-
-            return $row;
-        }, $rows);
     }
 }

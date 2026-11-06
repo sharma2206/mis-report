@@ -35,8 +35,8 @@ class SecurityHeaders
         // Only send the origin (no path/query) as the Referer header for cross-origin navigation.
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-        // Disable unnecessary browser features.
-        $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()');
+        // Disable unnecessary browser features (interest-cohort removed as it was deprecated).
+        $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
         // Legacy XSS protection header (belt-and-suspenders for older browsers).
         $response->headers->set('X-XSS-Protection', '1; mode=block');
@@ -45,17 +45,12 @@ class SecurityHeaders
         // (required for Tailwind-generated styles) while blocking unsafe origins.
         // Tighten script-src / style-src in production once a nonce strategy is adopted.
         //
-        // In local development the Vite dev server (default port 5174) serves
-        // @react-refresh and other HMR assets from both IPv4 and IPv6 loopback
-        // addresses.  Those origins must be whitelisted or the browser will
-        // block the scripts and break hot-module-replacement.
-        $isDev = app()->environment('local');
+        // In local development Vite dev server serves @react-refresh and other HMR assets.
+        // We whitelist standard Vite dev ports (5173, 5174) for both localhost and 127.0.0.1.
+        $isDev = app()->environment('local', 'testing');
 
-        // In dev the Vite server binds to localhost:5174 (forced via vite.config.js
-        // server.host = 'localhost') so we only need the IPv4/name form here.
-        // We also set ws:// for Vite's HMR WebSocket.
-        $viteOrigins   = $isDev ? ' http://localhost:5174' : '';
-        $viteWsOrigins = $isDev ? ' ws://localhost:5174' : '';
+        $viteOrigins   = $isDev ? ' http://localhost:5173 http://localhost:5174 http://127.0.0.1:5173 http://127.0.0.1:5174' : '';
+        $viteWsOrigins = $isDev ? ' ws://localhost:5173 ws://localhost:5174 ws://127.0.0.1:5173 ws://127.0.0.1:5174' : '';
 
         $response->headers->set('Content-Security-Policy', implode('; ', [
             "default-src 'self'",

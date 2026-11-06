@@ -14,6 +14,8 @@ use App\Http\Controllers\Api\SchedulerController;
 use App\Http\Controllers\Api\SurgeryAnalyticsController;
 use App\Http\Controllers\Api\UserController;
 use App\Models\HospitalBranch;
+use App\Support\TenantContext;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // ─── Health check (no auth, no version prefix) ───────────────────────────────
@@ -32,27 +34,39 @@ Route::get('/health', function () {
     ]);
 })->middleware('throttle:60,1');
 
-// ─── Shared constraints ───────────────────────────────────────────────────────
-$branch = 'chromepet|oragadam';
-$date   = '\d{4}-\d{2}-\d{2}';
+// ─── Date regex (shared) ─────────────────────────────────────────────────────
+$date = '\d{4}-\d{2}-\d{2}';
 
-Route::prefix('v1')->group(function () use ($branch, $date) {
+Route::prefix('v1')->group(function () use ($date) {
 
-    // ─── Auth (public) ───────────────────────────────────────────────────────
+    // ─── Auth: Public routes (login only) ────────────────────────────────────
     Route::prefix('auth')->middleware('throttle:10,1')->group(function () {
         Route::post('login', [AuthController::class, 'login']);
-        Route::post('logout',   [AuthController::class, 'logout']);
-        Route::get('me',        [AuthController::class, 'me']);
-        Route::post('register', [AuthController::class, 'register']);
     });
 
-    // ─── Protected: no branch scope (import logs, dashboard, analytics) ──────
-    Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () use ($date) {
+    // ─── Auth: Protected routes (require authentication) ─────────────────────
+    Route::prefix('auth')
+        ->middleware(['auth:sanctum', 'throttle:60,1'])
+        ->group(function () {
+            Route::post('logout',   [AuthController::class, 'logout']);
+            Route::get('me',        [AuthController::class, 'me']);
+            // Note: public self-registration is disabled.
+            // User creation goes through /api/v1/users (requires users.create permission).
+        });
 
-        // Branch list for the current tenant, filtered by the user's branch access.
-        // Bed counts come from the branches table (seeded from the original enum).
-        Route::get('/branches', function (\Illuminate\Http\Request $request) {
-            $all = HospitalBranch::query()
+    // ─── Protected: authenticated + tenant + account-active + throttle ───────
+    //
+    // Middleware execution order:
+    //   auth:sanctum → tenant → user.active → (permission | branch.access | department.access)
+    //
+    Route::middleware(['auth:sanctum', 'tenant', 'user.active', 'throttle:120,1'])->group(function () use ($date) {
+
+        // ── Branches (tenant-scoped, filtered by user access) ─────────────
+        Route::get('/branches', function (Request $request) {
+            $tenantId = TenantContext::id();
+
+            $all = HospitalBranch::withoutGlobalScopes()
+                ->where('tenant_id', $tenantId)
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['key', 'name', 'bed_count'])
@@ -63,11 +77,19 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
                 ])
                 ->all();
 
-            $userBranch = $request->user()->branch;
-            $data = $userBranch
-                ? array_values(array_filter($all, fn($b) => $b['key'] === $userBranch))
-                : $all;
-            dd($data);
+            $user = $request->user();
+
+            // Users with global access see all branches.
+            // Restricted users see only their assigned branches.
+            if ($user->hasGlobalBranchAccess()) {
+                $data = $all;
+            } else {
+                $userBranches = $user->branch_list;
+                $data = array_values(
+                    array_filter($all, fn($b) => in_array($b['key'], $userBranches, true))
+                );
+            }
+
             return response()->json(['success' => true, 'data' => $data]);
         });
 
@@ -79,7 +101,7 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
         Route::get('/source-capabilities', [IntelligenceFoundationController::class, 'sourceCapabilities'])
             ->middleware('permission:dashboard.view|settings.view');
 
-        // Branch-scoped via query/route param — CheckBranchAccess also reads ?branch=
+        // ── Branch-scoped analytics & data-quality ─────────────────────────
         Route::middleware('branch.access')->group(function () use ($date) {
             Route::get('/analytics/filter-options', [AnalyticsController::class, 'filterOptions'])
                 ->middleware('permission:dashboard.view|financial.view|operational.view|mis_report.view');
@@ -138,19 +160,50 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
             Route::get('/analytics/doctor-performance', [AnalyticsController::class, 'doctorPerformance'])
                 ->middleware('permission:dashboard.view|doctors.view|brm_report.view');
 
-            // ── Surgery Analytics (dedicated service) ──────────────────────
+            // ── Surgery Analytics ──────────────────────────────────────────
             Route::prefix('analytics/surgery')->middleware('permission:surgery.view')->group(function () {
-                Route::get('/kpis',             [SurgeryAnalyticsController::class, 'kpis']);
-                Route::get('/trend',            [SurgeryAnalyticsController::class, 'trend']);
-                Route::get('/distribution',     [SurgeryAnalyticsController::class, 'distribution']);
+                Route::get('/kpis',                [SurgeryAnalyticsController::class, 'kpis']);
+                Route::get('/trend',               [SurgeryAnalyticsController::class, 'trend']);
+                Route::get('/distribution',        [SurgeryAnalyticsController::class, 'distribution']);
                 Route::get('/surgeon-performance', [SurgeryAnalyticsController::class, 'surgeonPerformance']);
-                Route::get('/ot-dashboard',     [SurgeryAnalyticsController::class, 'otDashboard']);
-                Route::get('/anaesthesia',      [SurgeryAnalyticsController::class, 'anaesthesia']);
-                Route::get('/patient-profile',  [SurgeryAnalyticsController::class, 'patientProfile']);
-                Route::get('/quality',          [SurgeryAnalyticsController::class, 'qualityMetrics']);
-                Route::get('/payer',            [SurgeryAnalyticsController::class, 'payerAnalytics']);
-                Route::get('/insights',         [SurgeryAnalyticsController::class, 'insights']);
+                Route::get('/ot-dashboard',        [SurgeryAnalyticsController::class, 'otDashboard']);
+                Route::get('/anaesthesia',         [SurgeryAnalyticsController::class, 'anaesthesia']);
+                Route::get('/patient-profile',     [SurgeryAnalyticsController::class, 'patientProfile']);
+                Route::get('/quality',             [SurgeryAnalyticsController::class, 'qualityMetrics']);
+                Route::get('/payer',               [SurgeryAnalyticsController::class, 'payerAnalytics']);
+                Route::get('/insights',            [SurgeryAnalyticsController::class, 'insights']);
             });
+        });
+
+        // ─── MIS: branch-scoped routes (branch validated via tenant DB) ───────
+        // Branch key comes from the route param and is validated dynamically against
+        // the tenant's branches table (not a hardcoded regex constraint).
+        Route::prefix('mis')->middleware('branch.access')->group(function () use ($date) {
+            Route::get('/{branch}/{date}', [MISController::class, 'show'])
+                ->where('date', $date)
+                ->middleware('permission:mis_report.view');
+            Route::get('/{branch}/{date}/export', [MISController::class, 'export'])
+                ->where('date', $date)
+                ->middleware(['throttle:10,1', 'permission:mis_report.export']);
+            Route::get('/{branch}/{date}/export-pdf', [MISController::class, 'exportPdf'])
+                ->where('date', $date)
+                ->middleware(['throttle:10,1', 'permission:mis_report.export|mis_report.print']);
+            Route::get('/{branch}/{date}/export-csv', [MISController::class, 'exportCsv'])
+                ->where('date', $date)
+                ->middleware(['throttle:10,1', 'permission:mis_report.export']);
+            Route::get('/{branch}/export-brm', [MISController::class, 'exportBrm'])
+                ->middleware(['throttle:10,1', 'permission:brm_report.export']);
+            Route::get('/{branch}/import-status', [MISController::class, 'importStatus'])
+                ->middleware('permission:import_center.view');
+
+            Route::middleware('permission:import_center.import|mis_report.import')->group(function () {
+                Route::post('/{branch}/upload',        [MISController::class, 'upload']);
+                Route::post('/{branch}/upload-single', [MISController::class, 'uploadSingle']);
+            });
+
+            Route::post('/{branch}/{date}/email', [MISController::class, 'emailReport'])
+                ->where('date', $date)
+                ->middleware(['throttle:5,1', 'permission:mis_report.email']);
         });
 
         // ─── Users ───────────────────────────────────────────────────────────
@@ -201,54 +254,29 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
             Route::get('/events', [AuditLogController::class, 'events']);
         });
 
-        // ─── Notifications ────────────────────────────────────────────────────
-        // Feed is branch-scoped in NotificationController for restricted users.
+        // ─── Notifications ───────────────────────────────────────────────────
         Route::prefix('notifications')->middleware('permission:notifications.view')->group(function () {
             Route::get('/',       [NotificationController::class, 'index']);
             Route::get('/unread', [NotificationController::class, 'unread']);
         });
 
-        // ─── Scheduler ────────────────────────────────────────────────────────
+        // ─── Scheduler ───────────────────────────────────────────────────────
         Route::get('/scheduler/status', [SchedulerController::class, 'status'])
             ->middleware('permission:scheduler.view');
 
         // ─── Operational Centre ───────────────────────────────────────────────
-        Route::prefix('operational')->middleware(['branch.access', 'permission:operational.view'])->group(function () {
-            Route::get('/kpis',         [OperationalController::class, 'kpis']);
-            Route::get('/bed-occupancy', [OperationalController::class, 'bedOccupancy']);
-            Route::get('/admissions',   [OperationalController::class, 'admissions']);
-            Route::get('/census',       [OperationalController::class, 'census']);
-            Route::get('/surgery',      [OperationalController::class, 'surgery']);
-            Route::get('/departments',  [OperationalController::class, 'departments']);
-            Route::get('/doctors',      [OperationalController::class, 'doctors']);
-            Route::get('/alerts',       [OperationalController::class, 'alerts']);
-            Route::get('/analytics',    [OperationalController::class, 'analytics']);
-        });
-    });
-
-    // ─── Protected: branch-scoped (branch.access middleware enforced) ────────
-    Route::middleware(['auth:sanctum', 'user.active', 'tenant', 'throttle:120,1', 'branch.access'])
-        ->where(['branch' => $branch, 'date' => $date])
-        ->group(function () {
-            Route::get('/mis/{branch}/{date}', [MISController::class, 'show'])
-                ->middleware('permission:mis_report.view');
-            Route::get('/mis/{branch}/{date}/export', [MISController::class, 'export'])
-                ->middleware(['throttle:10,1', 'permission:mis_report.export']);
-            Route::get('/mis/{branch}/{date}/export-pdf', [MISController::class, 'exportPdf'])
-                ->middleware(['throttle:10,1', 'permission:mis_report.export|mis_report.print']);
-            Route::get('/mis/{branch}/{date}/export-csv', [MISController::class, 'exportCsv'])
-                ->middleware(['throttle:10,1', 'permission:mis_report.export']);
-            Route::get('/mis/{branch}/export-brm', [MISController::class, 'exportBrm'])
-                ->middleware(['throttle:10,1', 'permission:brm_report.export']);
-
-            Route::get('/mis/{branch}/import-status', [MISController::class, 'importStatus'])
-                ->middleware('permission:import_center.view');
-
-            Route::middleware('permission:import_center.import|mis_report.import')->group(function () {
-                Route::post('/mis/{branch}/upload',        [MISController::class, 'upload']);
-                Route::post('/mis/{branch}/upload-single', [MISController::class, 'uploadSingle']);
+        Route::prefix('operational')
+            ->middleware(['branch.access', 'permission:operational.view'])
+            ->group(function () {
+                Route::get('/kpis',          [OperationalController::class, 'kpis']);
+                Route::get('/bed-occupancy', [OperationalController::class, 'bedOccupancy']);
+                Route::get('/admissions',    [OperationalController::class, 'admissions']);
+                Route::get('/census',        [OperationalController::class, 'census']);
+                Route::get('/surgery',       [OperationalController::class, 'surgery']);
+                Route::get('/departments',   [OperationalController::class, 'departments']);
+                Route::get('/doctors',       [OperationalController::class, 'doctors']);
+                Route::get('/alerts',        [OperationalController::class, 'alerts']);
+                Route::get('/analytics',     [OperationalController::class, 'analytics']);
             });
-            Route::post('/mis/{branch}/{date}/email', [MISController::class, 'emailReport'])
-                ->middleware(['throttle:5,1', 'permission:mis_report.email']);
-        });
+    });
 });

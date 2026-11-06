@@ -6,7 +6,6 @@ use App\Services\RoleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Illuminate\Validation\ValidationException;
 
 class RbacController extends Controller
 {
@@ -124,9 +123,16 @@ class RbacController extends Controller
 
     public function updateRoleBranches(Request $request, int $id): JsonResponse
     {
+        // Validate branches against the current tenant's active branches.
+        $tenantBranchKeys = \App\Models\HospitalBranch::withoutGlobalScopes()
+            ->where('tenant_id', \App\Support\TenantContext::id())
+            ->where('is_active', true)
+            ->pluck('key')
+            ->toArray();
+
         $data = $request->validate([
             'branches'   => 'required|array',
-            'branches.*' => 'string|in:chromepet,oragadam',
+            'branches.*' => ['string', \Illuminate\Validation\Rule::in($tenantBranchKeys)],
         ]);
 
         $this->service->syncBranches($id, $data['branches'], $request->user()->id);

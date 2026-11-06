@@ -11,6 +11,7 @@ use App\Http\Middleware\SetTenantContext;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -20,25 +21,32 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // $middleware->append(SecurityHeaders::class);
+        // Security headers on every response.
+        $middleware->append(SecurityHeaders::class);
 
+        // Sanctum stateful SPA support.
         $middleware->statefulApi();
 
+        // Canonical middleware aliases.
+        // Each concept has exactly one alias — no duplicates.
         $middleware->alias([
             'tenant'            => SetTenantContext::class,
-            'branch.access'     => CheckBranchAccess::class,
-            'ensure.branch'     => CheckBranchAccess::class,
             'user.active'       => EnsureUserIsActive::class,
-            'active.user'       => EnsureUserIsActive::class,
-            'department.access' => EnsureDepartmentAccess::class,
-            'ensure.department' => EnsureDepartmentAccess::class,
             'resolve.user'      => ResolveUserContext::class,
             'permission'        => CheckPermission::class,
             'role'              => CheckRole::class,
-            'check.permission'  => CheckPermission::class,
-            'check.role'        => CheckRole::class,
+            'branch.access'     => CheckBranchAccess::class,
+            'department.access' => EnsureDepartmentAccess::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // Return JSON for unauthenticated API requests instead of redirecting.
+        $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, Request $request) {
+            if ($request->expectsJson() || str_starts_with($request->path(), 'api/')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthenticated.',
+                ], 401);
+            }
+        });
     })->create();

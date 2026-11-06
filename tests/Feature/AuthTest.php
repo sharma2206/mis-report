@@ -145,4 +145,65 @@ class AuthTest extends TestCase
         $this->actingAs($user)->getJson('/api/v1/kpis')
             ->assertForbidden();
     }
+
+    public function test_403_response_does_not_invalidate_authenticated_session(): void
+    {
+        // A viewer lacks users.view permission → receives 403.
+        $user = User::factory()->create(['role' => 'viewer', 'is_active' => true]);
+
+        $this->actingAs($user)->getJson('/api/v1/users')->assertForbidden();
+
+        // The session is still valid — /auth/me should return 200.
+        $this->actingAs($user)->getJson('/api/v1/auth/me')
+            ->assertOk()
+            ->assertJsonPath('data.email', $user->email);
+    }
+
+    public function test_legacy_admin_without_rbac_role_gets_wildcard_permission(): void
+    {
+        $user = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+        $this->assertContains('*', $user->getAllPermissions());
+    }
+
+    public function test_legacy_manager_without_rbac_role_gets_manager_permissions(): void
+    {
+        $user = User::factory()->create(['role' => 'manager', 'is_active' => true]);
+        $perms = $user->getAllPermissions();
+        $this->assertContains('dashboard.view', $perms);
+        $this->assertContains('financial.view', $perms);
+        $this->assertNotContains('*', $perms);
+    }
+
+    public function test_failed_login_resets_on_successful_login(): void
+    {
+        $user = User::factory()->create([
+            'email'                 => 'reset@mis.local',
+            'password'              => 'correct_pass',
+            'is_active'             => true,
+            'failed_login_attempts' => 3,
+        ]);
+
+        $this->withHeaders(['Referer' => config('app.url')])
+            ->postJson('/api/v1/auth/login', [
+                'email'    => 'reset@mis.local',
+                'password' => 'correct_pass',
+            ])
+            ->assertOk();
+
+        $this->assertSame(0, $user->fresh()->failed_login_attempts);
+    }
+
+    public function test_security_headers_allow_vite_dev_server_and_valid_permissions_policy(): void
+    {
+        $response = $this->get('/login');
+
+        $csp = $response->headers->get('Content-Security-Policy');
+        $this->assertNotNull($csp);
+        $this->assertStringContainsString('http://localhost:5173', $csp);
+        $this->assertStringContainsString('http://localhost:5174', $csp);
+
+        $permissionsPolicy = $response->headers->get('Permissions-Policy');
+        $this->assertNotNull($permissionsPolicy);
+        $this->assertStringNotContainsString('interest-cohort', $permissionsPolicy);
+    }
 }

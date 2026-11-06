@@ -16,6 +16,7 @@ class TenantIsolationTest extends TestCase
 
     public function test_branches_endpoint_reads_bed_counts_from_the_database(): void
     {
+        // Admin user: legacy admin role → global branch access via wildcard permissions.
         $admin = User::factory()->admin()->create();
 
         $response = $this->actingAs($admin)->getJson('/api/v1/branches');

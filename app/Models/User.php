@@ -133,58 +133,114 @@ class User extends Authenticatable
         return $query;
     }
 
+    /**
+     * True when the user holds an active, non-expired RBAC role whose slug
+     * is 'system_admin' and that role has the 'system.admin' permission.
+     *
+     * This is the ONLY supported path for unrestricted system-level access.
+     * Legacy role-string checks are intentionally NOT used here.
+     */
+    public function isSystemAdmin(): bool
+    {
+        return $this->hasPermission('system.admin');
+    }
+
+    /**
+     * @deprecated  Use isSystemAdmin() or explicit RBAC permissions instead.
+     *
+     * Retained for backward-compatibility with legacy callers during migration.
+     * Returns true only for the pure legacy case (no RBAC role assigned).
+     * Once a user has an active RBAC role this always returns false so the
+     * new permission system takes control.
+     */
     public function isAdmin(): bool
     {
-        $legacyAdminRoles = [
-            'admin',
-            'administrator',
-            'super-admin',
-            'super_admin',
-            'system_administrator',
-            'hospital_administrator',
-            'branch_administrator',
-            'it_administrator',
-        ];
+        // If the user has any active RBAC role, the legacy string check is bypassed.
+        $hasRbacRole = $this->roles()
+            ->where('is_active', true)
+            ->where(function ($q) {
+                $q->whereNull('user_roles.expires_at')
+                    ->orWhereDate('user_roles.expires_at', '>=', now());
+            })
+            ->exists();
 
-        $roleName = strtolower((string) ($this->role ?? ''));
-
-        if (in_array($roleName, $legacyAdminRoles, true)) {
-            return true;
+        if ($hasRbacRole) {
+            // Let the RBAC layer handle everything — no legacy override.
+            return false;
         }
 
-        return $this->roles()
-            ->where('is_active', true)
-            ->whereIn('slug', $legacyAdminRoles)
-            ->exists();
+        // Pure legacy fallback: user has no RBAC role, check the role string.
+        $legacyAdminRoles = [
+            'admin', 'administrator', 'super-admin', 'super_admin',
+            'system_administrator', 'hospital_administrator',
+            'branch_administrator', 'it_administrator',
+        ];
+
+        return in_array(strtolower((string) ($this->role ?? '')), $legacyAdminRoles, true);
     }
+
     public function isManager(): bool
     {
         return in_array($this->role, ['admin', 'manager']);
     }
+
     public function isLocked(): bool
     {
         return $this->locked_at !== null;
     }
 
-    public function canAccessBranch(string|array $branch): bool
+    /**
+     * True when the user has explicit global branch-access permission,
+     * or is a legacy admin without a specific branch assignment.
+     */
+    public function hasGlobalBranchAccess(): bool
     {
-        $branchesToCheck = is_array($branch) ? $branch : explode(',', $branch);
+        $perms = $this->getAllPermissions();
 
-        // Null branch on user and 0 user_branches = unrestricted admin access
-        if ($this->branch === null && $this->userBranches()->count() === 0) {
+        // Must be explicitly granted 'branch.global_access' (not matched via wildcard)
+        if (in_array('branch.global_access', $perms, true)) {
             return true;
         }
 
-        // If user is restricted but requests "all", deny access
-        // (Unless frontend logic handles "all" by passing specific branches, but if literal "all" reaches here)
+        // For backward-compatible legacy admin with no branch restrictions assigned:
+        if ($this->branch === null && $this->userBranches()->count() === 0 && $this->isAdmin()) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether the given branch(es) are accessible to this user.
+     *
+     * - Users with 'branch.global_access' permission → always true.
+     * - Otherwise the branch must be in the user's assigned set.
+     */
+    public function canAccessBranch(string|array $branch): bool
+    {
+        // Explicit global-access permission required for unrestricted access.
+        if ($this->hasGlobalBranchAccess()) {
+            return true;
+        }
+
+        $branchesToCheck = is_array($branch)
+            ? $branch
+            : array_filter(array_map('trim', explode(',', $branch)));
+
+        // Reject the literal "all" token — it must not bypass per-branch checks.
         if (in_array('all', $branchesToCheck, true)) {
             return false;
         }
 
         $allowedBranches = $this->branch_list;
 
+        // User has no branch assignments at all → deny access (not unrestricted).
+        if ($allowedBranches === []) {
+            return false;
+        }
+
         foreach ($branchesToCheck as $b) {
-            if (!in_array($b, $allowedBranches)) {
+            if (!in_array($b, $allowedBranches, true)) {
                 return false;
             }
         }
@@ -194,17 +250,17 @@ class User extends Authenticatable
 
     /**
      * True when the user is limited to specific branches.
-     * A null primary branch and no user_branches rows means unrestricted.
+     * A user with global branch access is never restricted.
      */
     public function restrictsBranches(): bool
     {
-        return ! ($this->branch === null && $this->userBranches()->count() === 0);
+        return !$this->hasGlobalBranchAccess();
     }
 
     public function getBranchListAttribute(): array
     {
         $branches = $this->userBranches->pluck('branch')->toArray();
-        if ($this->branch && ! in_array($this->branch, $branches)) {
+        if ($this->branch && !in_array($this->branch, $branches)) {
             $branches[] = $this->branch;
         }
         return array_values(array_unique($branches));
@@ -218,7 +274,7 @@ class User extends Authenticatable
     public function getStatusAttribute(): string
     {
         if ($this->locked_at) return 'locked';
-        if (! $this->is_active) return 'inactive';
+        if (!$this->is_active) return 'inactive';
         return 'active';
     }
 }

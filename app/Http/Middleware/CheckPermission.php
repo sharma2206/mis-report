@@ -6,27 +6,26 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Enforces permission-based access control.
+ *
+ * Usage:
+ *   ->middleware('permission:mis_report.view')
+ *   ->middleware('permission:mis_report.export|mis_report.print')   // OR logic
+ *
+ * Pipe-separated slugs are OR — the user needs at least one of them.
+ *
+ * Account-status checks are intentionally omitted here because EnsureUserIsActive
+ * already runs earlier in the middleware stack.
+ */
 class CheckPermission
 {
-    /**
-     * Usage: ->middleware('permission:mis_report.view')
-     *        ->middleware('permission:mis_report.export|mis_report.print')
-     * Pipe-separated slugs are OR. The user needs one of them.
-     */
     public function handle(Request $request, Closure $next, string ...$permissions): Response
     {
         $user = $request->user();
 
-        if (! $user) {
+        if (!$user) {
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
-        }
-
-        if ($user->locked_at !== null || ! $user->is_active) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Your account is disabled or locked.',
-                'code' => 'ACCOUNT_DISABLED',
-            ], 403);
         }
 
         $allowed = [];
@@ -39,11 +38,11 @@ class CheckPermission
             }
         }
 
-        if ($allowed === [] || ! $user->hasAnyPermission(...$allowed)) {
+        if ($allowed === [] || !$user->hasAnyPermission(...$allowed)) {
             return response()->json([
                 'success' => false,
                 'message' => 'You do not have permission to access this resource.',
-                'code' => 'PERMISSION_DENIED',
+                'code'    => 'PERMISSION_DENIED',
             ], 403);
         }
 

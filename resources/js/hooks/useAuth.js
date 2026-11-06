@@ -30,6 +30,17 @@ export const useAuth = () => {
 
             return { success: false, message: data.message || "Login failed." };
         } catch (err) {
+            const responseData = err.response?.data;
+
+            // Surface ACCOUNT_DISABLED with a clear message rather than a generic error.
+            if (responseData?.code === "ACCOUNT_DISABLED") {
+                return {
+                    success: false,
+                    message: responseData.message || "Your account is disabled or locked.",
+                    code: "ACCOUNT_DISABLED",
+                };
+            }
+
             const msg =
                 err.response?.data?.errors?.email?.[0] ||
                 err.response?.data?.message ||
@@ -41,12 +52,16 @@ export const useAuth = () => {
     };
 
     const logout = async () => {
+        // Clear local auth state before the server call so the UI
+        // responds immediately regardless of network conditions.
+        dispatch(clearCredentials());
+
         try {
             await authApi.logout();
         } catch (_) {
-            // ignore server logout errors; frontend should still clear the local auth state
+            // Server logout errors are intentionally ignored.
+            // The local state is already cleared above.
         } finally {
-            dispatch(clearCredentials());
             navigate("/login");
         }
     };

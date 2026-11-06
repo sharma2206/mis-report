@@ -3,15 +3,33 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Resources\UserResource;
+use App\Models\HospitalBranch;
 use App\Services\UserService;
+use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 
 class UserController extends Controller
 {
     public function __construct(private UserService $service) {}
+
+    /**
+     * Returns the active branch keys for the current tenant.
+     * Used for validation rules — prevents hardcoded branch lists.
+     *
+     * @return string[]
+     */
+    private function tenantBranchKeys(): array
+    {
+        return HospitalBranch::withoutGlobalScopes()
+            ->where('tenant_id', TenantContext::id())
+            ->where('is_active', true)
+            ->pluck('key')
+            ->toArray();
+    }
 
     // GET /api/v1/users
     public function index(Request $request): JsonResponse
@@ -25,9 +43,9 @@ class UserController extends Controller
             'status'            => $request->query('status'),
             'sort_by'           => $request->query('sort_by', 'created_at'),
             'sort_dir'          => $request->query('sort_dir', 'desc'),
-        ], fn ($v) => $v !== null && $v !== '');
+        ], fn($v) => $v !== null && $v !== '');
 
-        $perPage = min((int) $request->query('per_page', 20), 100);
+        $perPage   = min((int) $request->query('per_page', 20), 100);
         $paginated = $this->service->list($filters, $perPage);
 
         return response()->json([
@@ -63,12 +81,14 @@ class UserController extends Controller
     // POST /api/v1/users
     public function store(Request $request): JsonResponse
     {
+        $branchKeys = $this->tenantBranchKeys();
+
         $data = $request->validate([
             'name'                    => 'required|string|max:100',
             'email'                   => 'required|email|unique:users,email',
             'password'                => 'required|string|min:8|confirmed',
             'role'                    => 'sometimes|in:viewer,staff,manager,admin',
-            'branch'                  => 'nullable|in:chromepet,oragadam',
+            'branch'                  => ['nullable', 'string', Rule::in($branchKeys)],
             'employee_id'             => 'nullable|string|max:50|unique:users,employee_id',
             'employee_code'           => 'nullable|string|max:50',
             'mobile'                  => 'nullable|string|max:20',
@@ -86,7 +106,7 @@ class UserController extends Controller
             'role_ids'                => 'nullable|array',
             'role_ids.*'              => 'integer|exists:roles,id',
             'branches'                => 'nullable|array',
-            'branches.*'              => 'string|in:chromepet,oragadam',
+            'branches.*'              => ['string', Rule::in($branchKeys)],
             'departments'             => 'nullable|array',
             'departments.*'           => 'string|max:100',
         ]);
@@ -99,12 +119,14 @@ class UserController extends Controller
     // PUT /api/v1/users/{id}
     public function update(Request $request, int $id): JsonResponse
     {
+        $branchKeys = $this->tenantBranchKeys();
+
         $data = $request->validate([
             'name'                    => 'sometimes|string|max:100',
             'email'                   => "sometimes|email|unique:users,email,{$id}",
             'password'                => 'sometimes|nullable|string|min:8|confirmed',
             'role'                    => 'sometimes|in:viewer,staff,manager,admin',
-            'branch'                  => 'nullable|in:chromepet,oragadam',
+            'branch'                  => ['nullable', 'string', Rule::in($branchKeys)],
             'employee_id'             => "nullable|string|max:50|unique:users,employee_id,{$id}",
             'employee_code'           => 'nullable|string|max:50',
             'mobile'                  => 'nullable|string|max:20',
@@ -125,7 +147,7 @@ class UserController extends Controller
             'role_ids'                => 'nullable|array',
             'role_ids.*'              => 'integer|exists:roles,id',
             'branches'                => 'nullable|array',
-            'branches.*'              => 'string|in:chromepet,oragadam',
+            'branches.*'              => ['string', Rule::in($branchKeys)],
             'departments'             => 'nullable|array',
             'departments.*'           => 'string|max:100',
         ]);
@@ -178,7 +200,7 @@ class UserController extends Controller
     public function resetPassword(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
-            'password'  => 'required|string|min:8|confirmed',
+            'password'     => 'required|string|min:8|confirmed',
             'force_change' => 'boolean',
         ]);
 
@@ -214,9 +236,11 @@ class UserController extends Controller
     // PUT /api/v1/users/{id}/branches
     public function syncBranches(Request $request, int $id): JsonResponse
     {
+        $branchKeys = $this->tenantBranchKeys();
+
         $data = $request->validate([
             'branches'   => 'required|array',
-            'branches.*' => 'string|in:chromepet,oragadam',
+            'branches.*' => ['string', Rule::in($branchKeys)],
         ]);
         $this->service->update($id, ['branches' => $data['branches']], $request->user()->id, $request);
         return response()->json(['success' => true, 'message' => 'Branches updated.']);
@@ -237,15 +261,15 @@ class UserController extends Controller
     public function bulk(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'action'       => 'required|in:activate,deactivate,lock,unlock,assign_role,assign_branch,assign_department,delete',
-            'user_ids'     => 'required|array|min:1',
-            'user_ids.*'   => 'integer|exists:users,id',
-            'role_ids'     => 'nullable|array',
-            'role_ids.*'   => 'integer|exists:roles,id',
-            'branches'     => 'nullable|array',
-            'branches.*'   => 'string',
-            'departments'  => 'nullable|array',
-            'departments.*'=> 'string',
+            'action'        => 'required|in:activate,deactivate,lock,unlock,assign_role,assign_branch,assign_department,delete',
+            'user_ids'      => 'required|array|min:1',
+            'user_ids.*'    => 'integer|exists:users,id',
+            'role_ids'      => 'nullable|array',
+            'role_ids.*'    => 'integer|exists:roles,id',
+            'branches'      => 'nullable|array',
+            'branches.*'    => 'string',
+            'departments'   => 'nullable|array',
+            'departments.*' => 'string',
         ]);
 
         $result = $this->service->bulkAction(
@@ -262,8 +286,8 @@ class UserController extends Controller
     // GET /api/v1/users/export
     public function export(Request $request): \Symfony\Component\HttpFoundation\Response
     {
-        $filters = $request->only(['search', 'branch', 'role', 'department', 'status']);
-        $csv = $this->service->export($filters);
+        $filters  = $request->only(['search', 'branch', 'role', 'department', 'status']);
+        $csv      = $this->service->export($filters);
         $filename = 'users_' . now()->format('Ymd_His') . '.csv';
 
         return response($csv, 200, [

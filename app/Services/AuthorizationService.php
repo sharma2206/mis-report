@@ -27,12 +27,31 @@ class AuthorizationService
             return false;
         }
 
+        $adminAliases = [
+            'admin',
+            'administrator',
+            'super-admin',
+            'super_admin',
+            'system_administrator',
+            'hospital_administrator',
+            'branch_administrator',
+            'it_administrator',
+        ];
+
+        if ($user->isAdmin() && in_array($needle, $adminAliases, true)) {
+            return true;
+        }
+
         return $this->getEffectiveRoles($user)
             ->contains(fn($r) => strtolower((string) $r->slug) === $needle || strtolower((string) $r->name) === $needle);
     }
 
     public function hasPermission(User $user, string $permission): bool
     {
+        if ($user->isAdmin()) {
+            return true;
+        }
+
         return $user->hasPermission($permission);
     }
 

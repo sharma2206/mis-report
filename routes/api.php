@@ -41,16 +41,13 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
     // ─── Auth (public) ───────────────────────────────────────────────────────
     Route::prefix('auth')->middleware('throttle:10,1')->group(function () {
         Route::post('login', [AuthController::class, 'login']);
-
-        Route::middleware(['auth:sanctum', 'user.active', 'tenant'])->group(function () {
-            Route::post('logout',   [AuthController::class, 'logout']);
-            Route::get('me',        [AuthController::class, 'me']);
-            Route::post('register', [AuthController::class, 'register']);
-        });
+        Route::post('logout',   [AuthController::class, 'logout']);
+        Route::get('me',        [AuthController::class, 'me']);
+        Route::post('register', [AuthController::class, 'register']);
     });
 
     // ─── Protected: no branch scope (import logs, dashboard, analytics) ──────
-    Route::middleware(['auth:sanctum', 'user.active', 'tenant', 'throttle:120,1'])->group(function () use ($date) {
+    Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () use ($date) {
 
         // Branch list for the current tenant, filtered by the user's branch access.
         // Bed counts come from the branches table (seeded from the original enum).
@@ -70,6 +67,7 @@ Route::prefix('v1')->group(function () use ($branch, $date) {
             $data = $userBranch
                 ? array_values(array_filter($all, fn($b) => $b['key'] === $userBranch))
                 : $all;
+            dd($data);
             return response()->json(['success' => true, 'data' => $data]);
         });
 

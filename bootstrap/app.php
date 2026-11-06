@@ -24,20 +24,20 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->statefulApi();
 
-        // $middleware->alias([
-        //     'tenant'            => SetTenantContext::class,
-        //     'branch.access'     => CheckBranchAccess::class,
-        //     'ensure.branch'     => CheckBranchAccess::class,
-        //     'user.active'       => EnsureUserIsActive::class,
-        //     'active.user'       => EnsureUserIsActive::class,
-        //     'department.access' => EnsureDepartmentAccess::class,
-        //     'ensure.department' => EnsureDepartmentAccess::class,
-        //     'resolve.user'      => ResolveUserContext::class,
-        //     'permission'        => CheckPermission::class,
-        //     'role'              => CheckRole::class,
-        //     'check.permission'  => CheckPermission::class,
-        //     'check.role'        => CheckRole::class,
-        // ]);
+        $middleware->alias([
+            'tenant'            => SetTenantContext::class,
+            'branch.access'     => CheckBranchAccess::class,
+            'ensure.branch'     => CheckBranchAccess::class,
+            'user.active'       => EnsureUserIsActive::class,
+            'active.user'       => EnsureUserIsActive::class,
+            'department.access' => EnsureDepartmentAccess::class,
+            'ensure.department' => EnsureDepartmentAccess::class,
+            'resolve.user'      => ResolveUserContext::class,
+            'permission'        => CheckPermission::class,
+            'role'              => CheckRole::class,
+            'check.permission'  => CheckPermission::class,
+            'check.role'        => CheckRole::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

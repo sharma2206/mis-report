@@ -15,44 +15,56 @@ trait HasRoles
             ->withPivot('assigned_by', 'assigned_at', 'expires_at');
     }
 
+    protected function activeRolePermissions(): array
+    {
+        $roles = $this->roles()
+            ->where('is_active', true)
+            ->where(function ($q) {
+                $q->whereNull('user_roles.expires_at')
+                    ->orWhereDate('user_roles.expires_at', '>=', now());
+            })
+            ->with('permissions:id,slug')
+            ->get();
+
+        if ($roles->isEmpty()) {
+            return [];
+        }
+
+        return $roles
+            ->flatMap(fn($role) => $role->permissions->pluck('slug'))
+            ->filter(fn($slug) => is_string($slug) && $slug !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function legacyRolePermissions(): array
+    {
+        $legacyRole = strtolower(trim((string) ($this->role ?? '')));
+
+        if ($legacyRole === '') {
+            return [];
+        }
+
+        if (in_array($legacyRole, ['admin', 'administrator', 'super-admin', 'super_admin', 'system_administrator', 'hospital_administrator', 'branch_administrator', 'it_administrator'], true)) {
+            return ['*'];
+        }
+
+        return LegacyRolePermissions::for($legacyRole);
+    }
+
     public function getAllPermissions(): array
     {
         $userId = (int) ($this->getKey() ?? 0);
 
         return Cache::remember("user_permissions_{$userId}", 300, function () {
-            // The authoritative source of permissions is the RBAC role assignment.
-            // Legacy role strings are treated only as a compatibility signal for admin-level access;
-            // they are no longer used to grant regular application permissions.
-            if ($this->isAdmin()) {
-                return ['*'];
+            $rolePermissions = $this->activeRolePermissions();
+
+            if ($rolePermissions !== []) {
+                return $rolePermissions;
             }
 
-            $roles = $this->roles()
-                ->where('is_active', true)
-                ->where(function ($q) {
-                    $q->whereNull('user_roles.expires_at')
-                        ->orWhereDate('user_roles.expires_at', '>=', now());
-                })
-                ->with('permissions:id,slug')
-                ->get();
-
-            if ($roles->isNotEmpty()) {
-                return $roles
-                    ->flatMap(fn($r) => $r->permissions->pluck('slug'))
-                    ->filter(fn($slug) => is_string($slug) && $slug !== '')
-                    ->unique()
-                    ->values()
-                    ->all();
-            }
-
-            $legacyRole = (string) ($this->role ?? '');
-            $legacy = LegacyRolePermissions::for($legacyRole);
-
-            if (! empty($legacy)) {
-                return $legacy;
-            }
-
-            return [];
+            return $this->legacyRolePermissions();
         });
     }
 

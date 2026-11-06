@@ -13,8 +13,19 @@ const client = axios.create({
 
 let logoutInProgress = false;
 
-const handleUnauthorized = () => {
-    if (logoutInProgress) return;
+const isAuthBootstrapRequest = (url = "") => {
+    const normalized = String(url).replace(/^\/+/, "");
+
+    return ["sanctum/csrf-cookie", "auth/login", "auth/logout", "auth/me"].some(
+        (segment) =>
+            normalized === segment || normalized.endsWith(`/${segment}`),
+    );
+};
+
+const handleUnauthorized = (config = {}) => {
+    if (logoutInProgress || isAuthBootstrapRequest(config.url)) {
+        return;
+    }
 
     logoutInProgress = true;
 
@@ -32,7 +43,7 @@ client.interceptors.response.use(
         const status = err?.response?.status;
 
         if (status === 401) {
-            handleUnauthorized();
+            handleUnauthorized(err?.config);
             return Promise.reject(err);
         }
 

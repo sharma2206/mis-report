@@ -227,8 +227,16 @@ class AnalyticsService
 
         return [
             'total' => (clone $base)->count(),
-            'by_dept' => (clone $base)->select('department', DB::raw('COUNT(*) as count'))
-                ->whereNotNull('department')->groupBy('department')->orderByDesc('count')->get(),
+            'by_dept' => (clone $base)->select(
+                'treating_department as department',
+                'treating_department as dept',
+                DB::raw('COUNT(*) as count')
+            )
+                ->whereNotNull('treating_department')
+                ->where('treating_department', '!=', '')
+                ->groupBy('treating_department')
+                ->orderByDesc('count')
+                ->get(),
             'by_gender' => (clone $base)->select('gender', DB::raw('COUNT(*) as count'))
                 ->groupBy('gender')->get(),
         ];
@@ -243,8 +251,15 @@ class AnalyticsService
 
         return [
             'total' => (clone $base)->count(),
-            'by_age_group' => (clone $base)->select(DB::raw('CASE ... END as label'), DB::raw('COUNT(*) as count'))
-                ->groupBy('label')->get(),
+            'by_age_group' => (clone $base)->select(
+                DB::raw("CASE 
+                    WHEN age <= 18 THEN '0-18' 
+                    WHEN age BETWEEN 19 AND 40 THEN '19-40' 
+                    WHEN age BETWEEN 41 AND 60 THEN '41-60' 
+                    ELSE '61+' 
+                END as label"),
+                DB::raw('COUNT(*) as count')
+            )->groupBy('label')->get(),
         ];
     }
 
